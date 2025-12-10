@@ -86,15 +86,15 @@ const HomePage = () => {
               )}
             </div>
             <nav className="hidden md:flex space-x-8">
-              <a href="/driverRegistration" className="text-gray-700 hover:text-green-600 transition-colors font-medium">Drivers</a>
+              <a href="/driver/register" className="text-gray-700 hover:text-green-600 transition-colors font-medium">Drivers</a>
               <a href="/contact" className="text-gray-700 hover:text-green-600 transition-colors font-medium">Contact</a>
               <a href="/about" className="text-gray-700 hover:text-green-600 transition-colors font-medium">About</a>
             </nav>
             <div className="hidden md:flex space-x-4 items-center">
-              <a href="/login">
+              <a href="/user/login">
                 <button className="text-green-600 hover:text-green-700 font-semibold transition-colors">Login</button>
               </a>
-              <a href="/register">
+              <a href="/user/register">
                 <button className="bg-green-600 text-white px-6 py-2.5 rounded-full hover:bg-green-700 transition-all transform hover:scale-105 font-semibold shadow-md">
                   Sign Up
                 </button>
@@ -205,7 +205,7 @@ const HomePage = () => {
                   opacity: Math.max(0, 1 - scrollY * 0.001),
                 }}
               >
-                <a href="/register">
+                <a href="/user/register">
                   <button className="bg-green-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:bg-green-700 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl">
                     Book Now <ArrowRight className="inline ml-2 h-5 w-5" />
                   </button>
@@ -255,9 +255,9 @@ const HomePage = () => {
             
             {/* PhotoStack with 3D rotation effect */}
             <div 
-              className="flex justify-center lg:justify-end"
+              className="flex justify-center lg:justify-end transition-transform duration-100"
               style={{
-                transform: `translateY(${scrollY * -0.15}px) rotateY(${scrollY * 0.05}deg)`,
+                transform: `translateX(${scrollY * 0.2}px) translateY(${scrollY * -0.15}px) rotateY(${scrollY * 0.05}deg)`,
                 transformStyle: 'preserve-3d',
                 perspective: '1000px',
               }}
@@ -460,7 +460,7 @@ const HomePage = () => {
           <h2 className="text-4xl lg:text-5xl font-bold text-white mb-6 tracking-tight">Ready to Start Your Journey?</h2>
           <p className="text-xl text-green-50 mb-10 max-w-2xl mx-auto">Book your perfect vehicle today and explore Kerala in comfort</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/register">
+            <a href="/user/register">
               <button className="bg-white text-green-600 px-10 py-4 rounded-full text-lg font-bold hover:bg-gray-50 transition-all transform hover:scale-105 shadow-xl">
                 Book Vehicle Now
               </button>
@@ -562,7 +562,7 @@ const HomePage = () => {
             {/* Menu links */}
             <div className="flex flex-col gap-2 px-6 py-8 flex-1">
               <a
-                href="/driverRegistration"
+                href="/driver/register"
                 className="flex items-center gap-3 text-lg font-semibold text-gray-800 rounded-xl px-4 py-3.5 hover:bg-green-50 hover:text-green-600 transition-all"
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -584,13 +584,13 @@ const HomePage = () => {
               </a>
               <div className="border-t border-gray-200 my-4"></div>
               <a
-                href="/login"
+                href="/user/login"
                 className="flex items-center gap-3 text-lg font-semibold text-green-600 rounded-xl px-4 py-3.5 hover:bg-green-100 hover:text-green-700 transition-all"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <ArrowRight className="h-5 w-5 text-green-500" /> Login
               </a>
-              <a href="/register" onClick={() => setIsMenuOpen(false)}>
+              <a href="/user/register" onClick={() => setIsMenuOpen(false)}>
                 <button
                   className="w-full mt-4 bg-gradient-to-r from-green-600 to-green-500 text-white text-lg font-bold px-6 py-4 rounded-full shadow-lg hover:shadow-xl hover:from-green-700 hover:to-green-600 transition-all transform hover:scale-105"
                 >
