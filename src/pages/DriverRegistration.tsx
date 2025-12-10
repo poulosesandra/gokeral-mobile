@@ -4,7 +4,6 @@ const DriverRegistration = () => {
   return (
     <RegistrationForm
       userType="driver"
-      apiEndpoint="/api/auth/driver/register"
       navigateTo="/driver/dashboard"
       loginLink="/driver/login"
       title="Driver Registration"
