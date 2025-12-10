@@ -141,7 +141,7 @@ const RegistrationForm = ({
           phone: parseInt(formData.phone || "0"), // Convert to number
           password: formData.password,
           drivinglicenseNo: formData.licenseNumber || "",
-          agreement: formData.agreeToTerms || false,
+          agreement: formData.agreement || false,
         };
       } else {
         registerData = {
