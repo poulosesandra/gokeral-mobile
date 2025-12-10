@@ -4,7 +4,6 @@ const UserLogin = () => {
   return (
     <LoginForm
       userType="user"
-      apiEndpoint="/users/login"
       navigateTo="/user/dashboard"
       registerLink="/user/register"
       title="User Login"
