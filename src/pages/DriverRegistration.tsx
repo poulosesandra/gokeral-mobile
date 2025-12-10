@@ -4,7 +4,6 @@ const DriverRegistration = () => {
   return (
     <RegistrationForm
       userType="driver"
-      navigateTo="/driver/dashboard"
       loginLink="/driver/login"
       title="Driver Registration"
       subtitle="Join our team of professional drivers"

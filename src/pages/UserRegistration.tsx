@@ -4,7 +4,6 @@ const UserRegister = () => {
   return (
     <RegistrationForm
       userType="user"
-      navigateTo="/user/login"
       loginLink="/user/login"
       title="Create Account"
       subtitle="Sign up to get started"
