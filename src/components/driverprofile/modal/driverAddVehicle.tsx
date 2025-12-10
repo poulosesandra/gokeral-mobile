@@ -150,9 +150,9 @@ const AddVehiclePage: React.FC = () => {
         {/* Vehicle Images */}
         <div className="bg-gray-50 p-6 rounded-xl mb-6 border border-gray-200">
           <h2 className="text-xl font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <FileImage className="text-purple-500" size={24} /> Vehicle Images
+            <FileImage className="text-blue-500" size={24} /> Vehicle Images
           </h2>
-          <label className="w-full bg-purple-500 text-white font-semibold p-4 rounded-lg text-center cursor-pointer hover:bg-purple-600 block">
+          <label className="w-full bg-blue-500 text-white font-semibold p-4 rounded-lg text-center cursor-pointer hover:bg-blue-600 block">
             {vehicleImage ? vehicleImage.name : "Upload Vehicle Image"}
             <input
               type="file"
