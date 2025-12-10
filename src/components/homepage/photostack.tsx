@@ -26,7 +26,7 @@ const PhotoStack: React.FC<PhotoStackProps> = ({
   const currentIndexRef = useRef(0);
   const [isCycling, setIsCycling] = useState(false);
   const initializedRef = useRef(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!images || images.length === 0) return;
@@ -58,7 +58,7 @@ const PhotoStack: React.FC<PhotoStackProps> = ({
     setIsCycling(true);
 
     setCards(prevCards => {
-      const newCards = [...prevCards];
+      const newCards = [...prevCards]
       if (newCards[0]) {
         newCards[0] = { ...newCards[0], isExiting: true };
       }
