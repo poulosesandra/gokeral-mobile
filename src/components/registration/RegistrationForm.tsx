@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Car, Mail, Lock, Eye, EyeOff, ArrowLeft, User, Phone, FileText } from "lucide-react";
+import authService from "../../services/authService";
 
 interface RegistrationFormProps {
   userType: "user" | "driver";
