@@ -268,7 +268,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Vehicle Types with Stagger Animation */}
+      {/* Vehicle Types with Smooth Parallax */}
       <section id="vehicles" ref={vehiclesRef} className="py-20 lg:py-28 bg-white relative overflow-hidden">
         {/* Decorative Elements */}
         <div
@@ -285,7 +285,13 @@ const HomePage = () => {
         ></div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16 lg:mb-20">
+          <div
+            className="text-center mb-16 lg:mb-20"
+            style={{
+              transform: `translateY(${Math.max(0, (scrollY - 200) * 0.1)}px)`,
+              opacity: Math.min(1, Math.max(0, 1 - (scrollY - 200) * 0.001)),
+            }}
+          >
             <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 tracking-tight">Choose Your Vehicle</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">We have the perfect vehicle for every journey in Kerala</p>
           </div>
@@ -296,8 +302,8 @@ const HomePage = () => {
                 key={index}
                 className="bg-white rounded-2xl p-8 text-center shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-2 border border-gray-100 group"
                 style={{
-                  transform: `translateY(${Math.max(0, (scrollY - 400) * 0.05 * (index + 1))}px)`,
-                  opacity: Math.min(1, (scrollY - 200) / 300),
+                  transform: `translateY(${Math.max(0, (scrollY - 300) * 0.08)}px)`,
+                  opacity: Math.min(1, Math.max(0, (scrollY - 200) / 400)),
                 }}
               >
                 <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-50 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:from-green-600 group-hover:to-green-500 transition-all duration-300">

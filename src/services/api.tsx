@@ -14,7 +14,7 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
     if (token) {
-      config.headers['X-Token'] = token;
+      config.headers['Authorization'] = `Bearer ${token}`; // Changed from 'X-Token'
     }
     return config;
   },
