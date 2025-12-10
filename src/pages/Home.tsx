@@ -12,16 +12,16 @@ const HomePage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [scrollY, setScrollY] = useState(0);
-  
+
   const heroRef = useRef<HTMLDivElement>(null);
   const vehiclesRef = useRef<HTMLDivElement>(null);
   const featuresRef = useRef<HTMLDivElement>(null);
 
   const vehicles = [
-    { name: "Luxury Cars", icon: Car, count: "50+" },
+    { name: "Luxury Cars", icon: Car, count: "100+" },
     { name: "Buses", icon: Truck, count: "30+" },
     { name: "Auto Rickshaw", icon: Car, count: "100+" },
-    { name: "Ambulance", icon: Ambulance, count: "200+" }
+    { name: "Ambulance", icon: Ambulance, count: "20+" }
   ];
 
   const features = [
@@ -72,7 +72,7 @@ const HomePage = () => {
   }, []);
 
   return (
-    <div className="overflow-x-hidden"> 
+    <div className="overflow-x-hidden">
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-md shadow-sm fixed w-full top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -100,7 +100,7 @@ const HomePage = () => {
                 </button>
               </a>
             </div>
-            <button 
+            <button
               className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
@@ -117,7 +117,7 @@ const HomePage = () => {
       {/* Hero Section with Enhanced Parallax */}
       <section id="home" ref={heroRef} className="relative pt-24 pb-20 bg-gradient-to-br from-green-50 via-blue-50 to-white overflow-hidden">
         {/* Multi-Layer Parallax Background */}
-        <div 
+        <div
           className="absolute inset-0 opacity-10"
           style={{
             transform: `translateY(${scrollY * 0.5}px)`,
@@ -126,15 +126,15 @@ const HomePage = () => {
           <div className="absolute top-20 left-10 w-72 h-72 bg-green-300 rounded-full blur-3xl"></div>
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-300 rounded-full blur-3xl"></div>
         </div>
-        
+
         {/* Additional Floating Elements */}
-        <div 
+        <div
           className="absolute top-1/4 right-1/4 w-40 h-40 bg-purple-200 rounded-full blur-2xl opacity-20"
           style={{
             transform: `translate(${scrollY * -0.15}px, ${scrollY * 0.2}px) rotate(${scrollY * 0.1}deg)`,
           }}
         ></div>
-        <div 
+        <div
           className="absolute bottom-1/3 left-1/3 w-60 h-60 bg-yellow-200 rounded-full blur-3xl opacity-15"
           style={{
             transform: `translate(${scrollY * 0.1}px, ${scrollY * -0.15}px) scale(${1 + scrollY * 0.0002})`,
@@ -157,7 +157,7 @@ const HomePage = () => {
               </div>
 
               {/* Main heading with layered parallax */}
-              <div 
+              <div
                 className="space-y-6"
                 style={{
                   transform: `translateY(${scrollY * 0.12}px)`,
@@ -165,7 +165,7 @@ const HomePage = () => {
                 }}
               >
                 <h1 className="text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-[1.1] tracking-tight">
-                  <span 
+                  <span
                     className="block"
                     style={{
                       transform: `translateX(${scrollY * -0.05}px)`,
@@ -173,7 +173,7 @@ const HomePage = () => {
                   >
                     Discover Kerala
                   </span>
-                  <span 
+                  <span
                     className="text-green-600 block mt-2"
                     style={{
                       transform: `translateX(${scrollY * 0.08}px)`,
@@ -192,22 +192,22 @@ const HomePage = () => {
                 }}
               >
                 <p className="text-xl text-gray-600 leading-relaxed max-w-xl">
-                  Book any vehicle across Kerala - from luxury cars to auto rickshaws. 
+                  Book any vehicle across Kerala - from luxury cars to auto rickshaws.
                   Explore God's Own Country with verified drivers and transparent pricing.
                 </p>
               </div>
-              
+
               {/* Buttons with stagger effect */}
-              <div 
+              <div
                 className="flex flex-col sm:flex-row gap-4"
                 style={{
                   transform: `translateY(${scrollY * 0.08}px)`,
                   opacity: Math.max(0, 1 - scrollY * 0.001),
                 }}
               >
-                <a href="/user/register">
+                <a href="/driver/register">
                   <button className="bg-green-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:bg-green-700 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl">
-                    Book Now <ArrowRight className="inline ml-2 h-5 w-5" />
+                    Join as a Driver <ArrowRight className="inline ml-2 h-5 w-5" />
                   </button>
                 </a>
                 <button className="border-2 border-green-600 text-green-600 px-8 py-4 rounded-full text-lg font-semibold hover:bg-green-50 transition-all transform hover:scale-105">
@@ -216,14 +216,14 @@ const HomePage = () => {
               </div>
 
               {/* Stats with individual parallax */}
-              <div 
+              <div
                 className="grid grid-cols-3 gap-8 pt-8 border-t border-gray-200"
                 style={{
                   transform: `translateY(${scrollY * 0.06}px)`,
                   opacity: Math.max(0, 1 - scrollY * 0.0008),
                 }}
               >
-                <div 
+                <div
                   className="text-center"
                   style={{
                     transform: `translateY(${Math.sin(scrollY * 0.01) * 5}px)`,
@@ -232,7 +232,7 @@ const HomePage = () => {
                   <div className="text-4xl font-bold text-gray-900 mb-1">500+</div>
                   <div className="text-sm text-gray-600 font-medium">Vehicles</div>
                 </div>
-                <div 
+                <div
                   className="text-center"
                   style={{
                     transform: `translateY(${Math.sin(scrollY * 0.01 + 2) * 5}px)`,
@@ -241,7 +241,7 @@ const HomePage = () => {
                   <div className="text-4xl font-bold text-gray-900 mb-1">10K+</div>
                   <div className="text-sm text-gray-600 font-medium">Happy Customers</div>
                 </div>
-                <div 
+                <div
                   className="text-center"
                   style={{
                     transform: `translateY(${Math.sin(scrollY * 0.01 + 4) * 5}px)`,
@@ -252,9 +252,9 @@ const HomePage = () => {
                 </div>
               </div>
             </div>
-            
+
             {/* PhotoStack with 3D rotation effect */}
-            <div 
+            <div
               className="flex justify-center lg:justify-end transition-transform duration-100"
               style={{
                 transform: `translateX(${scrollY * 0.2}px) translateY(${scrollY * -0.15}px) rotateY(${scrollY * 0.05}deg)`,
@@ -271,13 +271,13 @@ const HomePage = () => {
       {/* Vehicle Types with Stagger Animation */}
       <section id="vehicles" ref={vehiclesRef} className="py-20 lg:py-28 bg-white relative overflow-hidden">
         {/* Decorative Elements */}
-        <div 
+        <div
           className="absolute top-0 left-0 w-64 h-64 bg-green-100 rounded-full blur-3xl opacity-20"
           style={{
             transform: `translate(${scrollY * 0.05}px, ${scrollY * 0.05}px)`,
           }}
         ></div>
-        <div 
+        <div
           className="absolute bottom-0 right-0 w-80 h-80 bg-blue-100 rounded-full blur-3xl opacity-20"
           style={{
             transform: `translate(${-scrollY * 0.05}px, ${-scrollY * 0.05}px)`,
@@ -289,11 +289,11 @@ const HomePage = () => {
             <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 tracking-tight">Choose Your Vehicle</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">We have the perfect vehicle for every journey in Kerala</p>
           </div>
-          
+
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
             {vehicles.map((vehicle, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="bg-white rounded-2xl p-8 text-center shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-2 border border-gray-100 group"
                 style={{
                   transform: `translateY(${Math.max(0, (scrollY - 400) * 0.05 * (index + 1))}px)`,
@@ -314,13 +314,13 @@ const HomePage = () => {
       {/* Features with Layered Parallax */}
       <section ref={featuresRef} className="py-20 lg:py-28 bg-gradient-to-b from-white via-green-100 to-green-200 relative overflow-hidden">
         {/* Floating Shapes */}
-        <div 
+        <div
           className="absolute top-20 left-10 w-40 h-40 bg-white/30 rounded-full blur-2xl"
           style={{
             transform: `translate(${scrollY * 0.08}px, ${scrollY * 0.08}px) scale(${1 + scrollY * 0.0001})`,
           }}
         ></div>
-        <div 
+        <div
           className="absolute bottom-20 right-10 w-60 h-60 bg-white/30 rounded-full blur-2xl"
           style={{
             transform: `translate(${-scrollY * 0.06}px, ${-scrollY * 0.06}px) scale(${1 + scrollY * 0.0001})`,
@@ -332,11 +332,11 @@ const HomePage = () => {
             <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 tracking-tight">Why Choose Kerides?</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">Experience the best vehicle booking service in Kerala</p>
           </div>
-          
+
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
             {features.map((feature, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="text-center group"
                 style={{
                   transform: `translateY(${Math.max(0, (scrollY - 1000) * 0.03 * (index + 1))}px)`,
@@ -357,7 +357,7 @@ const HomePage = () => {
       {/* Popular Destinations */}
       <section id="destinations" className="py-20 lg:py-28 bg-gradient-to-b from-green-200 via-green-100 to-white relative overflow-hidden">
         {/* Parallax Background */}
-        <div 
+        <div
           className="absolute inset-0 opacity-5"
           style={{
             transform: `translateY(${scrollY * 0.3}px)`,
@@ -372,11 +372,11 @@ const HomePage = () => {
             <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 tracking-tight">Popular Destinations</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">Explore the most beautiful places in Kerala</p>
           </div>
-          
+
           <div className="flex overflow-x-auto gap-6 pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 lg:mx-0 lg:px-0">
             {destinations.map((destination, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="flex-shrink-0 w-80 snap-center"
                 style={{
                   transform: `translateY(${Math.sin((scrollY + index * 100) * 0.005) * 10}px)`,
@@ -384,8 +384,8 @@ const HomePage = () => {
               >
                 <div className="group cursor-pointer">
                   <div className="relative overflow-hidden rounded-3xl h-96 shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                    <img 
-                      src={destination.image} 
+                    <img
+                      src={destination.image}
                       alt={destination.name}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                     />
@@ -408,7 +408,7 @@ const HomePage = () => {
             <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 tracking-tight">What Our Customers Say</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">Read reviews from satisfied customers across Kerala</p>
           </div>
-          
+
           <div className="max-w-4xl mx-auto">
             <div className="bg-white rounded-3xl p-10 lg:p-12 shadow-xl border border-gray-100">
               <div className="text-center">
@@ -424,14 +424,13 @@ const HomePage = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex justify-center mt-10 space-x-3">
               {testimonials.map((_, index) => (
                 <button
                   key={index}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                    index === currentSlide ? 'bg-green-600 w-8' : 'bg-gray-300 hover:bg-gray-400'
-                  }`}
+                  className={`w-3 h-3 rounded-full transition-all duration-300 ${index === currentSlide ? 'bg-green-600 w-8' : 'bg-gray-300 hover:bg-gray-400'
+                    }`}
                   onClick={() => setCurrentSlide(index)}
                 />
               ))}
@@ -443,13 +442,13 @@ const HomePage = () => {
       {/* CTA Section */}
       <section className="py-20 lg:py-24 bg-gradient-to-br from-green-600 to-green-700 relative overflow-hidden">
         {/* Animated Background Circles */}
-        <div 
+        <div
           className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"
           style={{
             transform: `translate(${scrollY * 0.02}px, ${scrollY * 0.02}px)`,
           }}
         ></div>
-        <div 
+        <div
           className="absolute bottom-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl"
           style={{
             transform: `translate(${-scrollY * 0.02}px, ${-scrollY * 0.02}px)`,
@@ -477,7 +476,7 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12">
             <div>
-              <div className="flex items-center space-x-2 mb-6">  
+              <div className="flex items-center space-x-2 mb-6">
                 <Car className="h-8 w-8 text-green-400" />
                 <span className="text-2xl font-bold tracking-tight">Kerides</span>
               </div>
@@ -488,7 +487,7 @@ const HomePage = () => {
                 <Twitter className="h-6 w-6 text-gray-400 hover:text-white cursor-pointer transition-colors" />
               </div>
             </div>
-            
+
             <div>
               <h3 className="text-lg font-bold mb-6">Quick Links</h3>
               <ul className="space-y-3">
@@ -498,7 +497,7 @@ const HomePage = () => {
                 <li><a href="#" className="text-gray-400 hover:text-white transition-colors">FAQ</a></li>
               </ul>
             </div>
-            
+
             <div>
               <h3 className="text-lg font-bold mb-6">Services</h3>
               <ul className="space-y-3">
@@ -508,7 +507,7 @@ const HomePage = () => {
                 <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Bike Rental</a></li>
               </ul>
             </div>
-            
+
             <div>
               <h3 className="text-lg font-bold mb-6">Contact Info</h3>
               <div className="space-y-4">
@@ -527,7 +526,7 @@ const HomePage = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="border-t border-gray-800 mt-12 pt-8 text-center">
             <p className="text-gray-400">&copy; 2025 Kerides. All rights reserved.</p>
           </div>

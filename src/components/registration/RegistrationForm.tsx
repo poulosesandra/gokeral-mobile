@@ -174,8 +174,8 @@ const RegistrationForm = ({
     } catch (err: any) {
       console.error("Registration error:", err);
       setError(
-        err.response?.data?.message || 
-        err.message || 
+        err.response?.data?.message ||
+        err.message ||
         "Registration failed. Please try again."
       );
     } finally {
@@ -185,9 +185,9 @@ const RegistrationForm = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    setFormData({ 
-      ...formData, 
-      [name]: type === "checkbox" ? checked : value 
+    setFormData({
+      ...formData,
+      [name]: type === "checkbox" ? checked : value
     });
     // Clear error when user starts typing
     setErrors({ ...errors, [name]: "" });
@@ -234,9 +234,8 @@ const RegistrationForm = ({
                   type="text"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className={`block w-full pl-12 pr-4 py-3 border ${
-                    errors.name ? "border-red-300" : "border-gray-300"
-                  } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
+                  className={`block w-full pl-12 pr-4 py-3 border ${errors.name ? "border-red-300" : "border-gray-300"
+                    } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
                   placeholder="John Doe"
                 />
               </div>
@@ -260,9 +259,8 @@ const RegistrationForm = ({
                   type="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className={`block w-full pl-12 pr-4 py-3 border ${
-                    errors.email ? "border-red-300" : "border-gray-300"
-                  } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
+                  className={`block w-full pl-12 pr-4 py-3 border ${errors.email ? "border-red-300" : "border-gray-300"
+                    } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
                   placeholder="your@email.com"
                 />
               </div>
@@ -286,9 +284,8 @@ const RegistrationForm = ({
                   type="tel"
                   value={formData.phone}
                   onChange={handleInputChange}
-                  className={`block w-full pl-12 pr-4 py-3 border ${
-                    errors.phone ? "border-red-300" : "border-gray-300"
-                  } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
+                  className={`block w-full pl-12 pr-4 py-3 border ${errors.phone ? "border-red-300" : "border-gray-300"
+                    } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
                   placeholder="9876543210"
                 />
               </div>
@@ -313,9 +310,8 @@ const RegistrationForm = ({
                     type="text"
                     value={formData.drivinglicenseNo || ""}
                     onChange={handleInputChange}
-                    className={`block w-full pl-12 pr-4 py-3 border ${
-                      errors.drivinglicenseNo ? "border-red-300" : "border-gray-300"
-                    } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
+                    className={`block w-full pl-12 pr-4 py-3 border ${errors.drivinglicenseNo ? "border-red-300" : "border-gray-300"
+                      } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
                     placeholder="KL-1234567890123"
                   />
                 </div>
@@ -340,9 +336,8 @@ const RegistrationForm = ({
                   type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`block w-full pl-12 pr-12 py-3 border ${
-                    errors.password ? "border-red-300" : "border-gray-300"
-                  } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
+                  className={`block w-full pl-12 pr-12 py-3 border ${errors.password ? "border-red-300" : "border-gray-300"
+                    } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
                   placeholder="Create a strong password"
                 />
                 <button
@@ -377,9 +372,8 @@ const RegistrationForm = ({
                   type={showConfirmPassword ? "text" : "password"}
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className={`block w-full pl-12 pr-12 py-3 border ${
-                    errors.confirmPassword ? "border-red-300" : "border-gray-300"
-                  } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
+                  className={`block w-full pl-12 pr-12 py-3 border ${errors.confirmPassword ? "border-red-300" : "border-gray-300"
+                    } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
                   placeholder="Confirm your password"
                 />
                 <button
