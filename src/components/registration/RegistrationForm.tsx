@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Car, Mail, Lock, Eye, EyeOff, ArrowLeft, User, Phone, FileText } from "lucide-react";
+import { Car, Mail, Lock, Eye, EyeOff, ArrowLeft, User, Phone, FileText, CheckCircle, AlertCircle } from "lucide-react";
 import authService from "../../services/authServices";
 
 interface RegistrationFormProps {
   userType: "user" | "driver";
-  apiEndpoint: string;
-  navigateTo: string;
   loginLink: string;
   title: string;
   subtitle: string;
@@ -25,8 +23,6 @@ interface FormData {
 
 const RegistrationForm = ({
   userType,
-  apiEndpoint,
-  navigateTo,
   loginLink,
   title,
   subtitle,
@@ -109,7 +105,7 @@ const RegistrationForm = ({
 
     // Agreement validation
     if (!formData.agreement) {
-      newErrors.agreement = true as any;
+      (newErrors as Record<string, unknown>).agreement = true;
       isValid = false;
     }
 
@@ -119,63 +115,49 @@ const RegistrationForm = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setSuccess(false);
 
     try {
-      // Validate form data
-      if (!formData.email || !formData.password || !formData.name) {
-        throw new Error("Please fill in all required fields");
-      }
-
-      if (formData.password !== formData.confirmPassword) {
-        throw new Error("Passwords do not match");
-      }
-
       // Prepare registration data based on user type
-      let registerData;
       if (userType === "driver") {
-        registerData = {
+        const driverData = {
           name: formData.name,
           email: formData.email,
-          phone: parseInt(formData.phone || "0"), // Convert to number
+          phone: formData.phone,
           password: formData.password,
-          drivinglicenseNo: formData.licenseNumber || "",
-          agreement: formData.agreement || false,
+          drivinglicenseNo: formData.drivinglicenseNo || "",
+          agreement: formData.agreement,
         };
+        await authService.driverRegister(driverData);
       } else {
-        registerData = {
+        const userData = {
           name: formData.name,
           email: formData.email,
           password: formData.password,
+          phone: formData.phone,
         };
+        await authService.userRegister(userData);
       }
 
-      // Use authService instead of direct API call
-      let response;
-      if (userType === "driver") {
-        response = await authService.driverRegister(registerData);
-      } else {
-        response = await authService.userRegister(registerData);
-      }
-
-      console.log("Registration successful:", response);
       setSuccess(true);
 
       // Redirect after successful registration
       setTimeout(() => {
-        if (userType === "driver") {
-          navigate("/driver/login");
-        } else {
-          navigate("/user/login");
-        }
+        navigate(loginLink);
       }, 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Registration error:", err);
+      const error = err as { response?: { data?: { message?: string } }; message?: string };
       setError(
-        err.response?.data?.message ||
-        err.message ||
+        error.response?.data?.message ||
+        error.message ||
         "Registration failed. Please try again."
       );
     } finally {
@@ -218,6 +200,25 @@ const RegistrationForm = ({
 
         {/* Registration Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          {/* Success Message */}
+          {success && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center gap-3">
+              <CheckCircle className="text-green-500" size={24} />
+              <div>
+                <p className="text-green-700 font-medium">Registration successful!</p>
+                <p className="text-green-600 text-sm">Redirecting to login...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center gap-3">
+              <AlertCircle className="text-red-500" size={24} />
+              <p className="text-red-700">{error}</p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name Input */}
             <div>

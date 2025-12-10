@@ -1,7 +1,10 @@
 import React, { useState } from "react";
-import { Car, FileImage } from "lucide-react";
+import { Car, FileImage, CheckCircle, AlertCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import vehicleService, { type CreateVehicleDto } from "../../../services/vehicleService";
 
 const AddVehiclePage: React.FC = () => {
+  const navigate = useNavigate();
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
@@ -14,17 +17,72 @@ const AddVehiclePage: React.FC = () => {
   const [addressProofFile, setAddressProofFile] = useState<File | null>(null);
   const [policeCertFile, setPoliceCertFile] = useState<File | null>(null);
   const [vehicleImage, setVehicleImage] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Add your form submission logic here
-    console.log({ make, model, year, seats, licensePlate, vehicleType, vehicleClass });
+    setError("");
+    setLoading(true);
+
+    try {
+      // Prepare vehicle data
+      const vehicleData: CreateVehicleDto = {
+        make,
+        model,
+        year: parseInt(year),
+        seats: parseInt(seats),
+        licensePlate,
+        vehicleType,
+        vehicleClass,
+      };
+
+      // Create vehicle
+      const newVehicle = await vehicleService.createVehicle(vehicleData);
+      
+      setSuccess(true);
+      
+      // Redirect after success
+      setTimeout(() => {
+        navigate('/driver/profile'); // Adjust route as needed
+      }, 2000);
+      
+    } catch (err: any) {
+      console.error('Vehicle creation error:', err);
+      setError(
+        err.response?.data?.message || 
+        'Failed to add vehicle. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    navigate(-1); // Go back to previous page
   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <form onSubmit={handleSubmit} className="w-full max-w-5xl bg-white shadow-xl rounded-xl p-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-8">Add Vehicle</h1>
+
+        {/* Success Message */}
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center gap-3">
+            <CheckCircle className="text-green-500" size={24} />
+            <p className="text-green-700">Vehicle added successfully! Redirecting...</p>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center gap-3">
+            <AlertCircle className="text-red-500" size={24} />
+            <p className="text-red-700">{error}</p>
+          </div>
+        )}
 
         {/* Vehicle Details */}
         <div className="bg-gray-50 p-6 rounded-xl mb-6 border border-gray-200">
@@ -165,11 +223,20 @@ const AddVehiclePage: React.FC = () => {
 
         {/* Buttons */}
         <div className="flex justify-end gap-4">
-          <button type="button" className="px-6 py-2 border rounded-md text-gray-700 hover:bg-gray-100">
+          <button 
+            type="button" 
+            onClick={handleCancel}
+            disabled={loading}
+            className="px-6 py-2 border rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
             Cancel
           </button>
-          <button type="submit" className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
-            Next: Fare Settings
+          <button 
+            type="submit" 
+            disabled={loading || success}
+            className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Adding Vehicle...' : 'Add Vehicle'}
           </button>
         </div>
       </form>
