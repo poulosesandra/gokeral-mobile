@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
-import authService, { type LoginCredentials } from "../../services/authServices";
+import { authService, type LoginCredentials } from "../../services/authServices";
 
 interface LoginFormProps {
   userType: "user" | "driver";
@@ -59,12 +59,15 @@ const LoginForm = ({
     setLoading(true);
 
     try {
+      const loginData = { email: formData.email, password: formData.password };
+
       if (userType === "user") {
-        await authService.userLogin(formData);
+        await authService.userLogin(loginData);
+        navigate("/user/dashboard");
       } else {
-        await authService.driverLogin(formData);
+        await authService.driverLogin(loginData);
+        navigate("/driver/dashboard");
       }
-      navigate(navigateTo);
     } catch (err: any) {
       console.error("Login error:", err);
       setError(

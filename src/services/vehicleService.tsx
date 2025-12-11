@@ -1,79 +1,48 @@
 import api from './api';
 
-export interface Vehicle {
-  _id?: string;
-  driverId: string;
+export interface VehicleData {
   make: string;
   model: string;
   year: number;
-  seats: number;
   licensePlate: string;
-  vehicleType: string;
-  vehicleClass: string;
-  documents?: {
-    license?: string;
-    insurance?: string;
-    addressProof?: string;
-    policeCertificate?: string;
-  };
-  vehicleImage?: string;
+  color?: string;
+  type?: string;
+}
+
+export interface Vehicle extends VehicleData {
+  _id: string;
+  driverId?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
-export interface CreateVehicleDto {
-  make: string;
-  model: string;
-  year: number;
-  seats: number;
-  licensePlate: string;
-  vehicleType: string;
-  vehicleClass: string;
-  documents?: {
-    license?: string;
-    insurance?: string;
-    addressProof?: string;
-    policeCertificate?: string;
-  };
-  vehicleImage?: string;
-}
-
-export interface UpdateVehicleDto extends Partial<CreateVehicleDto> {}
-
+// Vehicle Service
 export const vehicleService = {
-  // Create a new vehicle
-  createVehicle: async (vehicleData: CreateVehicleDto): Promise<Vehicle> => {
-    const response = await api.post('/vehicles', vehicleData);
+  addVehicle: async (vehicleData: VehicleData): Promise<Vehicle> => {
+    const response = await api.post('/vehicle', vehicleData);
     return response.data;
   },
 
-  // Get all vehicles (public)
-  getAllVehicles: async (): Promise<Vehicle[]> => {
-    const response = await api.get('/vehicles');
+  getVehicles: async (): Promise<Vehicle[]> => {
+    const response = await api.get('/vehicle');
     return response.data;
   },
 
-  // Get vehicles for current driver (requires auth)
-  getMyVehicles: async (): Promise<Vehicle[]> => {
-    const response = await api.get('/vehicles/my-list');
+  getVehicleById: async (id: string): Promise<Vehicle> => {
+    const response = await api.get(`/vehicle/${id}`);
     return response.data;
   },
 
-  // Update a vehicle
-  updateVehicle: async (vehicleId: string, updateData: UpdateVehicleDto): Promise<Vehicle> => {
-    const response = await api.put(`/vehicles/${vehicleId}`, updateData);
+  updateVehicle: async (id: string, vehicleData: Partial<VehicleData>): Promise<Vehicle> => {
+    const response = await api.patch(`/vehicle/${id}`, vehicleData);
     return response.data;
   },
 
-  // Upload vehicle documents (if you have a separate endpoint for file uploads)
-  uploadDocument: async (vehicleId: string, formData: FormData): Promise<any> => {
-    const response = await api.post(`/vehicles/${vehicleId}/documents`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+  deleteVehicle: async (id: string): Promise<void> => {
+    const response = await api.delete(`/vehicle/${id}`);
     return response.data;
   },
 };
 
+// Default export
 export default vehicleService;
