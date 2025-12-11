@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Car, FileImage, CheckCircle, AlertCircle } from "lucide-react";
+import { Car, FileImage, CheckCircle, AlertCircle, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import vehicleService, { type CreateVehicleDto } from "../../../services/vehicleService";
 
@@ -17,9 +17,25 @@ const AddVehiclePage: React.FC = () => {
   const [addressProofFile, setAddressProofFile] = useState<File | null>(null);
   const [policeCertFile, setPoliceCertFile] = useState<File | null>(null);
   const [vehicleImage, setVehicleImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setVehicleImage(file);
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setImagePreview(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,18 +56,18 @@ const AddVehiclePage: React.FC = () => {
 
       // Create vehicle
       const newVehicle = await vehicleService.createVehicle(vehicleData);
-      
+
       setSuccess(true);
-      
+
       // Redirect after success
       setTimeout(() => {
         navigate('/driver/profile'); // Adjust route as needed
       }, 2000);
-      
+
     } catch (err: any) {
       console.error('Vehicle creation error:', err);
       setError(
-        err.response?.data?.message || 
+        err.response?.data?.message ||
         'Failed to add vehicle. Please try again.'
       );
     } finally {
@@ -64,50 +80,50 @@ const AddVehiclePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-5xl bg-white shadow-xl rounded-xl p-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8">Add Vehicle</h1>
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-3">
+      <form onSubmit={handleSubmit} className="w-full max-w-4xl bg-white shadow-xl rounded-lg p-5 my-4">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">Add Vehicle</h1>
 
         {/* Success Message */}
         {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center gap-3">
-            <CheckCircle className="text-green-500" size={24} />
-            <p className="text-green-700">Vehicle added successfully! Redirecting...</p>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3 flex items-center gap-2">
+            <CheckCircle className="text-green-500" size={20} />
+            <p className="text-sm text-green-700">Vehicle added successfully! Redirecting...</p>
           </div>
         )}
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center gap-3">
-            <AlertCircle className="text-red-500" size={24} />
-            <p className="text-red-700">{error}</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-2 mb-3 flex items-center gap-2">
+            <AlertCircle className="text-red-500" size={20} />
+            <p className="text-sm text-red-700">{error}</p>
           </div>
         )}
 
         {/* Vehicle Details */}
-        <div className="bg-gray-50 p-6 rounded-xl mb-6 border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <Car className="text-green-500" size={24} /> Vehicle Details
+        <div className="bg-gray-50 p-4 rounded-lg mb-3 border border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <Car className="text-green-500" size={20} /> Vehicle Details
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
               type="text"
               placeholder="Make (e.g. Toyota)"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={make}
               onChange={(e) => setMake(e.target.value)}
               required
             />
             <input
               type="text"
-              placeholder="Model (e.g. Civic)"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Model (e.g. Innova)"
+              className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               required
             />
             <select
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={year}
               onChange={(e) => setYear(e.target.value)}
               required
@@ -122,7 +138,7 @@ const AddVehiclePage: React.FC = () => {
             <input
               type="number"
               placeholder="Seats"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={seats}
               onChange={(e) => setSeats(e.target.value)}
               min="1"
@@ -132,13 +148,13 @@ const AddVehiclePage: React.FC = () => {
             <input
               type="text"
               placeholder="License Plate"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={licensePlate}
               onChange={(e) => setLicensePlate(e.target.value)}
               required
             />
             <select
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={vehicleType}
               onChange={(e) => setVehicleType(e.target.value)}
               required
@@ -149,7 +165,7 @@ const AddVehiclePage: React.FC = () => {
               <option value="Hatchback">Hatchback</option>
             </select>
             <select
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={vehicleClass}
               onChange={(e) => setVehicleClass(e.target.value)}
               required
@@ -161,82 +177,118 @@ const AddVehiclePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Documents */}
-        <div className="bg-gray-50 p-6 rounded-xl mb-6 border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <FileImage className="text-blue-500" size={24} /> Documents
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              {
-                label: "License File",
-                setter: setLicenseFile,
-                file: licenseFile,
-              },
-              {
-                label: "Insurance File",
-                setter: setInsuranceFile,
-                file: insuranceFile,
-              },
-              {
-                label: "Address Proof",
-                setter: setAddressProofFile,
-                file: addressProofFile,
-              },
-              {
-                label: "Police Certificate",
-                setter: setPoliceCertFile,
-                file: policeCertFile,
-              },
-            ].map((item, idx) => (
+        {/* Documents and Vehicle Images - Two Column Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {/* Documents - Left Column */}
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <FileImage className="text-green-500" size={20} /> Documents
+            </h2>
+            <div className="flex flex-col gap-4.5">
+              {[
+                {
+                  label: "Upload Driving License",
+                  setter: setLicenseFile,
+                  file: licenseFile,
+                },
+                {
+                  label: "Upload Insurance",
+                  setter: setInsuranceFile,
+                  file: insuranceFile,
+                },
+                {
+                  label: "Upload Address Proof",
+                  setter: setAddressProofFile,
+                  file: addressProofFile,
+                },
+                {
+                  label: "Upload Police Certificate",
+                  setter: setPoliceCertFile,
+                  file: policeCertFile,
+                },
+              ].map((item, idx) => (
+                <label
+                  key={idx}
+                  className="flex items-center gap-2 text-white text-sm font-medium px-3 py-2 rounded-md cursor-pointer transition-colors"
+                  style={{ backgroundColor: 'oklch(0.59 0.19 149.34)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'oklch(0.54 0.19 149.34)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'oklch(0.59 0.19 149.34)'}
+                >
+                  <Upload size={16} />
+                  <span className="flex-1 truncate">
+                    {item.file ? item.file.name : item.label}
+                  </span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => item.setter(e.target.files?.[0] || null)}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Vehicle Images - Right Column */}
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <FileImage className="text-green-800" size={20} /> Vehicle Image
+            </h2>
             <label
-              key={idx}
-              className="w-full bg-blue-500 text-white font-semibold p-4 rounded-lg text-center cursor-pointer hover:bg-blue-600"
+              className="flex items-center gap-2 text-white text-sm font-medium px-3 py-2 rounded-md cursor-pointer transition-colors mb-3"
+              style={{ backgroundColor: 'oklch(0.59 0.19 149.34)' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'oklch(0.54 0.19 149.34)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'oklch(0.59 0.19 149.34)'}
             >
-              {item.file ? item.file.name : item.label}
+              <Upload size={16} />
+              <span className="flex-1 truncate">
+                {vehicleImage ? vehicleImage.name : "Upload Image"}
+              </span>
               <input
                 type="file"
                 className="hidden"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => item.setter(e.target.files?.[0] || null)}
+                accept="image/*"
+                onChange={handleImageChange}
               />
             </label>
-          ))}
+
+            {/* Image Preview */}
+            <div className="w-full h-40 bg-gray-200 rounded-md flex items-center justify-center overflow-hidden border border-gray-300">
+              {imagePreview ? (
+                <img
+                  src={imagePreview}
+                  alt="Vehicle preview"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="text-center text-gray-400">
+                  <Car size={48} className="mx-auto mb-2" />
+                  <p className="text-xs">Image preview</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Vehicle Images */}
-        <div className="bg-gray-50 p-6 rounded-xl mb-6 border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <FileImage className="text-blue-500" size={24} /> Vehicle Images
-          </h2>
-          <label className="w-full bg-blue-500 text-white font-semibold p-4 rounded-lg text-center cursor-pointer hover:bg-blue-600 block">
-            {vehicleImage ? vehicleImage.name : "Upload Vehicle Image"}
-            <input
-              type="file"
-              className="hidden"
-              accept="image/*"
-              onChange={(e) => setVehicleImage(e.target.files?.[0] || null)}
-            />
-          </label>
-        </div>
-
         {/* Buttons */}
-        <div className="flex justify-end gap-4">
-          <button 
-            type="button" 
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
             onClick={handleCancel}
             disabled={loading}
-            className="px-6 py-2 border rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+            className="px-4 py-1.5 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
           >
             Cancel
           </button>
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={loading || success}
-            className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 text-sm text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            style={{ backgroundColor: loading || success ? '' : 'oklch(0.59 0.19 149.34)' }}
+            onMouseEnter={(e) => !loading && !success && (e.currentTarget.style.backgroundColor = 'oklch(0.54 0.19 149.34)')}
+            onMouseLeave={(e) => !loading && !success && (e.currentTarget.style.backgroundColor = 'oklch(0.59 0.19 149.34)')}
           >
-            {loading ? 'Adding Vehicle...' : 'Add Vehicle'}
+            {loading ? 'Adding...' : 'Add Vehicle'}
           </button>
         </div>
       </form>
