@@ -1,103 +1,100 @@
 import api from './api';
 
+// Export interfaces
 export interface LoginCredentials {
   email: string;
   password: string;
 }
 
-export interface UserRegisterData {
-  name: string;
+export interface UserSignupData {
+  username: string;
   email: string;
   password: string;
   phone?: string;
 }
 
-export interface DriverRegisterData {
-  name: string;
+export interface DriverSignupData {
+  username: string;
   email: string;
   password: string;
   phone: string;
-  drivinglicenseNo: string;
-  agreement: boolean;
+  licenseNumber?: string;
 }
 
 export interface AuthResponse {
-  message: string;
+  access_token: string;
   user?: any;
   driver?: any;
-  access_token: string;
 }
 
+// Auth Service
 export const authService = {
-  // User authentication
-  userLogin: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await api.post('/users/login', credentials);
+  // User Authentication
+  userSignup: async (userData: UserSignupData): Promise<AuthResponse> => {
+    const response = await api.post('/auth/user/signup', userData);
     if (response.data.access_token) {
-      localStorage.setItem('accessToken', response.data.access_token);
+      localStorage.setItem('token', response.data.access_token);
       localStorage.setItem('userType', 'user');
-      if (response.data.user) {
-        localStorage.setItem('userData', JSON.stringify(response.data.user));
-      }
     }
     return response.data;
   },
 
-  userRegister: async (data: UserRegisterData) => {
-    const response = await api.post('/users/signup', data);
-    return response.data;
+  // Alias for userSignup
+  userRegister: async (userData: UserSignupData): Promise<AuthResponse> => {
+    return authService.userSignup(userData);
   },
 
-  // Driver authentication
-  driverLogin: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await api.post('/drivers/login', credentials);
+  userLogin: async (loginData: LoginCredentials): Promise<AuthResponse> => {
+    const response = await api.post('/auth/user/login', loginData);
     if (response.data.access_token) {
-      localStorage.setItem('accessToken', response.data.access_token);
-      localStorage.setItem('userType', 'driver');
-      if (response.data.user || response.data.driver) {
-        localStorage.setItem('userData', JSON.stringify(response.data.user || response.data.driver));
-      }
+      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('userType', 'user');
     }
     return response.data;
   },
 
-  driverRegister: async (data: DriverRegisterData) => {
-    // Convert phone to number if it's a string
-    const payload = {
-      ...data,
-      phone: typeof data.phone === 'string' ? parseInt(data.phone) : data.phone,
-    };
-    const response = await api.post('/drivers/signup', payload);
+  // Driver Authentication
+  driverSignup: async (driverData: DriverSignupData): Promise<AuthResponse> => {
+    const response = await api.post('/auth/driver/signup', driverData);
+    if (response.data.access_token) {
+      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('userType', 'driver');
+    }
     return response.data;
   },
 
-  // Logout
+  // Alias for driverSignup
+  driverRegister: async (driverData: DriverSignupData): Promise<AuthResponse> => {
+    return authService.driverSignup(driverData);
+  },
+
+  driverLogin: async (loginData: LoginCredentials): Promise<AuthResponse> => {
+    const response = await api.post('/auth/driver/login', loginData);
+    if (response.data.access_token) {
+      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('userType', 'driver');
+    }
+    return response.data;
+  },
+
+  // Utility functions
   logout: () => {
-    localStorage.removeItem('accessToken');
+    localStorage.removeItem('token');
     localStorage.removeItem('userType');
-    localStorage.removeItem('userData');
   },
 
-  // Get current user
-  getCurrentUser: async () => {
-    const response = await api.get('/drivers/details');
-    return response.data;
-  },
-
-  // Check if user is authenticated
   isAuthenticated: (): boolean => {
-    return !!localStorage.getItem('accessToken');
+    return !!localStorage.getItem('token');
   },
 
-  // Get user type
   getUserType: (): string | null => {
     return localStorage.getItem('userType');
   },
 
-  // Get stored user data
-  getStoredUserData: (): any | null => {
-    const userData = localStorage.getItem('userData');
-    return userData ? JSON.parse(userData) : null;
+  getToken: (): string | null => {
+    return localStorage.getItem('token');
   },
 };
 
+// Default export
 export default authService;

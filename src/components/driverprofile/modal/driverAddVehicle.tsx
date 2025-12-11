@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Car, FileImage, CheckCircle, AlertCircle, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import vehicleService, { type CreateVehicleDto } from "../../../services/vehicleService";
+import vehicleService from "../../../services/vehicleService";
 
 const AddVehiclePage: React.FC = () => {
   const navigate = useNavigate();

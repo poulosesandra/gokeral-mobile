@@ -1,37 +1,35 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true,
-  timeout: 10000, // 10 seconds
+  withCredentials: false, // Change to false or remove this line
 });
 
-// Request interceptor - adds token to every request
+// Add token to requests if available
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const token = localStorage.getItem('token');
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`; // Changed from 'X-Token'
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor - handles errors globally
+// Handle token expiration
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('accessToken');
+      localStorage.removeItem('token');
       localStorage.removeItem('userType');
-      window.location.href = '/user/login';
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
