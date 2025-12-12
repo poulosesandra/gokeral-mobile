@@ -55,7 +55,7 @@ const AddVehiclePage: React.FC = () => {
       };
 
       // Create vehicle
-      const newVehicle = await vehicleService.createVehicle(vehicleData);
+      await vehicleService.createVehicle(vehicleData);
 
       setSuccess(true);
 

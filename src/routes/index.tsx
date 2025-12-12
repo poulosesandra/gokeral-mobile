@@ -7,6 +7,8 @@ import UserDashboard from "../pages/UserDashboard";
 import DriverDashboard from "../pages/DriverDashboard";
 import { createBrowserRouter } from "react-router-dom";
 import AddVehiclePage from "../components/driverprofile/modal/driverAddVehicle"
+import { UserProfilePage } from "../pages/UserProfilePage";
+import DriverProfilePage from "../pages/DriverProfilePage";
 
 export const router = createBrowserRouter([
   {
@@ -57,5 +59,13 @@ export const router = createBrowserRouter([
   {
     path: "/driverRegistration",
     element: <DriverRegistration />,
+  },
+    {
+    path: "/userProfile",
+    element: <UserProfilePage />,
+  },
+  {
+    path: "/driverProfile",
+    element: <DriverProfilePage />,
   },
 ]);
