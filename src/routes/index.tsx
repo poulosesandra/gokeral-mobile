@@ -3,7 +3,7 @@ import UserLogin from "../pages/UserLogin";
 import UserRegistration from "../pages/UserRegistration";
 import DriverLogin from "../pages/DriverLogin";
 import DriverRegistration from "../pages/DriverRegistration";
-import UserDashboard from "../pages/UserDashboard";
+// import UserDashboard from "../pages/UserDashboard";
 import DriverDashboard from "../pages/DriverDashboard";
 import { createBrowserRouter } from "react-router-dom";
 import AddVehiclePage from "../components/driverprofile/modal/driverAddVehicle"
@@ -23,10 +23,10 @@ export const router = createBrowserRouter([
     path: "/user/register",
     element: <UserRegistration />,
   },
-  {
-    path: "/user/dashboard",
-    element: <UserDashboard />,
-  },
+  // {
+  //   path: "/user/dashboard",
+  //   element: <UserDashboard />,
+  // },
   {
     path: "/driver/login",
     element: <DriverLogin />,
@@ -43,7 +43,23 @@ export const router = createBrowserRouter([
     path: "/driver/add-vehicle",
     element: <AddVehiclePage />,
   },
+  {
+    path: "/user/profile",
+    element: <UserProfilePage />,
+  },
+  {
+    path: "/driver/profile",
+    element: <DriverProfilePage />,
+  },
   // Legacy routes for backward compatibility
+  {
+    path: "/userProfile",
+    element: <UserProfilePage />,
+  },
+  {
+    path: "/driverProfile",
+    element: <DriverProfilePage />,
+  },
   {
     path: "/login",
     element: <UserLogin />,
@@ -60,7 +76,7 @@ export const router = createBrowserRouter([
     path: "/driverRegistration",
     element: <DriverRegistration />,
   },
-    {
+  {
     path: "/userProfile",
     element: <UserProfilePage />,
   },
