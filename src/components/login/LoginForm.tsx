@@ -63,10 +63,10 @@ const LoginForm = ({
 
       if (userType === "user") {
         await authService.userLogin(loginData);
-        navigate("/user/dashboard");
+        navigate("/user/profile");
       } else {
         await authService.driverLogin(loginData);
-        navigate("/driver/dashboard");
+        navigate("/driver/profile");
       }
     } catch (err: any) {
       console.error("Login error:", err);
