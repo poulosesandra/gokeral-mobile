@@ -7,6 +7,7 @@ const UserRegister = () => {
       loginLink="/user/login"
       title="Create Account"
       subtitle="Sign up to get started"
+      includeUserFields={true}
     />
   );
 };
