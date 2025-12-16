@@ -9,8 +9,13 @@ import {
   EditOutlined,
   CarOutlined,
 } from "@ant-design/icons";
-import type { TabKey, UserData } from "../profile/UserProfile";
+import type { UserData } from "../profile/UserProfile";
 import type { BookingStatus } from "./BookingTab";
+
+// Define base TabKey type
+export type UserTabKey = "home" | "personal" | "bookings" | "security" | "privacy" | "data";
+export type DriverTabKey = UserTabKey | "vehicles";
+export type TabKey = UserTabKey | DriverTabKey;
 
 interface HomeTabProps {
   userData: UserData;
@@ -116,7 +121,7 @@ export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) =>
               >
                 <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
       <CarOutlined className="text-white text-xl" />
-              </div>
+                </div>
 
                 <div>
                   <p className="font-semibold text-xl">{booking.vehicle}</p>

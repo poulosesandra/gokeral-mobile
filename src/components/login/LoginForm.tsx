@@ -16,7 +16,7 @@ interface LoginFormProps {
 
 const LoginForm = ({
   userType,
-  navigateTo,
+  // navigateTo,
   registerLink,
   switchLoginLink,
   switchLoginText,

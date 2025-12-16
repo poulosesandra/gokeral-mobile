@@ -127,21 +127,25 @@ const RegistrationForm = ({
     try {
       // Prepare registration data based on user type
       if (userType === "driver") {
+        const { name, email, phone, password, drivinglicenseNo, agreement } = formData;
         const driverData = {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          password: formData.password,
-          drivinglicenseNo: formData.drivinglicenseNo || "",
-          agreement: formData.agreement,
+          username: name, // Add this
+          name,
+          email,
+          phone,
+          password,
+          drivinglicenseNo,
+          agreement,
         };
         await authService.driverRegister(driverData);
       } else {
+        const { name, email, password, phone } = formData;
         const userData = {
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          phone: formData.phone,
+          username: name, // Add this
+          name,
+          email,
+          password,
+          phone,
         };
         await authService.userRegister(userData);
       }

@@ -44,7 +44,7 @@ const AddVehiclePage: React.FC = () => {
 
     try {
       // Prepare vehicle data
-      const vehicleData: CreateVehicleDto = {
+      const vehicleData = {
         make,
         model,
         year: parseInt(year),
@@ -54,14 +54,14 @@ const AddVehiclePage: React.FC = () => {
         vehicleClass,
       };
 
-      // Create vehicle
-      await vehicleService.createVehicle(vehicleData);
+      // Create vehicle - use addVehicle instead of createVehicle
+      await vehicleService.addVehicle(vehicleData);
 
       setSuccess(true);
 
       // Redirect after success
       setTimeout(() => {
-        navigate('/driver/profile'); // Adjust route as needed
+        navigate('/driver/profile');
       }, 2000);
 
     } catch (err: any) {
