@@ -21,7 +21,8 @@ export type TabKey =
   | "bookings"
   | "security"
   | "privacy"
-  | "data";
+  | "data"
+  | "vehicles";
 
 export type UserData = {
   name: string;
@@ -190,6 +191,7 @@ export const DriverProfile = () => {
     security: <SecurityTab loading={loading} />,
     privacy: <PrivacyTab loading={loading} />,
     data: <DataTab loading={loading} />,
+    vehicles: <div>Vehicles</div>,
   };
 
   return (
