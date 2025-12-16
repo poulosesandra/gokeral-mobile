@@ -16,7 +16,7 @@ import "../styles/UserProfile.css";
 import axios from "axios";
 import type { UserTabKey } from "../tabs/HomeTab";
 
-export type TabKey = UserTabKey;
+export type TabKey = UserTabKey | "vehicles";
 
 export type UserData = {
   name: string;
