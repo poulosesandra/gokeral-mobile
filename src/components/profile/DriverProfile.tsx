@@ -14,14 +14,9 @@ import { MenuOutlined } from "@ant-design/icons";
 import type { JSX } from "react/jsx-runtime";
 import "../styles/UserProfile.css";
 import axios from "axios";
+import type { DriverTabKey } from "../tabs/HomeTab";
 
-export type TabKey =
-  | "home"
-  | "personal"
-  | "bookings"
-  | "security"
-  | "privacy"
-  | "data";
+export type TabKey = DriverTabKey;
 
 export type UserData = {
   name: string;
@@ -33,7 +28,7 @@ export type UserData = {
 };
 
 export const DriverProfile = () => {
-  const [activeTab, setActiveTab] = useState<TabKey>("home");
+  const [activeTab, setActiveTab] = useState<DriverTabKey>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 0
@@ -105,13 +100,8 @@ export const DriverProfile = () => {
     }
   }, []);
 
-  const handleTabChange = (key: TabKey) => {
-    setFadeIn(false);
-    setTimeout(() => {
-      setActiveTab(key);
-      if (windowWidth <= 768) setSidebarOpen(false);
-      setTimeout(() => setFadeIn(true), 100);
-    }, 200);
+  const handleTabChange = (key: DriverTabKey) => {
+    setActiveTab(key);
   };
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);

@@ -9,7 +9,7 @@ import {
 } from "@ant-design/icons";
 import { Link } from "react-router-dom";
 import type { MenuProps } from "antd";
-// import Logo from "../../../public/gokeral.png";
+
 
 interface UserHeaderProps {
   navigate: (path: string) => void;

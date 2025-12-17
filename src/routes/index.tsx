@@ -9,6 +9,8 @@ import { createBrowserRouter } from "react-router-dom";
 import AddVehiclePage from "../components/driverprofile/modal/driverAddVehicle"
 import { UserProfilePage } from "../pages/UserProfilePage";
 import DriverProfilePage from "../pages/DriverProfilePage";
+import TermsPrivacyPage from "../pages/about";
+import ContactPage from "../pages/contact/contack";
 
 export const router = createBrowserRouter([
   {
@@ -23,10 +25,7 @@ export const router = createBrowserRouter([
     path: "/user/register",
     element: <UserRegistration />,
   },
-  // {
-  //   path: "/user/dashboard",
-  //   element: <UserDashboard />,
-  // },
+  
   {
     path: "/driver/login",
     element: <DriverLogin />,
@@ -50,6 +49,15 @@ export const router = createBrowserRouter([
   {
     path: "/driver/profile",
     element: <DriverProfilePage />,
+  },
+  
+  {
+    path: "/about",
+    element: <TermsPrivacyPage />,
+  },
+  {
+    path: "/contact",
+    element: <ContactPage />,
   },
   // Legacy routes for backward compatibility
   {
