@@ -186,7 +186,7 @@ const HomePage = () => {
                 }}
               >
                 <a href="/driver/register">
-                  <button className="bg-green-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:bg-green-700 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl">
+                  <button className="bg-green-600 text-white px-8 py-4 rounded-full text-lg font-semibold transition-all transform hover:scale-105">
                     Join as a Driver <ArrowRight className="inline ml-2 h-5 w-5" />
                   </button>
                 </a>
