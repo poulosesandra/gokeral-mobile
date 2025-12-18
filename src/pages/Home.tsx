@@ -3,12 +3,12 @@ import { Car, Truck, MapPin, Star, Users, ArrowRight, Ambulance, CheckCircle } f
 import PhotoStack from "../components/homepage/photostack";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import stack1 from "../assets/photostack/stack1.jpg";
-import stack2 from "../assets/photostack/stack2.jpg";
-import stack3 from "../assets/photostack/stack3.jpg";
-import stack4 from "../assets/photostack/stack4.jpg";
-import stack5 from "../assets/photostack/stack5.jpg";
-import stack6 from "../assets/photostack/stack6.jpg";
+import stack1 from "../assets/photostack/stack1.webp";
+import stack2 from "../assets/photostack/stack2.webp"
+import stack3 from "../assets/photostack/stack3.webp";
+import stack4 from "../assets/photostack/stack4.webp";
+import stack5 from "../assets/photostack/stack5.webp";
+import stack6 from "../assets/photostack/stack6.webp";
 import kochi from "../assets/destinations/kochi.jpg";
 import munnar from "../assets/destinations/munnar.jpg";
 
@@ -17,6 +17,8 @@ const HomePage = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [scrollY, setScrollY] = useState(0);
   const [currentDestination, setCurrentDestination] = useState(0);
+  const scrollRef = useRef(0);
+  const animationFrameRef = useRef<number | null>(null);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const vehiclesRef = useRef<HTMLDivElement>(null);
@@ -62,11 +64,23 @@ const HomePage = () => {
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrollY(window.scrollY);
+      scrollRef.current = window.scrollY;
+      
+      if (animationFrameRef.current === null) {
+        animationFrameRef.current = requestAnimationFrame(() => {
+          setScrollY(scrollRef.current);
+          animationFrameRef.current = null;
+        });
+      }
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -101,6 +115,8 @@ const HomePage = () => {
           className="absolute inset-0 opacity-10"
           style={{
             transform: `translateY(${scrollY * 0.5}px)`,
+            willChange: 'transform',
+            transition: 'transform 0.1s ease-out',
           }}
         >
           <div className="absolute top-20 left-10 w-72 h-72 bg-green-300 rounded-full blur-3xl"></div>
@@ -112,12 +128,16 @@ const HomePage = () => {
           className="absolute top-1/4 right-1/4 w-40 h-40 bg-purple-200 rounded-full blur-2xl opacity-20"
           style={{
             transform: `translate(${scrollY * -0.15}px, ${scrollY * 0.2}px) rotate(${scrollY * 0.1}deg)`,
+            willChange: 'transform',
+            transition: 'transform 0.15s ease-out',
           }}
         ></div>
         <div
           className="absolute bottom-1/3 left-1/3 w-60 h-60 bg-yellow-200 rounded-full blur-3xl opacity-15"
           style={{
             transform: `translate(${scrollY * 0.1}px, ${scrollY * -0.15}px) scale(${1 + scrollY * 0.0002})`,
+            willChange: 'transform',
+            transition: 'transform 0.15s ease-out',
           }}
         ></div>
 
@@ -235,11 +255,13 @@ const HomePage = () => {
 
             {/* PhotoStack with 3D rotation effect */}
             <div
-              className="flex justify-center lg:justify-end transition-transform duration-100"
+              className="flex justify-center lg:justify-end"
               style={{
                 transform: `translateX(${scrollY * 0.2}px) translateY(${scrollY * -0.15}px) rotateY(${scrollY * 0.05}deg)`,
                 transformStyle: 'preserve-3d',
                 perspective: '1000px',
+                willChange: 'transform',
+                transition: 'transform 0.15s ease-out',
               }}
             >
               <PhotoStack images={stackImages} className="w-full max-w-md" />
@@ -255,12 +277,16 @@ const HomePage = () => {
           className="absolute top-0 left-0 w-64 h-64 bg-green-100 rounded-full blur-3xl opacity-20"
           style={{
             transform: `translate(${scrollY * 0.05}px, ${scrollY * 0.05}px)`,
+            willChange: 'transform',
+            transition: 'transform 0.1s ease-out',
           }}
         ></div>
         <div
           className="absolute bottom-0 right-0 w-80 h-80 bg-blue-100 rounded-full blur-3xl opacity-20"
           style={{
             transform: `translate(${-scrollY * 0.05}px, ${-scrollY * 0.05}px)`,
+            willChange: 'transform',
+            transition: 'transform 0.1s ease-out',
           }}
         ></div>
 
@@ -304,12 +330,16 @@ const HomePage = () => {
           className="absolute top-20 left-10 w-40 h-40 bg-white/30 rounded-full blur-2xl"
           style={{
             transform: `translate(${scrollY * 0.08}px, ${scrollY * 0.08}px) scale(${1 + scrollY * 0.0001})`,
+            willChange: 'transform',
+            transition: 'transform 0.15s ease-out',
           }}
         ></div>
         <div
           className="absolute bottom-20 right-10 w-60 h-60 bg-white/30 rounded-full blur-2xl"
           style={{
             transform: `translate(${-scrollY * 0.06}px, ${-scrollY * 0.06}px) scale(${1 + scrollY * 0.0001})`,
+            willChange: 'transform',
+            transition: 'transform 0.15s ease-out',
           }}
         ></div>
 
@@ -347,6 +377,8 @@ const HomePage = () => {
           className="absolute inset-0 opacity-5"
           style={{
             transform: `translateY(${scrollY * 0.3}px)`,
+            willChange: 'transform',
+            transition: 'transform 0.2s ease-out',
           }}
         >
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-400 rounded-full blur-3xl"></div>
@@ -467,12 +499,16 @@ const HomePage = () => {
           className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"
           style={{
             transform: `translate(${scrollY * 0.02}px, ${scrollY * 0.02}px)`,
+            willChange: 'transform',
+            transition: 'transform 0.1s ease-out',
           }}
         ></div>
         <div
           className="absolute bottom-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl"
           style={{
             transform: `translate(${-scrollY * 0.02}px, ${-scrollY * 0.02}px)`,
+            willChange: 'transform',
+            transition: 'transform 0.1s ease-out',
           }}
         ></div>
 

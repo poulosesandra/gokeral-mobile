@@ -12,6 +12,7 @@ import DriverProfilePage from "../pages/DriverProfilePage";
 import TermsPrivacyPage from "../pages/about";
 import ContactPage from "../pages/contact/contack";
 import DriverPersonalInfoModal from "../components/driverprofile/modal/driverAddDetails";
+import Maps from "../pages/map/Maps";
 
 export const router = createBrowserRouter([
   {
@@ -63,6 +64,10 @@ export const router = createBrowserRouter([
   {
     path: "/driver/personal-info",
     element: <DriverPersonalInfoModal open={true} onCancel={() => {}} onSave={() => {}} />,
+  },
+  {
+    path: "/map",
+    element: <Maps />,   
   },
   // Legacy routes for backward compatibility
   {
