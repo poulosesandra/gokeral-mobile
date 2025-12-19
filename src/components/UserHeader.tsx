@@ -26,7 +26,7 @@ export const UserHeader = ({
     {
       key: "profile",
       label: (
-        <div className="flex items-center" onClick={() => navigate("/userprofile")}>
+        <div className="flex items-center" onClick={() => navigate("/user/profile")}>
           <UserOutlined className="mr-2" />
           <span>Profile</span>
         </div>

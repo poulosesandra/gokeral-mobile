@@ -10,12 +10,13 @@ import {
   CarOutlined,
 } from "@ant-design/icons";
 import type { UserData } from "../profile/UserProfile";
-import type { BookingStatus } from "./BookingTab";
 
 // Define base TabKey type
 export type UserTabKey = "home" | "personal" | "bookings" | "security" | "privacy" | "data";
 export type DriverTabKey = UserTabKey | "vehicles";
 export type TabKey = UserTabKey | DriverTabKey;
+
+export type BookingStatus = "Completed" | "Upcoming" | "Cancelled";
 
 interface HomeTabProps {
   userData: UserData;
@@ -63,90 +64,108 @@ export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) =>
   };
 
   return (
-    <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-10">
+    <div className="w-full space-y-6">
 
-      {/* LEFT SIDE (1/3) */}
-      <Card className="shadow-xl p-10 rounded-2xl md:col-span-1">
+      {/* USER PROFILE HEADER */}
+      <Card className="shadow-md rounded-2xl">
         <Skeleton loading={loading} active avatar>
-          <div className="flex flex-col items-center gap-6">
-
+          <div className="flex items-center gap-6">
             {/* PROFILE PIC */}
             <div
-              className="rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 shadow-2xl flex items-center justify-center"
-              style={{ width: "180px", height: "180px" }}
+              className="rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg flex items-center justify-center flex-shrink-0"
+              style={{ width: "120px", height: "120px" }}
             >
               {userData.profileImage ? (
                 <img
                   src={userData.profileImage}
                   className="w-full h-full rounded-full object-cover"
+                  alt="Profile"
                 />
               ) : (
-                <Avatar size={150} icon={<UserOutlined />} />
+                <Avatar size={100} icon={<UserOutlined />} className="bg-transparent" />
               )}
             </div>
 
             {/* USER INFO */}
-            <div className="space-y-4 text-center">
-              <h3 className="text-3xl font-bold">{userData.name}</h3>
-
-              <div className="flex items-center justify-center gap-3 text-lg">
-                <MailOutlined /> <span>{userData.email}</span>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-gray-800">{userData.name}</h2>
+              
+              <div className="flex items-center gap-2 text-gray-600">
+                <MailOutlined className="text-lg" />
+                <span>{userData.email}</span>
               </div>
 
-              <div className="flex items-center justify-center gap-3 text-lg">
-                <PhoneOutlined /> <span>{userData.phoneNumber}</span>
+              <div className="flex items-center gap-2 text-gray-600">
+                <PhoneOutlined className="text-lg" />
+                <span>{userData.phoneNumber}</span>
               </div>
 
-              <div className="flex items-center justify-center gap-3 text-lg">
-                <EnvironmentOutlined /> <span>{userData.location}</span>
-              </div>
+              {userData.location && (
+                <div className="flex items-center gap-2 text-gray-600">
+                  <EnvironmentOutlined className="text-lg" />
+                  <span>{userData.location}</span>
+                </div>
+              )}
             </div>
-
           </div>
         </Skeleton>
       </Card>
 
-      {/* RIGHT SIDE (2/3) */}
-      <Card className="shadow-xl p-0 rounded-2xl md:col-span-2">
-        <div className="grid grid-cols-2 divide-x">
-
-          {/* RECENT OVERVIEW */}
-          <div className="p-10 overflow-hidden">
-            <h3 className="text-3xl font-semibold mb-6">Recent Overview</h3>
-
-            {recentBookings.map((booking) => (
-              <div
-                key={booking.id}
-                className="flex items-center justify-start gap-6 border-b pb-5 mb-5"
-              >
-                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
-      <CarOutlined className="text-white text-xl" />
-                </div>
-
-                <div>
-                  <p className="font-semibold text-xl">{booking.vehicle}</p>
-                  <p className="text-sm text-gray-500">
-                    {booking.startDate} → {booking.endDate}
-                  </p>
-                </div>
-
-                {/* Status TAG — stays inside column */}
-                <div className="ml-auto">{getStatusTag(booking.status)}</div>
-              </div>
-            ))}
+      {/* CONTENT GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* RECENT BOOKINGS */}
+        <Card className="shadow-md rounded-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-gray-800">Recent Bookings</h3>
+            <Button 
+              type="link" 
+              onClick={() => handleTabChange('bookings')}
+              className="text-blue-600 hover:text-blue-700"
+            >
+              View All
+            </Button>
           </div>
 
-          {/* ACCOUNT OVERVIEW */}
-          <div className="p-10 overflow-hidden">
-            <h3 className="text-3xl font-semibold mb-6">Account Overview</h3>
+          <div className="space-y-4">
+            {recentBookings.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No bookings yet</p>
+            ) : (
+              recentBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                    <CarOutlined className="text-white text-xl" />
+                  </div>
 
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-800">{booking.vehicle}</p>
+                    <p className="text-sm text-gray-500">
+                      {booking.startDate} to {booking.endDate}
+                    </p>
+                  </div>
+
+                  {getStatusTag(booking.status)}
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+
+        {/* ACCOUNT OVERVIEW */}
+        <Card className="shadow-md rounded-2xl">
+          <h3 className="text-xl font-semibold text-gray-800 mb-4">Account Overview</h3>
+
+          <div className="space-y-4">
             {accountSections.map((section) => (
               <div
                 key={section.title}
-                className="flex items-center justify-between border-b pb-5 mb-5"
+                className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors"
               >
                 <div>
-                  <p className="font-semibold text-xl">{section.title}</p>
+                  <p className="font-semibold text-gray-800">{section.title}</p>
                   <p className="text-sm text-gray-500">{section.desc}</p>
                 </div>
 
@@ -154,16 +173,16 @@ export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) =>
                   type="link"
                   icon={<EditOutlined />}
                   onClick={() => handleTabChange(section.tab)}
-                  className="text-base"
+                  className="text-blue-600 hover:text-blue-700"
                 >
                   Edit
                 </Button>
               </div>
             ))}
           </div>
+        </Card>
 
-        </div>
-      </Card>
+      </div>
 
     </div>
   );

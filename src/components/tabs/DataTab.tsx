@@ -1,57 +1,54 @@
-import { Card, List, Button, Skeleton, Typography } from "antd";
+"use client";
 
-const { Title, Paragraph } = Typography;
+import { Card, Button, message } from "antd";
+import { DeleteOutlined, DownloadOutlined } from "@ant-design/icons";
 
-interface DataTabProps {
-  loading: boolean;
-}
+export const DataTab = () => {
+  const handleDownloadData = () => {
+    message.info("Downloading your data...");
+    // TODO: Implement data download
+  };
 
-export const DataTab = ({ loading }: DataTabProps) => {
-  const dataOptions = [
-    {
-      title: "Export Data",
-      description: "Download your data",
-      action: <Button>Download</Button>,
-    },
-    {
-      title: "Delete Account",
-      description: "Request deletion",
-      action: <Button danger>Request</Button>,
-    },
-  ];
+  const handleDeleteAccount = () => {
+    message.warning("Account deletion requires confirmation");
+    // TODO: Implement account deletion with confirmation modal
+  };
 
   return (
-    <Card className="shadow-lg">
-      <Title level={4} className="!mb-2 text-xl sm:text-2xl">
-        Data Management
-      </Title>
-      <Paragraph className="text-gray-500 text-sm sm:text-base">
-        Manage your personal data
-      </Paragraph>
+    <div className="w-full">
+      <Card className="shadow-md rounded-2xl">
+        <h3 className="text-2xl font-semibold text-gray-800 mb-6">Data Management</h3>
 
-      <Skeleton loading={loading} active>
-        <List
-          itemLayout="horizontal"
-          dataSource={dataOptions}
-          renderItem={(item) => (
-            <List.Item
-              key={item.title}
-              actions={[item.action]}
-              className="flex flex-col sm:flex-row items-start sm:items-center py-4"
+        <div className="space-y-6">
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-semibold text-lg mb-2">Download Your Data</h4>
+            <p className="text-gray-600 mb-4">
+              Download a copy of all your personal data stored in our system.
+            </p>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleDownloadData}
+              type="default"
             >
-              <List.Item.Meta
-                title={
-                  <span className="text-base font-medium">{item.title}</span>
-                }
-                description={
-                  <span className="text-sm">{item.description}</span>
-                }
-                className="mb-2 sm:mb-0"
-              />
-            </List.Item>
-          )}
-        />
-      </Skeleton>
-    </Card>
+              Download Data
+            </Button>
+          </div>
+
+          <div className="p-4 border border-red-200 rounded-lg bg-red-50">
+            <h4 className="font-semibold text-lg mb-2 text-red-800">Delete Account</h4>
+            <p className="text-gray-600 mb-4">
+              Permanently delete your account and all associated data. This action cannot be undone.
+            </p>
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={handleDeleteAccount}
+            >
+              Delete Account
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 };

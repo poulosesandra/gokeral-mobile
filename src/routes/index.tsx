@@ -4,7 +4,6 @@ import UserRegistration from "../pages/UserRegistration";
 import DriverLogin from "../pages/DriverLogin";
 import DriverRegistration from "../pages/DriverRegistration";
 // import UserDashboard from "../pages/UserDashboard";
-import DriverDashboard from "../pages/DriverDashboard";
 import { createBrowserRouter } from "react-router-dom";
 import AddVehiclePage from "../components/driverprofile/modal/driverAddVehicle"
 import { UserProfilePage } from "../pages/UserProfilePage";
@@ -35,10 +34,6 @@ export const router = createBrowserRouter([
   {
     path: "/driver/register",
     element: <DriverRegistration />,
-  },
-  {
-    path: "/driver/dashboard",
-    element: <DriverDashboard />,
   },
   {
     path: "/driver/add-vehicle",

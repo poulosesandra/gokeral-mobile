@@ -4,7 +4,7 @@ const UserLogin = () => {
   return (
     <LoginForm
       userType="user"
-      navigateTo="/user/dashboard"
+      navigateTo="/map"
       registerLink="/user/register"
       title="User Login"
       subtitle="Welcome back! Sign in to your account"

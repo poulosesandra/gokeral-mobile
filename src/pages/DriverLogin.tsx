@@ -4,7 +4,7 @@ const DriverLogin = () => {
   return (
     <LoginForm
       userType="driver"
-      navigateTo="/driver/dashboard"
+      navigateTo="/driver/profile"
       registerLink="/driver/register"
       title="Driver Login"
       subtitle="Access your professional driver account"

@@ -1,144 +1,183 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { UserHeader } from "../UserHeader"
-import { UserSidebar } from "./UserSidebar";
-import { HomeTab } from "../tabs/HomeTab";
-import { PersonalInfoTab } from "../tabs/PersonalInfoTab";
-import {  BookingsTabUser } from "../tabs/BookingTab";
+import { useEffect, useState } from "react";
+import { Spin, message, Button } from "antd";
+import { useNavigate } from "react-router-dom";
+import { MenuOutlined } from "@ant-design/icons";
+import { UserHeader } from "../UserHeader";
+import { DriverSidebar, type DriverTabKey } from "../driverprofile/DriverSidebar";
+import { DriverHomeTab, type DriverData } from "../tabs/DriverHomeTab";
+import { DriverPersonalInfoTab } from "../tabs/DriverPersonalInfoTab";
+import { VehiclesTab } from "../tabs/VehiclesTab";
+import { BookingsTabUser } from "../tabs/BookingTab";
 import { SecurityTab } from "../tabs/SecurityTab";
 import { PrivacyTab } from "../tabs/PrivacyTab";
 import { DataTab } from "../tabs/DataTab";
-import { Button, Spin } from "antd";
-import { MenuOutlined } from "@ant-design/icons";
-import type { JSX } from "react/jsx-runtime";
-import "../styles/UserProfile.css";
-import axios from "axios";
-import type { DriverTabKey } from "../tabs/HomeTab";
-
-export type TabKey = DriverTabKey;
-
-export type UserData = {
-  name: string;
-  email: string;
-  phoneNumber: string;
-  address: string;
-  profileImage: string | null;
-  location?: string | null;
-};
+import DriverAddDetails from "../driverprofile/modal/driverAddDetails";
+import { authService } from "../../services/authServices";
 
 export const DriverProfile = () => {
   const [activeTab, setActiveTab] = useState<DriverTabKey>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [windowWidth, setWindowWidth] = useState(
-    typeof window !== "undefined" ? window.innerWidth : 0
-  );
   const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [, setFadeIn] = useState(false);
+  const [personalInfoModalOpen, setPersonalInfoModalOpen] = useState(false);
+  const [driverData, setDriverData] = useState<DriverData>({
+    name: "",
+    email: "",
+    phoneNumber: "",
+    driverLicenseNumber: "",
+    address: "",
+    profileImage: null,
+    personalInfo: {
+      bloodGroup: "",
+      dob: "",
+      languages: [],
+      certificates: [],
+      emergencyContact: {
+        name: "",
+        phone: "",
+        relationship: "",
+      },
+    },
+  });
 
-  const getUserDetails = useCallback(async () => {
+  const navigate = useNavigate();
+
+  // LOAD DRIVER DATA FROM LOCALSTORAGE
+  useEffect(() => {
     try {
-      if (typeof window === "undefined") return; // client-only
+      const currentUser = authService.getCurrentUser();
+      
+      if (!currentUser) {
+        navigate("/driver/login");
+        return;
+      }
 
-      setLoading(true);
-      const token = localStorage.getItem("accessToken");
-      const stored = localStorage.getItem("userData");
-      const userEmail = stored ? JSON.parse(stored).email : localStorage.getItem("userEmail");
-
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/userDetails`, {
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token,
-        },
-        params: {
-          id: userEmail,
+      // Map the driver data from localStorage
+      setDriverData({
+        name: currentUser.fullName || "",
+        email: currentUser.email || "",
+        phoneNumber: currentUser.phoneNumber || "",
+        driverLicenseNumber: currentUser.driverLicenseNumber || "",
+        address: currentUser.address || "",
+        profileImage: currentUser.profileImage || null,
+        personalInfo: {
+          bloodGroup: currentUser.personalInfo?.bloodGroup || "",
+          dob: currentUser.personalInfo?.dob || "",
+          languages: currentUser.personalInfo?.languages || [],
+          certificates: currentUser.personalInfo?.certificates || [],
+          emergencyContact: currentUser.personalInfo?.emergencyContact || {
+            name: "",
+            phone: "",
+            relationship: "",
+          },
         },
       });
-
-      setUserData(response.data.userData);
-      setLoading(false);
-      // Trigger fade-in animation after data loads
-      setTimeout(() => setFadeIn(true), 100);
     } catch (error) {
+      console.error("Failed to load driver data:", error);
+      message.error("Failed to load driver data");
+      navigate("/driver/login");
+    } finally {
       setLoading(false);
-      console.error("Error fetching user data:", error);
     }
-  }, []);
+  }, [navigate]);
 
+  // Handle window resize for responsive sidebar
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    (async () => {
-      await getUserDetails();
-    })();
-  }, [getUserDetails]);
+    const handleResize = () => {
+      setSidebarOpen(window.innerWidth >= 1024);
+    };
 
-  const navigate = (path: string) => {
-    console.log(`Navigating to: ${path}`);
-  };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("userData");
-    localStorage.removeItem("userType");
-    localStorage.removeItem("accessToken");
-    window.location.href = "/login";
+    authService.logout();
+    message.success("Logged out successfully");
+    navigate("/driver/login");
   };
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const handleResize = () => {
-        setWindowWidth(window.innerWidth);
-        setSidebarOpen(window.innerWidth > 768);
+  const handleNavigate = (path: string) => {
+    navigate(path);
+  };
+
+  const handleEditPersonalInfo = () => {
+    setPersonalInfoModalOpen(true);
+  };
+
+  const handleAddVehicle = () => {
+    // Navigate to add vehicle page
+    navigate("/driver/add-vehicle");
+  };
+
+  const handleSavePersonalInfo = (updatedData: {
+    dateOfBirth?: string;
+    bloodGroup?: string;
+    address?: string;
+    languages?: string[];
+    certifications?: string[];
+    emergencyContact?: {
+      name: string;
+      phone: string;
+      relation: string;
+    };
+  }) => {
+    // Update driver data with new personal info
+    const emergencyContact = updatedData.emergencyContact ? {
+      name: updatedData.emergencyContact.name || "",
+      phone: updatedData.emergencyContact.phone || "",
+      relationship: updatedData.emergencyContact.relation || "",
+    } : {
+      name: "",
+      phone: "",
+      relationship: "",
+    };
+
+    setDriverData((prev) => ({
+      ...prev,
+      address: updatedData.address || prev.address,
+      personalInfo: {
+        bloodGroup: updatedData.bloodGroup || prev.personalInfo?.bloodGroup || "",
+        dob: updatedData.dateOfBirth || prev.personalInfo?.dob || "",
+        languages: updatedData.languages || prev.personalInfo?.languages || [],
+        certificates: updatedData.certifications || prev.personalInfo?.certificates || [],
+        emergencyContact,
+      },
+    }));
+
+    // Update localStorage
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      const updatedUser = {
+        ...currentUser,
+        address: updatedData.address || currentUser.address,
+        personalInfo: {
+          bloodGroup: updatedData.bloodGroup || currentUser.personalInfo?.bloodGroup,
+          dob: updatedData.dateOfBirth || currentUser.personalInfo?.dob,
+          languages: updatedData.languages || currentUser.personalInfo?.languages,
+          certificates: updatedData.certifications || currentUser.personalInfo?.certificates,
+          emergencyContact,
+        },
       };
-
-      window.addEventListener("resize", handleResize);
-      handleResize();
-
-      return () => {
-        window.removeEventListener("resize", handleResize);
-      };
+      localStorage.setItem("user", JSON.stringify(updatedUser));
     }
-  }, []);
 
-  const handleTabChange = (key: DriverTabKey) => {
-    setActiveTab(key);
+    setPersonalInfoModalOpen(false);
+    message.success("Personal information updated successfully");
   };
 
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
-
-  const updateUserData = async (values: Partial<UserData>) => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("accessToken");
-      const stored = localStorage.getItem("userData");
-      const userEmail = stored ? JSON.parse(stored).email : localStorage.getItem("userEmail");
-
-      await axios.put(
-        `${import.meta.env.VITE_API_URL}/userDetails`,
-        { ...values },
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            "x-auth-token": token,
-          },
-          params: {
-            id: userEmail,
-          },
-        }
-      );
-
-      getUserDetails();
-      setUserData((prev) => prev ? { ...prev, ...values } : null);
-      setLoading(false);
-    } catch (error) {
-      setLoading(false);
-      console.error("Error updating user data:", error);
-    }
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
   };
 
-  if (loading && !userData) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
         <div className="text-center">
           <Spin size="large" />
           <p className="mt-4 text-gray-600 font-medium">Loading your profile...</p>
@@ -147,92 +186,110 @@ export const DriverProfile = () => {
     );
   }
 
-  if (!userData) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center p-8 bg-white rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold text-red-500 mb-2">Unable to load profile</h2>
-          <p className="text-gray-600 mb-4">We couldn't retrieve your profile information. Please try again later.</p>
-          <Button type="primary" onClick={() => window.location.reload()}>
-            Refresh
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const tabContent: Record<TabKey, JSX.Element> = {
-    home: (
-      <HomeTab
-        userData={userData}
-        loading={loading}
-        handleTabChange={handleTabChange}
-      />
-    ),
-    personal: (
-      <PersonalInfoTab
-        userData={userData}
-        loading={loading}
-        updateUserData={updateUserData}
-      />
-    ),
-    bookings: <BookingsTabUser loading={loading} />,
-    security: <SecurityTab loading={loading} />,
-    privacy: <PrivacyTab loading={loading} />,
-    data: <DataTab loading={loading} />,
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "home":
+        return (
+          <DriverHomeTab
+            driverData={driverData}
+            loading={loading}
+            onEditPersonalInfo={handleEditPersonalInfo}
+          />
+        );
+      case "personalInfo":
+        return (
+          <DriverPersonalInfoTab
+            driverData={driverData}
+            loading={loading}
+            onEditPersonalInfo={handleEditPersonalInfo}
+          />
+        );
+      case "vehicles":
+        return <VehiclesTab onAddVehicle={handleAddVehicle} />;
+      case "bookings":
+        return <BookingsTabUser loading={loading} />;
+      case "settings":
+        return (
+          <div className="space-y-6">
+            <SecurityTab />
+            <PrivacyTab />
+            <DataTab />
+          </div>
+        );
+      default:
+        return (
+          <DriverHomeTab
+            driverData={driverData}
+            loading={loading}
+            onEditPersonalInfo={handleEditPersonalInfo}
+          />
+        );
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-100">
       <UserHeader
-        navigate={navigate}
+        navigate={handleNavigate}
         handleLogout={handleLogout}
-        username={userData.name}
+        username={driverData.name}
       />
 
-      <div className="flex relative w-full pl-0 pr-10">
+      <div className="flex relative w-full">
 
-        {/* Mobile menu button with animation */}
+        {/* Mobile menu button */}
         <Button
           type="default"
           icon={<MenuOutlined />}
-          className={`md:hidden fixed top-20 left-4 z-30 bg-white shadow-md
-            hover:bg-blue-50 transition-all duration-300 ${sidebarOpen ? 'rotate-90' : ''}`}
+          className="lg:hidden fixed top-20 left-4 z-30 bg-white shadow-md hover:bg-blue-50 transition-all duration-300"
           onClick={toggleSidebar}
           size="middle"
         />
 
-        {/* Sidebar with animation */}
-        <UserSidebar
-          userData={userData}
+        {/* Sidebar */}
+        <DriverSidebar
           activeTab={activeTab}
-          handleTabChange={handleTabChange}
-          handleLogout={handleLogout}
-          sidebarOpen={sidebarOpen}
-          windowWidth={windowWidth}
-          toggleSidebar={toggleSidebar}
+          onTabChange={setActiveTab}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          driverData={{
+            name: driverData.name,
+            email: driverData.email,
+            profileImage: driverData.profileImage,
+          }}
         />
 
-        {/* Main Content with transition effects */}
-        <div className="flex-1 p-4 md:p-6 pt-0 md:pt-0 min-h-screen w-full transition-all duration-300 ease-in-out">
-
-          <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-10">
-
-            {loading ? (
-              <div className="flex justify-center items-center min-h-64">
-                <Spin size="large" />
-              </div>
-            ) : (
-              tabContent[activeTab]
-            )}
+        {/* Main Content */}
+        <div className="flex-1 p-4 md:p-6 lg:p-10 min-h-screen w-full transition-all duration-300 ease-in-out">
+          <div className="w-full max-w-7xl mx-auto bg-white rounded-xl shadow-sm p-6 md:p-8 lg:p-10">
+            {renderTabContent()}
           </div>
           
           {/* Footer */}
           <div className="mt-8 text-center text-gray-500 text-sm py-4">
-            <p>&copy; {new Date().getFullYear()} Your Company. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} Gokeral. All rights reserved.</p>
           </div>
         </div>
       </div>
+
+      {/* Personal Info Modal */}
+      <DriverAddDetails
+        open={personalInfoModalOpen}
+        onCancel={() => setPersonalInfoModalOpen(false)}
+        onSave={handleSavePersonalInfo}
+        initialValues={{
+          dateOfBirth: driverData.personalInfo?.dob || "",
+          bloodGroup: driverData.personalInfo?.bloodGroup || "",
+          address: driverData.address || "",
+          languages: driverData.personalInfo?.languages || [],
+          certifications: driverData.personalInfo?.certificates || [],
+          emergencyContact: driverData.personalInfo?.emergencyContact ? {
+            name: driverData.personalInfo.emergencyContact.name || "",
+            phone: driverData.personalInfo.emergencyContact.phone || "",
+            relation: driverData.personalInfo.emergencyContact.relationship || "",
+          } : undefined,
+        }}
+      />
     </div>
   );
 };

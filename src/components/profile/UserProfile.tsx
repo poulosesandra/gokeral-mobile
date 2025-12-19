@@ -13,7 +13,7 @@ import { Button, Spin } from "antd";
 import { MenuOutlined } from "@ant-design/icons";
 import type { JSX } from "react/jsx-runtime";
 import "../styles/UserProfile.css";
-import axios from "axios";
+import { authService } from "../../services/authServices";
 import type { UserTabKey } from "../tabs/HomeTab";
 
 export type TabKey = UserTabKey | "vehicles";
@@ -39,27 +39,31 @@ export const UserProfile = () => {
 
   const getUserDetails = useCallback(async () => {
     try {
-      if (typeof window === "undefined") return; // client-only
+      if (typeof window === "undefined") return;
 
       setLoading(true);
-      const token = localStorage.getItem("accessToken");
-      const stored = localStorage.getItem("userData");
-      const userEmail = stored ? JSON.parse(stored).email : localStorage.getItem("userEmail");
-
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/userDetails`, {
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token,
-        },
-        params: {
-          id: userEmail,
-        },
-      });
-
-      setUserData(response.data.userData);
-      setLoading(false);
-      // Trigger fade-in animation after data loads
-      setTimeout(() => setFadeIn(true), 100);
+      
+      // Get user data from localStorage (saved during login)
+      const storedUserData = authService.getCurrentUser();
+      
+      if (storedUserData) {
+        const userData: UserData = {
+          name: storedUserData.fullName || storedUserData.name || 'User',
+          email: storedUserData.email || '',
+          phoneNumber: storedUserData.phoneNumber || '',
+          address: storedUserData.address || '',
+          profileImage: null,
+          location: storedUserData.address || null,
+        };
+        
+        setUserData(userData);
+        setLoading(false);
+        setTimeout(() => setFadeIn(true), 100);
+      } else {
+        // If no user data, redirect to login
+        console.error('No user data found');
+        window.location.href = '/user/login';
+      }
     } catch (error) {
       setLoading(false);
       console.error("Error fetching user data:", error);
@@ -78,10 +82,8 @@ export const UserProfile = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("userData");
-    localStorage.removeItem("userType");
-    localStorage.removeItem("accessToken");
-    window.location.href = "/login";
+    authService.logout();
+    window.location.href = "/user/login";
   };
 
   useEffect(() => {

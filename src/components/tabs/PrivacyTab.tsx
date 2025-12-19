@@ -1,67 +1,67 @@
-import { Card, List, Switch, Skeleton, Typography } from "antd";
+"use client";
 
-const { Title, Paragraph } = Typography;
+import { Card, Switch, List } from "antd";
+import { useState } from "react";
 
-interface PrivacyTabProps {
-  loading: boolean;
-}
+export const PrivacyTab = () => {
+  const [settings, setSettings] = useState({
+    emailNotifications: true,
+    smsNotifications: false,
+    locationSharing: true,
+    dataSharing: false,
+  });
 
-export const PrivacyTab = ({ loading }: PrivacyTabProps) => {
-  const privacySettings = [
+  const handleToggle = (key: keyof typeof settings) => {
+    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const privacyItems = [
     {
+      key: "emailNotifications",
       title: "Email Notifications",
-      description: "Booking updates",
-      defaultChecked: true,
+      description: "Receive booking updates via email",
     },
     {
+      key: "smsNotifications",
       title: "SMS Notifications",
-      description: "Text alerts",
-      defaultChecked: true,
+      description: "Receive booking updates via SMS",
     },
     {
-      title: "Marketing",
-      description: "Offers & newsletter",
-      defaultChecked: false,
+      key: "locationSharing",
+      title: "Location Sharing",
+      description: "Share your location with drivers",
+    },
+    {
+      key: "dataSharing",
+      title: "Data Sharing",
+      description: "Share usage data for service improvement",
     },
   ];
 
   return (
-    <Card className="shadow-lg">
-      <Title level={4} className="!mb-2 text-xl sm:text-2xl">
-        Privacy Preferences
-      </Title>
-      <Paragraph className="text-gray-500 text-sm sm:text-base">
-        Control your privacy settings
-      </Paragraph>
+    <div className="w-full">
+      <Card className="shadow-md rounded-2xl">
+        <h3 className="text-2xl font-semibold text-gray-800 mb-6">Privacy Preferences</h3>
 
-      <Skeleton loading={loading} active>
         <List
-          itemLayout="horizontal"
-          dataSource={privacySettings}
+          dataSource={privacyItems}
           renderItem={(item) => (
             <List.Item
-              key={item.title}
               actions={[
                 <Switch
-                  key={item.title}
-                  defaultChecked={item.defaultChecked}
+                  checked={settings[item.key as keyof typeof settings]}
+                  onChange={() => handleToggle(item.key as keyof typeof settings)}
                 />,
               ]}
-              className="flex flex-col sm:flex-row items-start sm:items-center py-4"
             >
               <List.Item.Meta
-                title={
-                  <span className="text-base font-medium">{item.title}</span>
-                }
-                description={
-                  <span className="text-sm">{item.description}</span>
-                }
-                className="mb-2 sm:mb-0"
+                title={item.title}
+                description={item.description}
               />
             </List.Item>
           )}
         />
-      </Skeleton>
-    </Card>
+      </Card>
+    </div>
   );
 };

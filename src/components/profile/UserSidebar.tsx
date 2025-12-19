@@ -36,7 +36,6 @@ export const UserSidebar = ({
     { key: "home", label: "Home", icon: <HomeOutlined /> },
     { key: "personal", label: "Personal Info", icon: <UserOutlined /> },
     { key: "bookings", label: "Bookings", icon: <CarOutlined /> },
-    { key: "vehicles", label: "Vehicles", icon: <CarOutlined /> },
     { key: "security", label: "Security", icon: <LockOutlined /> },
     { key: "privacy", label: "Privacy", icon: <EyeOutlined /> },
     { key: "data", label: "Data", icon: <DatabaseOutlined /> },

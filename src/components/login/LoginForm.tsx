@@ -16,7 +16,7 @@ interface LoginFormProps {
 
 const LoginForm = ({
   userType,
-  // navigateTo,
+  navigateTo,
   registerLink,
   switchLoginLink,
   switchLoginText,
@@ -50,29 +50,34 @@ const LoginForm = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-
+    
     if (!validateForm()) {
       return;
     }
 
     setLoading(true);
+    setError("");
 
     try {
-      const loginData = { email: formData.email, password: formData.password };
+      const loginData = {
+        email: formData.email,
+        password: formData.password,
+      };
 
-      if (userType === "user") {
-        await authService.userLogin(loginData);
-        navigate("/user/profile");
-      } else {
+      if (userType === "driver") {
         await authService.driverLogin(loginData);
-        navigate("/driver/profile");
+        navigate('/driver/profile');
+      } else {
+        await authService.userLogin(loginData);
+        navigate(navigateTo);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Login error:", err);
+      const error = err as { response?: { data?: { message?: string } }; message?: string };
       setError(
-        err.response?.data?.message ||
-          "Login failed. Please check your credentials and try again."
+        error.response?.data?.message ||
+        error.message ||
+        "Invalid email or password"
       );
     } finally {
       setLoading(false);

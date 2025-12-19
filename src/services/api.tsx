@@ -1,36 +1,54 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: false, // Change to false or remove this line
+  timeout: 15000,
+  withCredentials: true,
 });
 
-// Add token to requests if available
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    console.log(`📤 [API REQUEST] ${config.method?.toUpperCase()} ${config.url}`, 
+      config.data ? config.data : '');
+    
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('❌ [API REQUEST ERROR]:', error);
+    return Promise.reject(error);
+  }
 );
 
-// Handle token expiration
+// Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`✅ [API RESPONSE] ${response.status} ${response.config.url}`);
+    return response;
+  },
   (error) => {
+    console.error('❌ [API ERROR]:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data,
+    });
+
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('userType');
-      window.location.href = '/login';
+      console.warn('⚠️ [UNAUTHORIZED] Clearing localStorage and redirecting');
+      localStorage.clear();
+      window.location.href = '/';
     }
+    
     return Promise.reject(error);
   }
 );

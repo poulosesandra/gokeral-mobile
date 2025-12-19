@@ -125,37 +125,32 @@ const RegistrationForm = ({
     setSuccess(false);
 
     try {
-      // Prepare registration data based on user type
       if (userType === "driver") {
         const { name, email, phone, password, drivinglicenseNo, agreement } = formData;
         const driverData = {
-          username: name, // Add this
           name,
           email,
           phone,
           password,
-          drivinglicenseNo,
+          drivinglicenseNo: drivinglicenseNo || '',
           agreement,
         };
         await authService.driverRegister(driverData);
+        setSuccess(true);
+        setTimeout(() => navigate(loginLink), 2000);
       } else {
-        const { name, email, password, phone } = formData;
+        const { name, email, password, phone, agreement } = formData;
         const userData = {
-          username: name, // Add this
           name,
           email,
           password,
           phone,
+          agreement,
         };
         await authService.userRegister(userData);
+        setSuccess(true);
+        setTimeout(() => navigate(loginLink), 2000);
       }
-
-      setSuccess(true);
-
-      // Redirect after successful registration
-      setTimeout(() => {
-        navigate(loginLink);
-      }, 2000);
     } catch (err: unknown) {
       console.error("Registration error:", err);
       const error = err as { response?: { data?: { message?: string } }; message?: string };
