@@ -67,89 +67,43 @@ export interface AuthResponse {
 }
 
 // ==================== AUTH SERVICE ====================
+import { setAuthToken } from './api';
+
 export const authService = {
-  // User Registration
-  userRegister: async (data: UserSignupData): Promise<AuthResponse> => {
-    try {
-      console.log('🔵 [USER REGISTER] Sending request:', {
-        fullName: data.fullName,
-        email: data.email,
-        phoneNumber: data.phoneNumber,
-      });
-      
-      const response = await api.post<AuthResponse>('/auth/register-user', {
-        fullName: data.fullName,
-        email: data.email,
-        phoneNumber: data.phoneNumber,
-        password: data.password,
-      });
-      
-      console.log('✅ [USER REGISTER] Response:', response.data);
-      
-      if (response.data.token) {
-        // NOTE: token and user data are deliberately NOT saved to localStorage for security.
-        // Prefer httpOnly cookies set by the backend or in-memory storage managed by the app.
-        console.log('✅ [USER REGISTER] Received token from server (not persisted client-side)');
-      }
-      
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ [USER REGISTER] Error:', {
-        message: error.response?.data?.message || error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      throw error;
-    }
+  // in-memory token for current session
+  _token: null as string | null,
+  // in-memory current user
+  _currentUser: null as any | null,
+
+  setToken(token: string | null) {
+    this._token = token;
+    setAuthToken(token);
   },
 
-  // User Login
-  userLogin: async (data: LoginCredentials): Promise<AuthResponse> => {
-    try {
-      console.log('🔵 [USER LOGIN] Sending request:', data.email);
-      
-      const response = await api.post<AuthResponse>('/auth/login', data);
-      
-      console.log('✅ [USER LOGIN] Response:', response.data);
-      
-      if (response.data.token) {
-        // NOTE: token and user data are deliberately NOT saved to localStorage for security.
-        console.log('✅ [USER LOGIN] Received token from server (not persisted client-side)');
-      }
-      
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ [USER LOGIN] Error:', {
-        message: error.response?.data?.message || error.message,
-        status: error.response?.status,
-      });
-      throw error;
-    }
+  getToken() {
+    return this._token;
   },
 
-  // Logout
-  logout: () => {
-    console.log('🔵 [LOGOUT] Clearing localStorage');
-    localStorage.removeItem('token');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userData');
-    console.log('✅ [LOGOUT] localStorage cleared');
+  setCurrentUser(user: any | null) {
+    this._currentUser = user;
   },
 
   // Get Current User
   getCurrentUser: () => {
+    if (authService._currentUser) return authService._currentUser;
     const userData = localStorage.getItem('userData');
     return userData ? JSON.parse(userData) : null;
   },
 
   // Check if authenticated
   isAuthenticated: () => {
-    return !!localStorage.getItem('token');
+    return !!authService.getToken() || !!localStorage.getItem('token');
   },
 
   // Get user role
   getUserRole: () => {
-    return localStorage.getItem('userRole');
+    const u = authService.getCurrentUser();
+    return u?.role || localStorage.getItem('userRole');
   },
 
   // ==================== DRIVER METHODS ====================
@@ -178,9 +132,11 @@ export const authService = {
       console.log('✅ [DRIVER REGISTER] Response:', response.data);
 
       if (response.data.token) {
-        // NOTE: token and driver data are deliberately NOT saved to localStorage for security.
-        // Prefer httpOnly cookies set by the backend or in-memory storage managed by the app.
-        console.log('✅ [DRIVER REGISTER] Received token from server (not persisted client-side)');
+        // store token in memory only (not persisted to localStorage)
+        authService.setToken(response.data.token);
+        console.log('✅ [DRIVER REGISTER] Token set in memory');
+        // store current driver in memory for immediate use (not persisted)
+        authService.setCurrentUser(response.data.driver || null);
       }
 
       return response.data;
@@ -204,8 +160,9 @@ export const authService = {
       console.log('✅ [DRIVER LOGIN] Response:', response.data);
       
       if (response.data.token) {
-        // NOTE: token and driver data are deliberately NOT saved to localStorage for security.
-        console.log('✅ [DRIVER LOGIN] Received token from server (not persisted client-side)');
+        authService.setToken(response.data.token);
+        console.log('✅ [DRIVER LOGIN] Token set in memory');
+        authService.setCurrentUser(response.data.driver || null);
       }
       
       return response.data;
