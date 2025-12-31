@@ -1,17 +1,17 @@
 "use client";
 
-import { Avatar, Card, Skeleton, Button, Tag, Upload, message } from "antd";
+import { Avatar, Card, Skeleton, Button, Tag } from "antd";
 import {
   UserOutlined,
   MailOutlined,
   PhoneOutlined,
   IdcardOutlined,
   EditOutlined,
-  CameraOutlined,
+  CarOutlined,
 } from "@ant-design/icons";
 
 export type DriverData = {
-  fullName: string;
+  name: string;
   email: string;
   phoneNumber: string;
   driverLicenseNumber: string;
@@ -47,54 +47,24 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
         <Skeleton loading={loading} active avatar>
           <div className="flex items-center gap-6">
             {/* PROFILE PIC */}
-            <div className="relative flex-shrink-0">
-              <div
-                className="rounded-full bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg flex items-center justify-center"
-                style={{ width: "120px", height: "120px" }}
-              >
-                {driverData.profileImage ? (
-                  <img
-                    src={driverData.profileImage}
-                    className="w-full h-full rounded-full object-cover"
-                    alt="Profile"
-                  />
-                ) : (
-                  <Avatar size={100} icon={<UserOutlined />} className="bg-transparent" />
-                )}
-              </div>
-              <Upload
-                accept="image/*"
-                showUploadList={false}
-                beforeUpload={(file) => {
-                  const isImage = file.type.startsWith('image/');
-                  if (!isImage) {
-                    message.error('You can only upload image files!');
-                    return false;
-                  }
-                  const isLt2M = file.size / 1024 / 1024 < 2;
-                  if (!isLt2M) {
-                    message.error('Image must be smaller than 2MB!');
-                    return false;
-                  }
-                  // TODO: Implement actual upload to backend
-                  message.success('Profile picture upload functionality coming soon!');
-                  return false;
-                }}
-              >
-                <Button
-                  type="primary"
-                  shape="circle"
-                  icon={<CameraOutlined />}
-                  size="small"
-                  className="absolute bottom-1 right-1 shadow-lg"
-                  style={{ width: '32px', height: '32px' }}
+            <div
+              className="rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg flex items-center justify-center flex-shrink-0"
+              style={{ width: "120px", height: "120px" }}
+            >
+              {driverData.profileImage ? (
+                <img
+                  src={driverData.profileImage}
+                  className="w-full h-full rounded-full object-cover"
+                  alt="Profile"
                 />
-              </Upload>
+              ) : (
+                <Avatar size={100} icon={<UserOutlined />} className="bg-transparent" />
+              )}
             </div>
 
             {/* DRIVER INFO */}
             <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-gray-800">{driverData.fullName}</h2>
+              <h2 className="text-2xl font-bold text-gray-800">{driverData.name}</h2>
               <p className="text-sm text-gray-500">Driver Account</p>
               
               <div className="flex items-center gap-2 text-gray-600">
@@ -117,7 +87,7 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
       </Card>
 
       {/* CONTENT GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* PERSONAL INFORMATION */}
         <Card className="shadow-md rounded-2xl">

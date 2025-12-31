@@ -121,7 +121,7 @@ export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) =>
 
               {/* USER INFO */}
               <div className="space-y-1">
-                <h2 className="text-2xl font-bold">{userData.name}</h2>
+                <h2 className="text-2xl font-bold">{userData.fullName}</h2>
                 <p className="text-gray-400 text-sm">Premium User</p>
               </div>
 

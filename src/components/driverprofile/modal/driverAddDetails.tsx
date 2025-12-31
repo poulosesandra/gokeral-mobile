@@ -13,7 +13,7 @@ export type DriverPersonalInfoValues = {
 	bloodGroup?: string;
 	address?: string;
 	languages?: string[];
-	certificates?: string[];
+	certifications?: string[];
 	emergencyContact?: EmergencyContact;
 };
 
@@ -82,7 +82,7 @@ const DriverPersonalInfoModal = ({
 				? dayjs(values.dateOfBirth).format("DD/MM/YYYY")
 				: undefined,
 			languages: values.languages || [],
-			certificates: values.certificates || [],
+			certifications: values.certifications || [],
 			emergencyContact: values.emergencyContact || undefined,
 		};
 
@@ -163,7 +163,7 @@ const DriverPersonalInfoModal = ({
 
 					<Col xs={24} md={12}>
 						<Form.Item
-							name="certificates"
+							name="certifications"
 							label="Certifications"
 							rules={[{ required: true, message: "Please select certifications" }]}
 						>

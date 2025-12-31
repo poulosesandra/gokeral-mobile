@@ -12,14 +12,14 @@ import { DataTab } from "../tabs/DataTab";
 import { Button, Spin } from "antd";
 import { MenuOutlined } from "@ant-design/icons";
 import type { JSX } from "react/jsx-runtime";
-import "../../styles/UserProfile.css";
-import { authService } from "../../../services/authServices";
+import "../styles/UserProfile.css";
+import { authService } from "../../services/authServices";
 import type { UserTabKey } from "../tabs/HomeTab";
 
 export type TabKey = UserTabKey | "vehicles";
 
 export type UserData = {
-  fullName: string;
+  name: string;
   email: string;
   phoneNumber: string;
   address: string;
@@ -28,7 +28,7 @@ export type UserData = {
 };
 
 export const UserProfile = () => {
-  const [activeTab, setActiveTab] = useState<TabKey>("home");
+  const [activeTab, setActiveTab] = useState<UserTabKey>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 0
@@ -42,37 +42,27 @@ export const UserProfile = () => {
       if (typeof window === "undefined") return;
 
       setLoading(true);
-
-      // Always fetch fresh data from backend
-      try {
-        const response = await authService.fetchUserProfile();
-        const backendData = response.user || response;
-
+      
+      // Get user data from localStorage (saved during login)
+      const storedUserData = authService.getCurrentUser();
+      
+      if (storedUserData) {
         const userData: UserData = {
-          fullName: backendData.fullName || backendData.name || 'User',
-          email: backendData.email || '',
-          phoneNumber: backendData.phoneNumber || '',
-          address: backendData.address || '',
-          profileImage: backendData.profileImage || null,
-          location: backendData.address || null,
+          name: storedUserData.fullName || storedUserData.name || 'User',
+          email: storedUserData.email || '',
+          phoneNumber: storedUserData.phoneNumber || '',
+          address: storedUserData.address || '',
+          profileImage: null,
+          location: storedUserData.address || null,
         };
-
+        
         setUserData(userData);
         setLoading(false);
         setTimeout(() => setFadeIn(true), 100);
-      } catch (backendError: any) {
-        // Don't fall back to localStorage; force logout and redirect
-        console.error('Failed to fetch user profile:', backendError);
-
-        if (backendError.response?.status === 401) {
-          authService.logout();
-          window.location.href = '/user/login';
-        } else {
-          console.error('Error fetching user data:', backendError);
-          window.location.href = '/user/login';
-        }
-
-        setLoading(false);
+      } else {
+        // If no user data, redirect to login
+        console.error('No user data found');
+        window.location.href = '/user/login';
       }
     } catch (error) {
       setLoading(false);
@@ -112,13 +102,8 @@ export const UserProfile = () => {
     }
   }, []);
 
-  const handleTabChange = (key: TabKey) => {
-    if (key === 'vehicles') {
-      // Keep 'vehicles' behavior handled inside tabContent; set active to 'home' to avoid invalid UserTabKey
-      setActiveTab('home');
-    } else {
-      setActiveTab(key as UserTabKey);
-    }
+  const handleTabChange = (key: UserTabKey) => {
+    setActiveTab(key);
   };
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
@@ -126,24 +111,30 @@ export const UserProfile = () => {
   const updateUserData = async (values: Partial<UserData>) => {
     try {
       setLoading(true);
+      const token = localStorage.getItem("accessToken");
+      const stored = localStorage.getItem("userData");
+      const userEmail = stored ? JSON.parse(stored).email : localStorage.getItem("userEmail");
 
-      // Call backend with correct field mapping
-      await authService.updateUserProfile({
-        fullName: values.fullName,
-        email: values.email,
-        phoneNumber: values.phoneNumber,
-        address: values.address,
-      });
+      await axios.put(
+        `${import.meta.env.VITE_API_URL}/userDetails`,
+        { ...values },
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            "x-auth-token": token,
+          },
+          params: {
+            id: userEmail,
+          },
+        }
+      );
 
-      // Fetch fresh data from backend to ensure consistency
-      await getUserDetails();
-
+      getUserDetails();
+      setUserData((prev) => prev ? { ...prev, ...values } : null);
       setLoading(false);
-      console.log('✅ Profile updated successfully');
     } catch (error) {
       setLoading(false);
       console.error("Error updating user data:", error);
-      throw error;
     }
   };
 
@@ -189,7 +180,7 @@ export const UserProfile = () => {
     ),
     bookings: <BookingsTabUser loading={loading} />,
     vehicles: (
-      <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+      <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-2xl font-bold">Your Vehicles</h3>
@@ -198,7 +189,7 @@ export const UserProfile = () => {
           <div>
             <button
               type="button"
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
               onClick={() => alert('Open Add Vehicle')}
             >
               + Add Vehicle
@@ -209,32 +200,30 @@ export const UserProfile = () => {
         <div className="mt-12 text-center text-gray-500">No vehicles registered.</div>
       </div>
     ),
-    security: <SecurityTab />,
-    privacy: <PrivacyTab />,
-    data: <DataTab />,
+    security: <SecurityTab loading={loading} />,
+    privacy: <PrivacyTab loading={loading} />,
+    data: <DataTab loading={loading} />,
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-100">
       <UserHeader
         navigate={navigate}
         handleLogout={handleLogout}
-        username={userData.fullName}
+        username={userData.name}
       />
 
-      <div className="flex relative w-full pl-0 pr-4 pt-6">
+      <div className="flex relative w-full pl-0 pr-10">
 
         {/* Mobile menu button with animation */}
-        {windowWidth <= 768 && (
-          <Button
-            type="default"
-            icon={<MenuOutlined />}
-            className={`fixed top-20 left-4 z-30 bg-white shadow-md
-              hover:bg-green-50 transition-all duration-300 ${sidebarOpen ? 'rotate-90' : ''}`}
-            onClick={toggleSidebar}
-            size="middle"
-          />
-        )}
+        <Button
+          type="default"
+          icon={<MenuOutlined />}
+          className={`md:hidden fixed top-20 left-4 z-30 bg-white shadow-md
+            hover:bg-blue-50 transition-all duration-300 ${sidebarOpen ? 'rotate-90' : ''}`}
+          onClick={toggleSidebar}
+          size="middle"
+        />
 
         {/* Sidebar with animation */}
         <UserSidebar
@@ -248,9 +237,9 @@ export const UserProfile = () => {
         />
 
         {/* Main Content with transition effects */}
-        <div className="flex-1 p-2 md:pl-4 min-h-screen w-full transition-all duration-300 ease-in-out">
+        <div className="flex-1 p-4 md:p-6 pt-0 md:pt-0 min-h-screen w-full transition-all duration-300 ease-in-out">
 
-          <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">
+          <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-10">
 
             {loading ? (
               <div className="flex justify-center items-center min-h-64">
@@ -262,7 +251,7 @@ export const UserProfile = () => {
           </div>
           
           {/* Footer */}
-          <div className="mt-4 text-center text-gray-500 text-sm py-2">
+          <div className="mt-8 text-center text-gray-500 text-sm py-4">
             <p>&copy; {new Date().getFullYear()} Your Company. All rights reserved.</p>
           </div>
         </div>

@@ -22,7 +22,7 @@ interface DriverSidebarProps {
   onClose: () => void;
   windowWidth: number;
   driverData: {
-    name: string;
+    fullName: string;
     email: string;
     profileImage: string | null;
   };
@@ -121,22 +121,30 @@ export const DriverSidebar = ({
                     const url = resp?.data?.url || resp?.data?.driver?.documents?.slice(-1)[0]?.url;
 
                     if (url) {
-                      // Update local storage userData so other parts reflect the change
-                      const currentUser = localStorage.getItem('userData');
-                      if (currentUser) {
-                        try {
+                      // Save the URL to backend via update endpoint
+                      try {
+                        const currentUser = localStorage.getItem('userData');
+                        if (currentUser) {
                           const parsed = JSON.parse(currentUser);
-                          parsed.profileImage = url;
-                          localStorage.setItem('userData', JSON.stringify(parsed));
-                          message.success('Profile picture uploaded');
-                          // notify parent
-                          // Call optional callback
+
+                          // Call update endpoint to save profileImage
+                          await api.patch('/drivers/update', {
+                            fullName: parsed.fullName,
+                            email: parsed.email,
+                            phoneNumber: parsed.phoneNumber,
+                            profileImage: url,
+                          });
+
+                          message.success('Profile picture uploaded and saved');
+
+                          // Call callback to update parent component
                           if (typeof onProfileImageUpdate === 'function') {
                             onProfileImageUpdate(url);
                           }
-                        } catch (e) {
-                          console.warn('Failed to update localStorage profile image', e);
                         }
+                      } catch (updateError: any) {
+                        console.error('Failed to save profile image to backend', updateError);
+                        message.error('Uploaded but failed to save. Please try again.');
                       }
                     } else {
                       message.warning('Uploaded but could not find file URL');
@@ -161,7 +169,7 @@ export const DriverSidebar = ({
               </Upload>
             </div>
 
-            <h3 className="font-bold text-base text-center">{driverData.name}</h3>
+            <h3 className="font-bold text-base text-center">{driverData.fullName}</h3>
             <p className="text-xs text-gray-500">Driver Account</p>
           </div>
 

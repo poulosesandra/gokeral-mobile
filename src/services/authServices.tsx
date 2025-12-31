@@ -7,26 +7,41 @@ export interface LoginCredentials {
 }
 
 export interface UserSignupData {
-  name: string;
+  fullName: string;
   email: string;
   password: string;
-  phone: string;
+  phoneNumber: string;
+  address?: string; // optional: used in profile updates
   agreement: boolean;
 }
 
 export interface DriverSignupData {
-  name: string;
+  fullName: string;
   email: string;
   password: string;
   phoneNumber: string;
-  licenseNumber: string;
+  driverLicenseNumber?: string;          // backend key
+  profileImage?: string;           // new
   address: string;
   location: {
     latitude: number;
     longitude: number;
   };
   agreement: boolean;
-  role: 'DRIVER';
+  role?: 'DRIVER';                 // optional to allow default
+  personalInfo?: {
+    bloodGroup?: string;
+    dob?: string;
+    languages?: string[];
+    certificates?: string[];
+    emergencyContact?: { name?: string; phone?: string; relationship?: string };
+  };
+  drivingExperience?: {
+    yearsOfExperience?: number;
+    licensedSince?: string;
+    totalTripsCompleted?: number;
+    averageRating?: number;
+  };
 }
 
 export interface AuthResponse {
@@ -57,15 +72,15 @@ export const authService = {
   userRegister: async (data: UserSignupData): Promise<AuthResponse> => {
     try {
       console.log('🔵 [USER REGISTER] Sending request:', {
-        fullName: data.name,
+        fullName: data.fullName,
         email: data.email,
-        phoneNumber: data.phone,
+        phoneNumber: data.phoneNumber,
       });
       
       const response = await api.post<AuthResponse>('/auth/register-user', {
-        fullName: data.name,
+        fullName: data.fullName,
         email: data.email,
-        phoneNumber: data.phone,
+        phoneNumber: data.phoneNumber,
         password: data.password,
       });
       
@@ -94,7 +109,7 @@ export const authService = {
     try {
       console.log('🔵 [USER LOGIN] Sending request:', data.email);
       
-      const response = await api.post<AuthResponse>('/auth/login-user', data);
+      const response = await api.post<AuthResponse>('/auth/login', data);
       
       console.log('✅ [USER LOGIN] Response:', response.data);
       
@@ -146,7 +161,7 @@ export const authService = {
   driverRegister: async (data: DriverSignupData): Promise<AuthResponse> => {
     try {
       console.log('🔵 [DRIVER REGISTER] Sending request:', {
-        name: data.name,
+        fullName: data.fullName,
         email: data.email,
         phoneNumber: data.phoneNumber,
         password: data.password,
@@ -154,19 +169,20 @@ export const authService = {
         location: data.location,
         agreement: data.agreement,
         role: data.role,
-        licenseNumber: data.licenseNumber,
+        driverLicenseNumber: data.driverLicenseNumber,
       });
 
       const response = await api.post<AuthResponse>('/auth/register-driver', {
-        name: data.name,
+        fullName: data.fullName,
         email: data.email,
         phoneNumber: data.phoneNumber,
         password: data.password,
         address: data.address,
         location: data.location,
         agreement: data.agreement,
-        role: data.role,
-        licenseNumber: data.licenseNumber,
+        role: data.role || 'DRIVER',
+        // Map frontend driverLicenseNumber -> backend driverLicenseNumber
+        driverLicenseNumber: data.driverLicenseNumber,
       });
 
       console.log('✅ [DRIVER REGISTER] Response:', response.data);
@@ -213,6 +229,45 @@ export const authService = {
       });
       throw error;
     }
+  },
+
+  fetchUserProfile: async () => {
+    const res = await api.get('/users/profile'); // confirm endpoint
+    return res.data;
+  },
+
+  fetchDriverProfile: async () => {
+    const res = await api.get('/drivers/profile'); // confirm endpoint
+    return res.data;
+  },
+
+  updateUserProfile: async (data: Partial<UserSignupData>) => {
+    const payload = {
+      fullName: data.fullName,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+      address: data.address,
+    };
+    const res = await api.patch('/users/update', payload);
+    localStorage.setItem('userData', JSON.stringify(res.data));
+    return res.data;
+  },
+
+  updateDriverProfile: async (data: Partial<DriverSignupData>) => {
+    const payload = {
+      fullName: data.fullName,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+      address: data.address,
+      driverLicenseNumber: data.driverLicenseNumber,
+      profileImage: data.profileImage,
+      personalInfo: data.personalInfo || {},
+      drivingExperience: data.drivingExperience || {},
+      role: data.role || 'DRIVER',
+    };
+    const res = await api.patch('/drivers/update', payload);
+    localStorage.setItem('userData', JSON.stringify(res.data));
+    return res.data;
   },
 };
 

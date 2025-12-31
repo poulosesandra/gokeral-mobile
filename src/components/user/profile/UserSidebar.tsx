@@ -119,7 +119,7 @@ export const UserSidebar = ({
               </Upload>
             </div>
 
-            <h3 className="font-bold text-base text-center">{userData.name}</h3>
+            <h3 className="font-bold text-base text-center">{userData.fullName}</h3>
             <p className="text-xs text-gray-500">User Account</p>
           </div>
 
@@ -129,7 +129,7 @@ export const UserSidebar = ({
             <Tabs
               activeKey={activeTab}
               onChange={(key) => handleTabChange(key as TabKey)}
-              tabPlacement="left"
+              tabPlacement={'left' as any}
               className="user-profile-tabs"
               items={tabItems.map((tab) => ({
                 key: tab.key,

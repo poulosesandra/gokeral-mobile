@@ -19,23 +19,32 @@ const Maps: React.FC = () => {
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   // Get user data for header
   const currentUser = authService.getCurrentUser();
   const username = currentUser?.fullName || currentUser?.name || 'User';
 
   // 1. Add center state with fallback to Kochi
-const [center, setCenter] = useState<{ lat: number; lng: number }>({ lat: 9.9312, lng: 76.2673 });
+  const [center, setCenter] = useState<{ lat: number; lng: number }>({ lat: 9.9312, lng: 76.2673 });
   // 2. On mount, try to get user's current location
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setCenter({
+          const coords = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-          });
-        }
+          };
+
+          setCenter(coords);
+          setUserLocation(coords); // place a pin at exact user location
+        },
+        (error) => {
+          console.warn('Geolocation error:', error);
+          message.info('Location access denied or unavailable. Using default location.');
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
       );
     }
   }, []);
@@ -62,6 +71,125 @@ const [center, setCenter] = useState<{ lat: number; lng: number }>({ lat: 9.9312
     authService.logout();
     message.success('Logged out successfully');
     navigate('/user/login');
+  };
+
+  // Smoothly animate the map to a target location over `duration` ms (returns a Promise)
+  const smoothPanTo = (map: google.maps.Map, target: { lat: number; lng: number }, duration = 600): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!map) { resolve(); return; }
+
+      const start = map.getCenter();
+      if (!start) { resolve(); return; }
+
+      const startLat = start.lat();
+      const startLng = start.lng();
+      const deltaLat = target.lat - startLat;
+      const deltaLng = target.lng - startLng;
+
+      const easeInOutQuad = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+
+      const startTime = performance.now();
+
+      const step = (now: number) => {
+        const elapsed = now - startTime;
+        const t = Math.min(1, elapsed / duration);
+        const eased = easeInOutQuad(t);
+
+        const lat = startLat + deltaLat * eased;
+        const lng = startLng + deltaLng * eased;
+
+        map.panTo({ lat, lng });
+
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(step);
+    });
+  };
+
+  // Smoothly animate the map zoom level to `targetZoom` over `duration` ms
+  const smoothZoom = (map: google.maps.Map, targetZoom: number, duration = 500) => {
+    const startZoom = map.getZoom() ?? 15;
+    if (startZoom === targetZoom) return;
+
+    const delta = targetZoom - startZoom;
+    const easeInOutQuad = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+    const startTime = performance.now();
+
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / duration);
+      const eased = easeInOutQuad(t);
+      const zoom = startZoom + delta * eased;
+      // setZoom expects an integer; round to nearest
+      map.setZoom(Math.round(zoom));
+
+      if (t < 1) requestAnimationFrame(step);
+    };
+
+    requestAnimationFrame(step);
+  };
+
+  // Create a transient pulsing circle at `center` which expands and fades
+  const createPulse = (map: google.maps.Map, center: { lat: number; lng: number }, maxRadius = 80, duration = 800): Promise<void> => {
+    return new Promise((resolve) => {
+      const circle = new google.maps.Circle({
+        strokeColor: '#1E90FF',
+        strokeOpacity: 0.75,
+        strokeWeight: 2,
+        fillColor: '#1E90FF',
+        fillOpacity: 0.45,
+        center,
+        radius: 8,
+        map,
+        zIndex: 100,
+      });
+
+      const startTime = performance.now();
+      const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+
+      const step = (now: number) => {
+        const elapsed = now - startTime;
+        const t = Math.min(1, elapsed / duration);
+        const eased = easeOut(t);
+
+        const radius = 8 + (maxRadius - 8) * eased;
+        const fillOpacity = 0.45 * (1 - eased);
+        const strokeOpacity = 0.75 * (1 - eased);
+
+        circle.setRadius(radius);
+        circle.setOptions({ fillOpacity, strokeOpacity });
+
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          circle.setMap(null);
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(step);
+    });
+  };
+
+  const handleUserLocationClick = async () => {
+    if (!map || !userLocation) return;
+
+    const key = 'centering-msg';
+    message.open({ key, type: 'loading', content: 'Centering on you...', duration: 0 });
+
+    const mediumZoom = 15; // medium distance zoom level
+    await smoothPanTo(map, userLocation, 700);
+    smoothZoom(map, mediumZoom, 500);
+
+    // show a pulse effect and then show success
+    await createPulse(map, userLocation, 80, 900);
+
+    message.open({ key, type: 'success', content: 'Centered', duration: 2 });
   };
 
   if (!isLoaded) {
@@ -93,6 +221,8 @@ const [center, setCenter] = useState<{ lat: number; lng: number }>({ lat: 9.9312
           onLoad={(map) => setMap(map)}
           directionsResponse={directionsResponse}
           center={center} // Pass center here
+          userLocation={userLocation}
+          onUserLocationClick={handleUserLocationClick}
         />
       </div>
     </div>

@@ -8,7 +8,7 @@ interface BookingsTabProps {
   loading: boolean;
 }
 
-export const BookingsTabUser = (_props: BookingsTabProps) => {
+export const BookingsTabUser = ({ loading }: BookingsTabProps) => {
   return (
     <div className="w-full">
       <Card className="shadow-md rounded-2xl">

@@ -16,6 +16,8 @@ export interface Vehicle {
   insuranceExpiry?: string;
   registrationExpiry?: string;
   status?: string;
+  images?: string[];
+  raw?: any;
 }
 
 interface VehiclesTabProps {
