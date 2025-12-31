@@ -45,41 +45,49 @@ export const DriverProfile = () => {
 
   // LOAD DRIVER DATA FROM LOCALSTORAGE
   useEffect(() => {
-    try {
-      const currentUser = authService.getCurrentUser();
-      
-      if (!currentUser) {
-        navigate("/driver/login");
-        return;
-      }
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        // Fetch authoritative profile from backend
+        const driver = await authService.fetchDriverProfile();
+        if (!driver) {
+          navigate("/driver/login");
+          return;
+        }
 
-      // Map the driver data from localStorage
-      setDriverData({
-        name: currentUser.fullName || "",
-        email: currentUser.email || "",
-        phoneNumber: currentUser.phoneNumber || "",
-        driverLicenseNumber: currentUser.driverLicenseNumber || "",
-        address: currentUser.address || "",
-        profileImage: currentUser.profileImage || null,
-        personalInfo: {
-          bloodGroup: currentUser.personalInfo?.bloodGroup || "",
-          dob: currentUser.personalInfo?.dob || "",
-          languages: currentUser.personalInfo?.languages || [],
-          certificates: currentUser.personalInfo?.certificates || [],
-          emergencyContact: currentUser.personalInfo?.emergencyContact || {
-            name: "",
-            phone: "",
-            relationship: "",
+        // cache in memory + storage
+        authService.setCurrentUser(driver);
+
+        if (!mounted) return;
+        setDriverData({
+          name: driver.fullName || "",
+          email: driver.email || "",
+          phoneNumber: driver.phoneNumber || "",
+          driverLicenseNumber: driver.driverLicenseNumber || "",
+          address: driver.address || "",
+          profileImage: driver.profileImage || null,
+          personalInfo: {
+            bloodGroup: driver.personalInfo?.bloodGroup || "",
+            dob: driver.personalInfo?.dob || "",
+            languages: driver.personalInfo?.languages || [],
+            certificates: driver.personalInfo?.certificates || [],
+            emergencyContact: driver.personalInfo?.emergencyContact || {
+              name: "",
+              phone: "",
+              relationship: "",
+            },
           },
-        },
-      });
-    } catch (error) {
-      console.error("Failed to load driver data:", error);
-      message.error("Failed to load driver data");
-      navigate("/driver/login");
-    } finally {
-      setLoading(false);
-    }
+        });
+      } catch (error) {
+        console.error("Failed to load driver profile:", error);
+        message.error("Failed to load profile");
+        navigate("/driver/login");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
   }, [navigate]);
 
   // Handle window resize for responsive sidebar
