@@ -20,15 +20,15 @@ export interface DriverSignupData {
   email: string;
   password: string;
   phoneNumber: string;
-  driverLicenseNumber?: string;          // backend key
-  profileImage?: string;           // new
+  driverLicenseNumber?: string; // backend key
+  profileImage?: string;
   address: string;
-  location: {
+  location?: {
     latitude: number;
     longitude: number;
   };
   agreement: boolean;
-  role?: 'DRIVER';                 // optional to allow default
+  role?: 'DRIVER';
   personalInfo?: {
     bloodGroup?: string;
     dob?: string;
@@ -73,8 +73,10 @@ export const authService = {
   _token: null as string | null,
   // in-memory current user
   _currentUser: null as any | null,
+  // initialization state
+  _ready: false,
 
-  // --- MODIFIED: Persist Token ---
+  // --- PERSISTENCE: Save Token ---
   setToken(token: string | null) {
     this._token = token;
     setAuthToken(token);
@@ -86,18 +88,17 @@ export const authService = {
     }
   },
 
-  // --- MODIFIED: Check Storage for Token ---
+  // --- PERSISTENCE: Get Token ---
   getToken() {
     return this._token || localStorage.getItem('token');
   },
 
-  // --- MODIFIED: Persist User Data ---
+  // --- PERSISTENCE: Save User/Driver ---
   setCurrentUser(user: any | null) {
     this._currentUser = user;
 
     if (user) {
       localStorage.setItem('userData', JSON.stringify(user));
-      // Save role separately for easy access checks
       const role = user.role || (user.driverLicenseNumber ? 'DRIVER' : 'USER');
       localStorage.setItem('userRole', role);
     } else {
@@ -124,24 +125,102 @@ export const authService = {
     return u?.role || localStorage.getItem('userRole');
   },
 
-  // --- NEW: Logout Method ---
-  logout: () => {
-    authService.setToken(null);
-    authService.setCurrentUser(null);
-    // Explicitly clear all related items
+  // --- Lifecycle: init / ready / clear ---
+  async initAuth() {
+    // load token from storage (if any)
+    const token = localStorage.getItem('token');
+    if (token) {
+      this.setToken(token);
+      try {
+        // attempt to fetch driver profile first
+        const driver = await this.fetchDriverProfile().catch(() => null);
+        if (driver) {
+          this.setCurrentUser(driver);
+        } else {
+          const user = await this.fetchUserProfile().catch(() => null);
+          if (user) this.setCurrentUser(user);
+        }
+      } catch (err) {
+        // ignore - not authenticated or token invalid
+      }
+    }
+    this._ready = true;
+  },
+
+  isReady() {
+    return this._ready;
+  },
+
+  clearAuth() {
+    this.setToken(null);
+    this.setCurrentUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('userData');
     localStorage.removeItem('userRole');
-    // Optional: Reload or redirect
+    this._ready = true;
+  },
+
+  // --- Logout Method ---
+  logout: () => {
+    authService.clearAuth();
     window.location.href = '/login';
   },
 
+  // ==================== USER (PASSENGER) METHODS ====================
+
+  // User Registration
+  userRegister: async (data: UserSignupData): Promise<AuthResponse> => {
+    try {
+      console.log('🔵 [USER REGISTER] Sending request:', data.email);
+
+      const payload = {
+        fullName: data.fullName,
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+        password: data.password,
+      };
+
+      const response = await api.post<AuthResponse>('/auth/register-user', payload);
+
+      console.log('✅ [USER REGISTER] Response:', response.data);
+
+      if (response.data.token) {
+        authService.setToken(response.data.token);
+        authService.setCurrentUser(response.data.user || null);
+      }
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [USER REGISTER] Error:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // User Login
+  userLogin: async (data: LoginCredentials): Promise<AuthResponse> => {
+    try {
+      console.log('🔵 [USER LOGIN] Sending request:', data.email);
+
+      const response = await api.post<AuthResponse>('/auth/login-user', data);
+
+      console.log('✅ [USER LOGIN] Response:', response.data);
+
+      if (response.data.token) {
+        authService.setToken(response.data.token);
+        authService.setCurrentUser(response.data.user || null);
+      }
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [USER LOGIN] Error:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
   // ==================== DRIVER METHODS ====================
-  
+
   // Driver Registration
   driverRegister: async (data: DriverSignupData): Promise<AuthResponse> => {
     try {
-      // Build a sanitized payload
+      // Build a sanitized payload (do NOT send client-only props like agreement/role)
       const payload: any = {
         fullName: data.fullName,
         email: data.email,
@@ -162,11 +241,7 @@ export const authService = {
       console.log('✅ [DRIVER REGISTER] Response:', response.data);
 
       if (response.data.token) {
-        // This now saves to localStorage automatically via setToken
         authService.setToken(response.data.token);
-        console.log('✅ [DRIVER REGISTER] Token persisted');
-        
-        // This now saves to localStorage automatically via setCurrentUser
         authService.setCurrentUser(response.data.driver || null);
       }
 
@@ -185,19 +260,16 @@ export const authService = {
   driverLogin: async (data: LoginCredentials): Promise<AuthResponse> => {
     try {
       console.log('🔵 [DRIVER LOGIN] Sending request:', data.email);
-      
+
       const response = await api.post<AuthResponse>('/auth/login-driver', data);
-      
+
       console.log('✅ [DRIVER LOGIN] Response:', response.data);
-      
+
       if (response.data.token) {
-        // Persist token
         authService.setToken(response.data.token);
-        console.log('✅ [DRIVER LOGIN] Token persisted');
-        // Persist user
         authService.setCurrentUser(response.data.driver || null);
       }
-      
+
       return response.data;
     } catch (error: any) {
       console.error('❌ [DRIVER LOGIN] Error:', {
@@ -207,6 +279,8 @@ export const authService = {
       throw error;
     }
   },
+
+  // ==================== PROFILE METHODS ====================
 
   fetchUserProfile: async () => {
     const res = await api.get('/users/profile');
@@ -226,22 +300,28 @@ export const authService = {
       address: data.address,
     };
     const res = await api.patch('/users/update', payload);
+    if (res.data) {
+      authService.setCurrentUser(res.data, );
+    }
     return res.data;
   },
 
   updateDriverProfile: async (data: Partial<DriverSignupData>) => {
-    const payload = {
+    const payload: any = {
       fullName: data.fullName,
       email: data.email,
       phoneNumber: data.phoneNumber,
-      address: data.address,
-      driverLicenseNumber: data.driverLicenseNumber,
-      profileImage: data.profileImage,
-      personalInfo: data.personalInfo || {},
-      drivingExperience: data.drivingExperience || {},
-      role: data.role || 'DRIVER',
     };
+    if (data.address !== undefined) payload.address = data.address;
+    if (data.driverLicenseNumber !== undefined) payload.driverLicenseNumber = data.driverLicenseNumber;
+    if (data.profileImage !== undefined) payload.profileImage = data.profileImage;
+    if (data.personalInfo !== undefined) payload.personalInfo = data.personalInfo;
+    if (data.drivingExperience !== undefined) payload.drivingExperience = data.drivingExperience;
+
     const res = await api.patch('/drivers/update', payload);
+    if (res.data) {
+      authService.setCurrentUser(res.data);
+    }
     return res.data;
   },
 };
