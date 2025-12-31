@@ -87,10 +87,9 @@ export const authService = {
       console.log('✅ [USER REGISTER] Response:', response.data);
       
       if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userRole', 'USER');
-        localStorage.setItem('userData', JSON.stringify(response.data.user));
-        console.log('✅ [USER REGISTER] Token and user data saved to localStorage');
+        // NOTE: token and user data are deliberately NOT saved to localStorage for security.
+        // Prefer httpOnly cookies set by the backend or in-memory storage managed by the app.
+        console.log('✅ [USER REGISTER] Received token from server (not persisted client-side)');
       }
       
       return response.data;
@@ -114,10 +113,8 @@ export const authService = {
       console.log('✅ [USER LOGIN] Response:', response.data);
       
       if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userRole', 'USER');
-        localStorage.setItem('userData', JSON.stringify(response.data.user));
-        console.log('✅ [USER LOGIN] Token and user data saved to localStorage');
+        // NOTE: token and user data are deliberately NOT saved to localStorage for security.
+        console.log('✅ [USER LOGIN] Received token from server (not persisted client-side)');
       }
       
       return response.data;
@@ -157,41 +154,33 @@ export const authService = {
 
   // ==================== DRIVER METHODS ====================
   
-  // Driver Registration
+  // Driver Registration (frontend: do NOT send `agreement` or `role` to backend)
   driverRegister: async (data: DriverSignupData): Promise<AuthResponse> => {
     try {
-      console.log('🔵 [DRIVER REGISTER] Sending request:', {
+      // Build a sanitized payload that excludes UI-only fields (agreement, role)
+      const payload: any = {
         fullName: data.fullName,
         email: data.email,
         phoneNumber: data.phoneNumber,
         password: data.password,
-        address: data.address,
-        location: data.location,
-        agreement: data.agreement,
-        role: data.role,
-        driverLicenseNumber: data.driverLicenseNumber,
-      });
+      };
 
-      const response = await api.post<AuthResponse>('/auth/register-driver', {
-        fullName: data.fullName,
-        email: data.email,
-        phoneNumber: data.phoneNumber,
-        password: data.password,
-        address: data.address,
-        location: data.location,
-        agreement: data.agreement,
-        role: data.role || 'DRIVER',
-        // Map frontend driverLicenseNumber -> backend driverLicenseNumber
-        driverLicenseNumber: data.driverLicenseNumber,
-      });
+      if (data.address !== undefined) payload.address = data.address;
+      if (data.location !== undefined) payload.location = data.location;
+      if (data.driverLicenseNumber) payload.driverLicenseNumber = data.driverLicenseNumber;
+      if (data.personalInfo) payload.personalInfo = data.personalInfo;
+      if (data.drivingExperience) payload.drivingExperience = data.drivingExperience;
+
+      console.log('🔵 [DRIVER REGISTER] Sending request (sanitized):', payload);
+
+      const response = await api.post<AuthResponse>('/auth/register-driver', payload);
 
       console.log('✅ [DRIVER REGISTER] Response:', response.data);
 
       if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userRole', 'DRIVER');
-        localStorage.setItem('userData', JSON.stringify(response.data.driver));
-        console.log('✅ [DRIVER REGISTER] Token and driver data saved to localStorage');
+        // NOTE: token and driver data are deliberately NOT saved to localStorage for security.
+        // Prefer httpOnly cookies set by the backend or in-memory storage managed by the app.
+        console.log('✅ [DRIVER REGISTER] Received token from server (not persisted client-side)');
       }
 
       return response.data;
@@ -215,10 +204,8 @@ export const authService = {
       console.log('✅ [DRIVER LOGIN] Response:', response.data);
       
       if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userRole', 'DRIVER');
-        localStorage.setItem('userData', JSON.stringify(response.data.driver));
-        console.log('✅ [DRIVER LOGIN] Token and driver data saved to localStorage');
+        // NOTE: token and driver data are deliberately NOT saved to localStorage for security.
+        console.log('✅ [DRIVER LOGIN] Received token from server (not persisted client-side)');
       }
       
       return response.data;
@@ -249,7 +236,7 @@ export const authService = {
       address: data.address,
     };
     const res = await api.patch('/users/update', payload);
-    localStorage.setItem('userData', JSON.stringify(res.data));
+    // Do not persist updated profile to localStorage; prefer server-side storage (httpOnly cookie/session)
     return res.data;
   },
 
@@ -266,7 +253,7 @@ export const authService = {
       role: data.role || 'DRIVER',
     };
     const res = await api.patch('/drivers/update', payload);
-    localStorage.setItem('userData', JSON.stringify(res.data));
+    // Do not persist updated profile to localStorage; prefer server-side storage (httpOnly cookie/session)
     return res.data;
   },
 };
