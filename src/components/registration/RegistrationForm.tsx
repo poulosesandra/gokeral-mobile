@@ -18,8 +18,8 @@ interface FormData {
   password: string;
   confirmPassword: string;
   driverLicenseNumber?: string;
-  agreement: boolean;
-}
+  agreement?: boolean;
+} 
 
 const RegistrationForm = ({
   userType,
@@ -37,7 +37,9 @@ const RegistrationForm = ({
     phoneNumber: "",
     password: "",
     confirmPassword: "",
-    driverLicenseNumber: includeDriverFields ? "" : undefined,
+    // keep driverLicenseNumber always defined to keep input controlled
+    driverLicenseNumber: "",
+    // agreement is required for UI only (not sent to server)
     agreement: false,
   });
   const [errors, setErrors] = useState<Partial<FormData>>({});
@@ -105,7 +107,7 @@ const RegistrationForm = ({
 
     // Agreement validation
     if (!formData.agreement) {
-      (newErrors as Record<string, unknown>).agreement = true;
+      newErrors.agreement = "You must agree to the terms to continue";
       isValid = false;
     }
 
@@ -126,7 +128,7 @@ const RegistrationForm = ({
 
     try {
       if (userType === "driver") {
-        const { fullName, email, phoneNumber, password, driverLicenseNumber, agreement } = formData;
+        const { fullName, email, phoneNumber, password, driverLicenseNumber } = formData;
         const driverData = {
           fullName,
           email,
@@ -134,20 +136,17 @@ const RegistrationForm = ({
           password,
           // backend key
           driverLicenseNumber: driverLicenseNumber || '',
-          agreement,
-          role: 'DRIVER',
         } as any;
         await authService.driverRegister(driverData);
         setSuccess(true);
         setTimeout(() => navigate(loginLink), 2000);
       } else {
-        const { fullName, email, password, phoneNumber, agreement } = formData;
+        const { fullName, email, password, phoneNumber    } = formData;
         const userData = {
           fullName,
           email,
           password,
           phoneNumber,
-          agreement,
         };
         await authService.userRegister(userData);
         setSuccess(true);
