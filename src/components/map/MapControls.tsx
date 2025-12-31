@@ -41,7 +41,7 @@ const MapControls: React.FC<MapControlsProps> = ({
         if (onSetCurrentLocationMarker) onSetCurrentLocationMarker(latitude, longitude);
         setOriginLoading(false);
       },
-      (error) => {
+      (_error) => {
         alert("Unable to retrieve your location.");
         setOriginLoading(false);
       }

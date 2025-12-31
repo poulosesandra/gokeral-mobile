@@ -37,7 +37,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/driver/add-vehicle",
-    element: <AddVehiclePage />,
+    element: <AddVehiclePage open={true} onClose={() => {}} onSuccess={() => {}} />,
   },
   {
     path: "/user/profile",

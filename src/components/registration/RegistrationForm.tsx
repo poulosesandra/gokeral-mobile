@@ -12,12 +12,12 @@ interface RegistrationFormProps {
 }
 
 interface FormData {
-  name: string;
+  fullName: string;
   email: string;
-  phone: string;
+  phoneNumber: string;
   password: string;
   confirmPassword: string;
-  drivinglicenseNo?: string;
+  driverLicenseNumber?: string;
   agreement: boolean;
 }
 
@@ -32,12 +32,12 @@ const RegistrationForm = ({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    name: "",
+    fullName: "",
     email: "",
-    phone: "",
+    phoneNumber: "",
     password: "",
     confirmPassword: "",
-    drivinglicenseNo: includeDriverFields ? "" : undefined,
+    driverLicenseNumber: includeDriverFields ? "" : undefined,
     agreement: false,
   });
   const [errors, setErrors] = useState<Partial<FormData>>({});
@@ -50,11 +50,11 @@ const RegistrationForm = ({
     let isValid = true;
 
     // Name validation
-    if (!formData.name.trim()) {
-      newErrors.name = "Name is required";
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = "Name is required";
       isValid = false;
-    } else if (formData.name.trim().length < 2) {
-      newErrors.name = "Name must be at least 2 characters";
+    } else if (formData.fullName.trim().length < 2) {
+      newErrors.fullName = "Name must be at least 2 characters";
       isValid = false;
     }
 
@@ -68,11 +68,11 @@ const RegistrationForm = ({
     }
 
     // Phone validation
-    if (!formData.phone) {
-      newErrors.phone = "Phone number is required";
+    if (!formData.phoneNumber) {
+      newErrors.phoneNumber = "Phone number is required";
       isValid = false;
-    } else if (!/^[0-9]{10}$/.test(formData.phone.replace(/[\s-]/g, ""))) {
-      newErrors.phone = "Please enter a valid 10-digit phone number";
+    } else if (!/^[0-9]{10}$/.test(formData.phoneNumber.replace(/[\s-]/g, ""))) {
+      newErrors.phoneNumber = "Please enter a valid 10-digit phone number";
       isValid = false;
     }
 
@@ -98,8 +98,8 @@ const RegistrationForm = ({
     }
 
     // Driver license validation (if applicable)
-    if (includeDriverFields && !formData.drivinglicenseNo?.trim()) {
-      newErrors.drivinglicenseNo = "Driving license number is required for drivers";
+    if (includeDriverFields && !formData.driverLicenseNumber?.trim()) {
+      newErrors.driverLicenseNumber = "Driving license number is required for drivers";
       isValid = false;
     }
 
@@ -126,25 +126,27 @@ const RegistrationForm = ({
 
     try {
       if (userType === "driver") {
-        const { name, email, phone, password, drivinglicenseNo, agreement } = formData;
+        const { fullName, email, phoneNumber, password, driverLicenseNumber, agreement } = formData;
         const driverData = {
-          name,
+          fullName,
           email,
-          phone,
+          phoneNumber,
           password,
-          drivinglicenseNo: drivinglicenseNo || '',
+          // backend key
+          driverLicenseNumber: driverLicenseNumber || '',
           agreement,
-        };
+          role: 'DRIVER',
+        } as any;
         await authService.driverRegister(driverData);
         setSuccess(true);
         setTimeout(() => navigate(loginLink), 2000);
       } else {
-        const { name, email, password, phone, agreement } = formData;
+        const { fullName, email, password, phoneNumber, agreement } = formData;
         const userData = {
-          name,
+          fullName,
           email,
           password,
-          phone,
+          phoneNumber,
           agreement,
         };
         await authService.userRegister(userData);
@@ -229,18 +231,18 @@ const RegistrationForm = ({
                   <User className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="name"
-                  name="name"
+                  id="fullName"
+                  name="fullName"
                   type="text"
-                  value={formData.name}
+                  value={formData.fullName}
                   onChange={handleInputChange}
-                  className={`block w-full pl-12 pr-4 py-3 border ${errors.name ? "border-red-300" : "border-gray-300"
+                  className={`block w-full pl-12 pr-4 py-3 border ${errors.fullName ? "border-red-300" : "border-gray-300"
                     } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
                   placeholder="John Doe"
                 />
               </div>
-              {errors.name && (
-                <p className="mt-2 text-sm text-red-600">{errors.name}</p>
+              {errors.fullName && (
+                <p className="mt-2 text-sm text-red-600">{errors.fullName}</p>
               )}
             </div>
 
@@ -279,18 +281,18 @@ const RegistrationForm = ({
                   <Phone className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="phone"
-                  name="phone"
+                  id="phoneNumber"
+                  name="phoneNumber"
                   type="tel"
-                  value={formData.phone}
+                  value={formData.phoneNumber}
                   onChange={handleInputChange}
-                  className={`block w-full pl-12 pr-4 py-3 border ${errors.phone ? "border-red-300" : "border-gray-300"
+                  className={`block w-full pl-12 pr-4 py-3 border ${errors.phoneNumber ? "border-red-300" : "border-gray-300"
                     } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
                   placeholder="9876543210"
                 />
               </div>
-              {errors.phone && (
-                <p className="mt-2 text-sm text-red-600">{errors.phone}</p>
+              {errors.phoneNumber && (
+                <p className="mt-2 text-sm text-red-600">{errors.phoneNumber}</p>
               )}
             </div>
 
@@ -305,18 +307,18 @@ const RegistrationForm = ({
                     <FileText className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
-                    id="drivinglicenseNo"
-                    name="drivinglicenseNo"
+                    id="driverLicenseNumber"
+                    name="driverLicenseNumber"
                     type="text"
-                    value={formData.drivinglicenseNo || ""}
+                    value={formData.driverLicenseNumber || ""}
                     onChange={handleInputChange}
-                    className={`block w-full pl-12 pr-4 py-3 border ${errors.drivinglicenseNo ? "border-red-300" : "border-gray-300"
+                    className={`block w-full pl-12 pr-4 py-3 border ${errors.driverLicenseNumber ? "border-red-300" : "border-gray-300"
                       } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
                     placeholder="KL-1234567890123"
                   />
                 </div>
-                {errors.drivinglicenseNo && (
-                  <p className="mt-2 text-sm text-red-600">{errors.drivinglicenseNo}</p>
+                {errors.driverLicenseNumber && (
+                  <p className="mt-2 text-sm text-red-600">{errors.driverLicenseNumber}</p>
                 )}
               </div>
             )}

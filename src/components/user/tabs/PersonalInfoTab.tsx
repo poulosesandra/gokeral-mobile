@@ -8,16 +8,23 @@ import type { UserData } from "../profile/UserProfile";
 interface PersonalInfoTabProps {
   userData: UserData;
   loading: boolean;
+  updateUserData?: (values: Partial<UserData>) => Promise<void>;
 }
 
-export const PersonalInfoTab = ({ userData, loading }: PersonalInfoTabProps) => {
+export const PersonalInfoTab = ({ userData, _loading, updateUserData }: PersonalInfoTabProps) => {
   const [form] = Form.useForm();
   const [editing, setEditing] = useState(false);
 
   const handleSave = async (values: any) => {
     try {
-      // TODO: Implement API call to update user data
-      console.log("Saving personal info:", values);
+      // If parent provided update handler, call it
+      if (typeof updateUserData === 'function') {
+        await updateUserData({
+          fullName: values.fullName,
+          address: values.address,
+        });
+      }
+
       message.success("Personal information updated successfully");
       setEditing(false);
     } catch (error) {
@@ -42,7 +49,7 @@ export const PersonalInfoTab = ({ userData, loading }: PersonalInfoTabProps) => 
           form={form}
           layout="vertical"
           initialValues={{
-            name: userData.name,
+            fullName: userData.fullName,
             email: userData.email,
             phoneNumber: userData.phoneNumber,
             address: userData.address,
@@ -51,7 +58,7 @@ export const PersonalInfoTab = ({ userData, loading }: PersonalInfoTabProps) => 
         >
           <Form.Item
             label="Full Name"
-            name="name"
+            name="fullName"
             rules={[{ required: true, message: "Please enter your name" }]}
           >
             <Input
@@ -93,7 +100,6 @@ export const PersonalInfoTab = ({ userData, loading }: PersonalInfoTabProps) => 
 
           <Form.Item label="Address" name="address">
             <Input.TextArea
-              prefix={<EnvironmentOutlined />}
               disabled={!editing}
               rows={3}
               placeholder="Enter your address"

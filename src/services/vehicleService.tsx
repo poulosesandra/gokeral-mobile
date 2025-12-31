@@ -1,12 +1,15 @@
 import api from './api';
 
 export interface VehicleData {
-  make: string;
+  companyName: string;
   model: string;
   year: number;
-  licensePlate: string;
-  color?: string;
-  type?: string;
+  seats: number;
+  licensePlateNumber: string;
+  vehicleType: string;
+  vehicleClass: string;
+  vehicleImage?: string;
+  documents?: Record<string, string>;
 }
 
 export interface Vehicle extends VehicleData {

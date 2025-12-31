@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
 import { UserHeader } from "../UserHeader"
 import { UserSidebar } from "./UserSidebar";
 import { HomeTab } from "../tabs/HomeTab";
@@ -20,7 +19,7 @@ import type { UserTabKey } from "../tabs/HomeTab";
 export type TabKey = UserTabKey | "vehicles";
 
 export type UserData = {
-  name: string;
+  fullName: string;
   email: string;
   phoneNumber: string;
   address: string;
@@ -29,7 +28,7 @@ export type UserData = {
 };
 
 export const UserProfile = () => {
-  const [activeTab, setActiveTab] = useState<UserTabKey>("home");
+  const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 0
@@ -43,27 +42,37 @@ export const UserProfile = () => {
       if (typeof window === "undefined") return;
 
       setLoading(true);
-      
-      // Get user data from localStorage (saved during login)
-      const storedUserData = authService.getCurrentUser();
-      
-      if (storedUserData) {
+
+      // Always fetch fresh data from backend
+      try {
+        const response = await authService.fetchUserProfile();
+        const backendData = response.user || response;
+
         const userData: UserData = {
-          name: storedUserData.fullName || storedUserData.name || 'User',
-          email: storedUserData.email || '',
-          phoneNumber: storedUserData.phoneNumber || '',
-          address: storedUserData.address || '',
-          profileImage: null,
-          location: storedUserData.address || null,
+          fullName: backendData.fullName || backendData.name || 'User',
+          email: backendData.email || '',
+          phoneNumber: backendData.phoneNumber || '',
+          address: backendData.address || '',
+          profileImage: backendData.profileImage || null,
+          location: backendData.address || null,
         };
-        
+
         setUserData(userData);
         setLoading(false);
         setTimeout(() => setFadeIn(true), 100);
-      } else {
-        // If no user data, redirect to login
-        console.error('No user data found');
-        window.location.href = '/user/login';
+      } catch (backendError: any) {
+        // Don't fall back to localStorage; force logout and redirect
+        console.error('Failed to fetch user profile:', backendError);
+
+        if (backendError.response?.status === 401) {
+          authService.logout();
+          window.location.href = '/user/login';
+        } else {
+          console.error('Error fetching user data:', backendError);
+          window.location.href = '/user/login';
+        }
+
+        setLoading(false);
       }
     } catch (error) {
       setLoading(false);
@@ -103,8 +112,13 @@ export const UserProfile = () => {
     }
   }, []);
 
-  const handleTabChange = (key: UserTabKey) => {
-    setActiveTab(key);
+  const handleTabChange = (key: TabKey) => {
+    if (key === 'vehicles') {
+      // Keep 'vehicles' behavior handled inside tabContent; set active to 'home' to avoid invalid UserTabKey
+      setActiveTab('home');
+    } else {
+      setActiveTab(key as UserTabKey);
+    }
   };
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
@@ -112,30 +126,24 @@ export const UserProfile = () => {
   const updateUserData = async (values: Partial<UserData>) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("accessToken");
-      const stored = localStorage.getItem("userData");
-      const userEmail = stored ? JSON.parse(stored).email : localStorage.getItem("userEmail");
 
-      await axios.put(
-        `${import.meta.env.VITE_API_URL}/userDetails`,
-        { ...values },
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            "x-auth-token": token,
-          },
-          params: {
-            id: userEmail,
-          },
-        }
-      );
+      // Call backend with correct field mapping
+      await authService.updateUserProfile({
+        fullName: values.fullName,
+        email: values.email,
+        phoneNumber: values.phoneNumber,
+        address: values.address,
+      });
 
-      getUserDetails();
-      setUserData((prev) => prev ? { ...prev, ...values } : null);
+      // Fetch fresh data from backend to ensure consistency
+      await getUserDetails();
+
       setLoading(false);
+      console.log('✅ Profile updated successfully');
     } catch (error) {
       setLoading(false);
       console.error("Error updating user data:", error);
+      throw error;
     }
   };
 
@@ -201,9 +209,9 @@ export const UserProfile = () => {
         <div className="mt-12 text-center text-gray-500">No vehicles registered.</div>
       </div>
     ),
-    security: <SecurityTab loading={loading} />,
-    privacy: <PrivacyTab loading={loading} />,
-    data: <DataTab loading={loading} />,
+    security: <SecurityTab />,
+    privacy: <PrivacyTab />,
+    data: <DataTab />,
   };
 
   return (
@@ -211,7 +219,7 @@ export const UserProfile = () => {
       <UserHeader
         navigate={navigate}
         handleLogout={handleLogout}
-        username={userData.name}
+        username={userData.fullName}
       />
 
       <div className="flex relative w-full pl-0 pr-4 pt-6">

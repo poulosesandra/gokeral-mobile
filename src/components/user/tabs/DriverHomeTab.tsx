@@ -7,12 +7,11 @@ import {
   PhoneOutlined,
   IdcardOutlined,
   EditOutlined,
-  CarOutlined,
   CameraOutlined,
 } from "@ant-design/icons";
 
 export type DriverData = {
-  name: string;
+  fullName: string;
   email: string;
   phoneNumber: string;
   driverLicenseNumber: string;
@@ -95,7 +94,7 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
 
             {/* DRIVER INFO */}
             <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-gray-800">{driverData.name}</h2>
+              <h2 className="text-2xl font-bold text-gray-800">{driverData.fullName}</h2>
               <p className="text-sm text-gray-500">Driver Account</p>
               
               <div className="flex items-center gap-2 text-gray-600">
