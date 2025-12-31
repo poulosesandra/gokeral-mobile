@@ -1,4 +1,4 @@
-import api from './api';
+import api, { setAuthToken } from './api';
 
 // ==================== INTERFACES ====================
 export interface LoginCredentials {
@@ -67,7 +67,6 @@ export interface AuthResponse {
 }
 
 // ==================== AUTH SERVICE ====================
-import { setAuthToken } from './api';
 
 export const authService = {
   // in-memory token for current session
@@ -75,20 +74,39 @@ export const authService = {
   // in-memory current user
   _currentUser: null as any | null,
 
+  // --- MODIFIED: Persist Token ---
   setToken(token: string | null) {
     this._token = token;
     setAuthToken(token);
+
+    if (token) {
+      localStorage.setItem('token', token);
+    } else {
+      localStorage.removeItem('token');
+    }
   },
 
+  // --- MODIFIED: Check Storage for Token ---
   getToken() {
-    return this._token;
+    return this._token || localStorage.getItem('token');
   },
 
+  // --- MODIFIED: Persist User Data ---
   setCurrentUser(user: any | null) {
     this._currentUser = user;
+
+    if (user) {
+      localStorage.setItem('userData', JSON.stringify(user));
+      // Save role separately for easy access checks
+      const role = user.role || (user.driverLicenseNumber ? 'DRIVER' : 'USER');
+      localStorage.setItem('userRole', role);
+    } else {
+      localStorage.removeItem('userData');
+      localStorage.removeItem('userRole');
+    }
   },
 
-  // Get Current User
+  // Get Current User (Memory -> LocalStorage)
   getCurrentUser: () => {
     if (authService._currentUser) return authService._currentUser;
     const userData = localStorage.getItem('userData');
@@ -97,7 +115,7 @@ export const authService = {
 
   // Check if authenticated
   isAuthenticated: () => {
-    return !!authService.getToken() || !!localStorage.getItem('token');
+    return !!authService.getToken();
   },
 
   // Get user role
@@ -106,12 +124,24 @@ export const authService = {
     return u?.role || localStorage.getItem('userRole');
   },
 
+  // --- NEW: Logout Method ---
+  logout: () => {
+    authService.setToken(null);
+    authService.setCurrentUser(null);
+    // Explicitly clear all related items
+    localStorage.removeItem('token');
+    localStorage.removeItem('userData');
+    localStorage.removeItem('userRole');
+    // Optional: Reload or redirect
+    window.location.href = '/login';
+  },
+
   // ==================== DRIVER METHODS ====================
   
-  // Driver Registration (frontend: do NOT send `agreement` or `role` to backend)
+  // Driver Registration
   driverRegister: async (data: DriverSignupData): Promise<AuthResponse> => {
     try {
-      // Build a sanitized payload that excludes UI-only fields (agreement, role)
+      // Build a sanitized payload
       const payload: any = {
         fullName: data.fullName,
         email: data.email,
@@ -132,10 +162,11 @@ export const authService = {
       console.log('✅ [DRIVER REGISTER] Response:', response.data);
 
       if (response.data.token) {
-        // store token in memory only (not persisted to localStorage)
+        // This now saves to localStorage automatically via setToken
         authService.setToken(response.data.token);
-        console.log('✅ [DRIVER REGISTER] Token set in memory');
-        // store current driver in memory for immediate use (not persisted)
+        console.log('✅ [DRIVER REGISTER] Token persisted');
+        
+        // This now saves to localStorage automatically via setCurrentUser
         authService.setCurrentUser(response.data.driver || null);
       }
 
@@ -160,8 +191,10 @@ export const authService = {
       console.log('✅ [DRIVER LOGIN] Response:', response.data);
       
       if (response.data.token) {
+        // Persist token
         authService.setToken(response.data.token);
-        console.log('✅ [DRIVER LOGIN] Token set in memory');
+        console.log('✅ [DRIVER LOGIN] Token persisted');
+        // Persist user
         authService.setCurrentUser(response.data.driver || null);
       }
       
@@ -176,12 +209,12 @@ export const authService = {
   },
 
   fetchUserProfile: async () => {
-    const res = await api.get('/users/profile'); // confirm endpoint
+    const res = await api.get('/users/profile');
     return res.data;
   },
 
   fetchDriverProfile: async () => {
-    const res = await api.get('/drivers/profile'); // confirm endpoint
+    const res = await api.get('/drivers/profile');
     return res.data;
   },
 
@@ -193,7 +226,6 @@ export const authService = {
       address: data.address,
     };
     const res = await api.patch('/users/update', payload);
-    // Do not persist updated profile to localStorage; prefer server-side storage (httpOnly cookie/session)
     return res.data;
   },
 
@@ -210,7 +242,6 @@ export const authService = {
       role: data.role || 'DRIVER',
     };
     const res = await api.patch('/drivers/update', payload);
-    // Do not persist updated profile to localStorage; prefer server-side storage (httpOnly cookie/session)
     return res.data;
   },
 };
