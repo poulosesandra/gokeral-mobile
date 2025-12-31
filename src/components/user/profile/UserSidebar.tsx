@@ -13,6 +13,9 @@ import {
   CameraOutlined,
 } from "@ant-design/icons";
 import type { TabKey, UserData } from "./UserProfile";
+import React, { useState } from "react";
+import api from "../../../services/api";
+import authService from "../../../services/authServices";
 
 interface SidebarProps {
   userData: UserData;
@@ -33,6 +36,8 @@ export const UserSidebar = ({
   windowWidth,
   toggleSidebar,
 }: SidebarProps) => {
+  const [uploading, setUploading] = useState(false);
+
   const tabItems = [
     { key: "home", label: "Home", icon: <HomeOutlined /> },
     { key: "personal", label: "Personal Info", icon: <UserOutlined /> },
@@ -92,20 +97,41 @@ export const UserSidebar = ({
               <Upload
                 accept="image/*"
                 showUploadList={false}
-                beforeUpload={(file) => {
-                  const isImage = file.type.startsWith('image/');
+                beforeUpload={async (file) => {
+                  // client-side checks
+                  const isImage = file.type.startsWith("image/");
                   if (!isImage) {
-                    message.error('You can only upload image files!');
+                    message.error("You can only upload image files!");
                     return false;
                   }
                   const isLt2M = file.size / 1024 / 1024 < 2;
                   if (!isLt2M) {
-                    message.error('Image must be smaller than 2MB!');
+                    message.error("Image must be smaller than 2MB!");
                     return false;
                   }
-                  // TODO: Implement actual upload to backend
-                  message.success('Profile picture upload functionality coming soon!');
-                  return false;
+
+                  setUploading(true);
+                  try {
+                    const form = new FormData();
+                    form.append("file", file);
+                    const res = await api.post("/users/upload-document", form, {
+                      headers: { "Content-Type": "multipart/form-data" },
+                    });
+
+                    message.success(res.data?.message || "Profile picture updated");
+                    // backend returns updated user object (see user.controller)
+                    if (res.data?.user) {
+                      authService.setCurrentUser(res.data.user);
+                    } else if (res.data) {
+                      authService.setCurrentUser(res.data);
+                    }
+                  } catch (err: any) {
+                    console.error("Profile upload failed:", err);
+                    message.error(err.response?.data?.message || "Upload failed");
+                  } finally {
+                    setUploading(false);
+                  }
+                  return false; // prevent default Upload behavior
                 }}
               >
                 <Button
@@ -114,7 +140,8 @@ export const UserSidebar = ({
                   icon={<CameraOutlined />}
                   size="small"
                   className="absolute bottom-0 right-0 shadow-lg"
-                  style={{ width: '28px', height: '28px' }}
+                  style={{ width: "28px", height: "28px" }}
+                  loading={uploading}
                 />
               </Upload>
             </div>
