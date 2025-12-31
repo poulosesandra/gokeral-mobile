@@ -59,36 +59,19 @@ const LoginForm = ({
     setError("");
 
     try {
-      const loginData = {
-        email: formData.email,
-        password: formData.password,
-      };
+      const res = await (userType === "driver"
+        ? authService.driverLogin(formData)
+        : authService.userLogin(formData));
 
-      let response;
-      if (userType === "driver") {
-        response = await authService.driverLogin(loginData);
+      // navigation after successful login
+      if (res && (res.token)) {
+        // use navigateTo prop or a default driver route
+        navigate(navigateTo || (userType === "driver" ? "/driver/profile" : "/"));
       } else {
-        response = await authService.userLogin(loginData);
+        setError("Login failed");
       }
-
-      // Only navigate if login was successful
-      if (response.success || response.token) {
-        if (userType === "driver") {
-          navigate('/driver/profile');
-        } else {
-          navigate(navigateTo);
-        }
-      } else {
-        setError(response.message || "Login failed");
-      }
-    } catch (err: unknown) {
-      console.error("Login error:", err);
-      const error = err as { response?: { data?: { message?: string } }; message?: string };
-      setError(
-        error.response?.data?.message ||
-        error.message ||
-        "Invalid email or password"
-      );
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || "Login failed");
     } finally {
       setLoading(false);
     }
