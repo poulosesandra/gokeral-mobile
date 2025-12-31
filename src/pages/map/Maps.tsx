@@ -19,6 +19,7 @@ const Maps: React.FC = () => {
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0); // track which route is selected
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   // Get user data for header
@@ -213,8 +214,12 @@ const Maps: React.FC = () => {
       <div className="flex flex-1 w-full pt-2 pb-2 px-2 gap-2">
         <MapControls 
           onDirectionsCalculated={(result) => setDirectionsResponse(result)}
-          onClearRoute={() => setDirectionsResponse(null)}
+          onClearRoute={() => {
+            setDirectionsResponse(null);
+            setSelectedRouteIndex(0);
+          }}
           onPanToLocation={(lat, lng) => setCenter({ lat, lng })}
+          onRouteSelected={(index) => setSelectedRouteIndex(index)}
         />
 
         <MapArea 
@@ -223,6 +228,7 @@ const Maps: React.FC = () => {
           center={center} // Pass center here
           userLocation={userLocation}
           onUserLocationClick={handleUserLocationClick}
+          selectedRouteIndex={selectedRouteIndex}
         />
       </div>
     </div>
