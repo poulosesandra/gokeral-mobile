@@ -220,6 +220,7 @@ const Maps: React.FC = () => {
           }}
           onPanToLocation={(lat, lng) => setCenter({ lat, lng })}
           onRouteSelected={(index) => setSelectedRouteIndex(index)}
+          selectedRouteIndex={selectedRouteIndex}
         />
 
         <MapArea 
@@ -229,6 +230,8 @@ const Maps: React.FC = () => {
           userLocation={userLocation}
           onUserLocationClick={handleUserLocationClick}
           selectedRouteIndex={selectedRouteIndex}
+          onRouteClick={(index) => setSelectedRouteIndex(index)}
+          map={map}
         />
       </div>
     </div>
