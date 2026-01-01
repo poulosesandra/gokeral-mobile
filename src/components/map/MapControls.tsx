@@ -8,6 +8,7 @@ interface MapControlsProps {
   onPanToLocation?: (lat: number, lng: number) => void;
   onSetCurrentLocationMarker?: (lat: number, lng: number) => void;
   onRouteSelected?: (index: number) => void; // New prop
+  selectedRouteIndex?: number; // controlled prop from parent
 }
 
 const MapControls: React.FC<MapControlsProps> = ({
@@ -16,6 +17,7 @@ const MapControls: React.FC<MapControlsProps> = ({
   onPanToLocation,
   onSetCurrentLocationMarker,
   onRouteSelected,
+  selectedRouteIndex: selectedRouteIndexProp,
 }) => {
   const originRef = useRef<HTMLInputElement>(null);
   const destinationRef = useRef<HTMLInputElement>(null);
@@ -29,6 +31,13 @@ const MapControls: React.FC<MapControlsProps> = ({
   // store alternate routes
   const [routes, setRoutes] = useState<google.maps.DirectionsRoute[]>([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
+
+  // Keep internal selected index in sync when parent updates it
+  React.useEffect(() => {
+    if (typeof selectedRouteIndexProp === 'number') {
+      setSelectedRouteIndex(selectedRouteIndexProp);
+    }
+  }, [selectedRouteIndexProp]);
 
   async function useCurrentLocation() {
     if (!navigator.geolocation) {
@@ -174,12 +183,6 @@ const MapControls: React.FC<MapControlsProps> = ({
         </button>
       </div>
 
-      {(distance && duration) && (
-        <div className="mt-2 p-3 bg-blue-50 rounded-lg flex justify-between text-sm font-semibold text-blue-800">
-          <span>Distance: {distance}</span>
-          <span>Duration: {duration}</span>
-        </div>
-      )}
 
       {/* Routes List (scrollable) */}
       <div className="flex-1 overflow-y-auto mt-4 pr-2">
