@@ -7,8 +7,10 @@ interface MapControlsProps {
   onClearRoute: () => void;
   onPanToLocation?: (lat: number, lng: number) => void;
   onSetCurrentLocationMarker?: (lat: number, lng: number) => void;
-  onRouteSelected?: (index: number) => void; // New prop
-  selectedRouteIndex?: number; // controlled prop from parent
+  onRouteSelected?: (index: number) => void; // confirm selection (opens booking panel)
+  selectedRouteIndex?: number; // confirmed index from parent
+  highlightedIndex?: number; // transient highlight from parent
+  onHighlightRoute?: (index: number) => void; // notify parent of highlight
 }
 
 const MapControls: React.FC<MapControlsProps> = ({
@@ -18,6 +20,8 @@ const MapControls: React.FC<MapControlsProps> = ({
   onSetCurrentLocationMarker,
   onRouteSelected,
   selectedRouteIndex: selectedRouteIndexProp,
+  highlightedIndex: highlightedIndexProp,
+  onHighlightRoute,
 }) => {
   const originRef = useRef<HTMLInputElement>(null);
   const destinationRef = useRef<HTMLInputElement>(null);
@@ -30,12 +34,19 @@ const MapControls: React.FC<MapControlsProps> = ({
 
   // store alternate routes
   const [routes, setRoutes] = useState<google.maps.DirectionsRoute[]>([]);
-  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
 
-  // Keep internal selected index in sync when parent updates it
+  // Keep internal highlighted index in sync when parent updates confirmed or transient highlight
   React.useEffect(() => {
-    if (typeof selectedRouteIndexProp === 'number') {
-      setSelectedRouteIndex(selectedRouteIndexProp);
+    if (typeof highlightedIndexProp === 'number') {
+      setHighlightedIndex(highlightedIndexProp);
+    }
+  }, [highlightedIndexProp]);
+
+  // When the parent confirms a selection, mirror it as highlight too
+  React.useEffect(() => {
+    if (typeof selectedRouteIndexProp === 'number' && selectedRouteIndexProp >= 0) {
+      setHighlightedIndex(selectedRouteIndexProp);
     }
   }, [selectedRouteIndexProp]);
 
@@ -87,10 +98,16 @@ const MapControls: React.FC<MapControlsProps> = ({
 
       onDirectionsCalculated(results);
 
+      // Debug: log the full directions result and how many routes we received
+      // This helps confirm whether Google returned alternates or not
+      console.debug('Directions API response', results);
+      console.debug('Number of routes returned:', results.routes?.length ?? 0);
+
       // save all routes so we can render list
       setRoutes(results.routes || []);
-      setSelectedRouteIndex(0);
-      if (onRouteSelected) onRouteSelected(0);
+      // highlight the first route by default but don't auto-confirm (open booking) — user must press Select
+      setHighlightedIndex(0);
+      if (onHighlightRoute) onHighlightRoute(0);
 
       if (results.routes[0]?.legs[0]?.distance && results.routes[0]?.legs[0]?.duration) {
         setDistance(results.routes[0].legs[0].distance.text);
@@ -105,8 +122,9 @@ const MapControls: React.FC<MapControlsProps> = ({
   function clearRoute() {
     onClearRoute();
     setRoutes([]);
-    setSelectedRouteIndex(0);
-    if (onRouteSelected) onRouteSelected(0);
+    setHighlightedIndex(-1);
+    if (onHighlightRoute) onHighlightRoute(-1);
+    if (onRouteSelected) onRouteSelected(-1);
     setDistance('');
     setDuration('');
     setOriginIsCurrentLocation(false);
@@ -116,7 +134,7 @@ const MapControls: React.FC<MapControlsProps> = ({
   }
 
   return (
-    <div className="w-[350px] h-full min-h-0 bg-white p-4 shadow-lg flex flex-col gap-4 border-r border-gray-200 z-20">
+    <div className="w-full h-full min-h-0 bg-white p-4 shadow-lg flex flex-col gap-4 border-r border-gray-200 z-20 transition-all">
       <h2 className="text-lg font-bold text-gray-800">Plan Your Trip</h2>
       <div className="flex flex-col gap-3">
         {/* Origin Input with Target Icon */}
@@ -188,10 +206,21 @@ const MapControls: React.FC<MapControlsProps> = ({
       <div className="flex-1 overflow-y-auto mt-4 pr-2">
         <RouteList
           routes={routes}
-          selectedIndex={selectedRouteIndex}
-          onSelect={(i) => {
-            setSelectedRouteIndex(i);
+          highlightedIndex={highlightedIndex}
+          confirmedIndex={selectedRouteIndexProp ?? -1}
+          onHighlight={(i) => {
+            setHighlightedIndex(i);
+            if (onHighlightRoute) onHighlightRoute(i);
+          }}
+          onConfirm={(i) => {
+            // confirm selection and open booking panel
+            setHighlightedIndex(i);
             if (onRouteSelected) onRouteSelected(i);
+
+            // update displayed metrics to match the confirmed route
+            const leg = routes[i]?.legs?.[0];
+            if (leg?.distance?.text) setDistance(leg.distance.text);
+            if (leg?.duration?.text) setDuration(leg.duration.text);
           }}
         />
       </div>
