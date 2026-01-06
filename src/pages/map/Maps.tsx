@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { message } from 'antd';
 import MapControls from '../../components/map/MapControls';
 import MapArea from '../../components/map/MapArea';
+import BookingPanel from '../../components/map/BookingPanel';
 import { UserHeader } from '../../components/user/UserHeader';
 import { authService } from '../../services/authServices';
 
@@ -19,7 +20,10 @@ const Maps: React.FC = () => {
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
-  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0); // track which route is selected
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(-1); // confirmed selection (-1 = none)
+  const [highlightedRouteIndex, setHighlightedRouteIndex] = useState<number>(-1); // transient highlight
+  const panelVisible = Boolean(directionsResponse && directionsResponse.routes && directionsResponse.routes.length > 0 && selectedRouteIndex >= 0);
+  const selectedRoute = directionsResponse?.routes?.[selectedRouteIndex] ?? null;
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   // Get user data for header
@@ -212,27 +216,47 @@ const Maps: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex flex-1 w-full pt-2 pb-2 px-2 gap-2">
-        <MapControls 
-          onDirectionsCalculated={(result) => setDirectionsResponse(result)}
-          onClearRoute={() => {
-            setDirectionsResponse(null);
-            setSelectedRouteIndex(0);
-          }}
-          onPanToLocation={(lat, lng) => setCenter({ lat, lng })}
-          onRouteSelected={(index) => setSelectedRouteIndex(index)}
-          selectedRouteIndex={selectedRouteIndex}
-        />
+        <div className={`transition-all duration-300 w-[400px]`}>
+          <MapControls 
+            onDirectionsCalculated={(result) => setDirectionsResponse(result)}
+            onClearRoute={() => {
+              setDirectionsResponse(null);
+              setSelectedRouteIndex(-1);
+              setHighlightedRouteIndex(-1);
+            }}
+            onPanToLocation={(lat, lng) => setCenter({ lat, lng })}
+            onRouteSelected={(index) => setSelectedRouteIndex(index)}
+            selectedRouteIndex={selectedRouteIndex}
+            highlightedIndex={highlightedRouteIndex}
+            onHighlightRoute={(i) => setHighlightedRouteIndex(i)}
+          />
+        </div>
 
-        <MapArea 
-          onLoad={(map) => setMap(map)}
-          directionsResponse={directionsResponse}
-          center={center} // Pass center here
-          userLocation={userLocation}
-          onUserLocationClick={handleUserLocationClick}
-          selectedRouteIndex={selectedRouteIndex}
-          onRouteClick={(index) => setSelectedRouteIndex(index)}
-          map={map}
-        />
+        <div className={`transition-all duration-300 ${panelVisible ? 'w-[400px]' : 'w-0 overflow-hidden'}`}>
+          <BookingPanel
+            visible={panelVisible}
+            route={selectedRoute}
+            onClose={() => setSelectedRouteIndex(-1)}
+            onConfirm={(vehicle, passengers) => {
+              console.log('Booking options', { vehicle, passengers, selectedRouteIndex });
+              message.success('Options saved');
+            }}
+          />
+        </div>
+
+        <div className={`transition-all duration-300 flex-1`}>
+          <MapArea 
+            onLoad={(map) => setMap(map)}
+            directionsResponse={directionsResponse}
+            center={center} // Pass center here
+            userLocation={userLocation}
+            onUserLocationClick={handleUserLocationClick}
+            selectedRouteIndex={selectedRouteIndex}
+            highlightedRouteIndex={highlightedRouteIndex}
+            onHighlightRoute={(i) => setHighlightedRouteIndex(i)}
+            map={map}
+          />
+        </div>
       </div>
     </div>
   );
