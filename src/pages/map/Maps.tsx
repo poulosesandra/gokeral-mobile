@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { message } from 'antd';
 import MapControls from '../../components/map/MapControls';
 import MapArea from '../../components/map/MapArea';
-import BookingPanel from '../../components/map/BookingPanel';
+import BookingPanel from '../../components/booking/BookingPanel';
 import { UserHeader } from '../../components/user/UserHeader';
 import { authService } from '../../services/authServices';
 
@@ -216,7 +216,7 @@ const Maps: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex flex-1 w-full pt-2 pb-2 px-2 gap-2">
-        <div className={`transition-all duration-300 w-[400px]`}>
+        <div className={`transition-all duration-300 w-[400px] h-full min-h-0`}>
           <MapControls 
             onDirectionsCalculated={(result) => setDirectionsResponse(result)}
             onClearRoute={() => {
@@ -232,7 +232,7 @@ const Maps: React.FC = () => {
           />
         </div>
 
-        <div className={`transition-all duration-300 ${panelVisible ? 'w-[400px]' : 'w-0 overflow-hidden'}`}>
+        <div className={`transition-all duration-300 ${panelVisible ? 'w-[400px] h-full min-h-0' : 'w-0 overflow-hidden'}`}>
           <BookingPanel
             visible={panelVisible}
             route={selectedRoute}
