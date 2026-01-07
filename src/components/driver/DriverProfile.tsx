@@ -46,6 +46,7 @@ export const DriverProfile = () => {
       },
     },
   });
+  const [vehicleToEdit, setVehicleToEdit] = useState<any | null>(null);
 
   const navigate = useNavigate();
 
@@ -87,14 +88,14 @@ export const DriverProfile = () => {
           });
           setLoading(false);
         } catch (backendError: any) {
-          console.error('Failed to fetch driver profile:', backendError);
+          console.error("Failed to fetch driver profile:", backendError);
 
           if (backendError.response?.status === 401) {
             authService.logout();
-            message.error('Session expired. Please login again.');
+            message.error("Session expired. Please login again.");
             navigate("/driver/login");
           } else {
-            message.error('Failed to load profile. Please try again.');
+            message.error("Failed to load profile. Please try again.");
             navigate("/driver/login");
           }
           setLoading(false);
@@ -142,6 +143,12 @@ export const DriverProfile = () => {
   };
 
   const handleAddVehicle = () => {
+    setVehicleToEdit(null);
+    setAddVehicleModalOpen(true);
+  };
+
+  const handleEditVehicle = (vehicle: any) => {
+    setVehicleToEdit(vehicle);
     setAddVehicleModalOpen(true);
   };
 
@@ -165,15 +172,17 @@ export const DriverProfile = () => {
     try {
       setLoading(true);
 
-      const emergencyContact = updatedData.emergencyContact ? {
-        name: updatedData.emergencyContact.name || "",
-        phone: updatedData.emergencyContact.phone || "",
-        relationship: updatedData.emergencyContact.relation || "",
-      } : {
-        name: "",
-        phone: "",
-        relationship: "",
-      };
+      const emergencyContact = updatedData.emergencyContact
+        ? {
+            name: updatedData.emergencyContact.name || "",
+            phone: updatedData.emergencyContact.phone || "",
+            relationship: updatedData.emergencyContact.relation || "",
+          }
+        : {
+            name: "",
+            phone: "",
+            relationship: "",
+          };
 
       // Call backend API to update driver profile
       await authService.updateDriverProfile({
@@ -186,7 +195,8 @@ export const DriverProfile = () => {
           bloodGroup: updatedData.bloodGroup || driverData.personalInfo?.bloodGroup,
           dob: updatedData.dateOfBirth || driverData.personalInfo?.dob,
           languages: updatedData.languages || driverData.personalInfo?.languages || [],
-          certificates: updatedData.certificates || driverData.personalInfo?.certificates || [],
+          certificates:
+            updatedData.certificates || driverData.personalInfo?.certificates || [],
           emergencyContact,
         },
       });
@@ -260,7 +270,13 @@ export const DriverProfile = () => {
           />
         );
       case "vehicles":
-        return <VehiclesTab onAddVehicle={handleAddVehicle} refreshSignal={vehiclesRefreshSignal} />;
+        return (
+          <VehiclesTab
+            onAddVehicle={handleAddVehicle}
+            onEditVehicle={handleEditVehicle}
+            refreshSignal={vehiclesRefreshSignal}
+          />
+        );
       case "bookings":
         return <BookingsTabUser loading={loading} />;
       case "settings":
@@ -291,14 +307,15 @@ export const DriverProfile = () => {
       />
 
       <div className="flex relative w-full pl-0 pr-4 pt-6">
-
         {/* Mobile menu button */}
         {windowWidth <= 768 && (
           <Button
             type="default"
             icon={<MenuOutlined />}
             className={`fixed top-20 left-4 z-30 bg-white shadow-md
-              hover:bg-green-50 transition-all duration-300 ${sidebarOpen ? 'rotate-90' : ''}`}
+              hover:bg-green-50 transition-all duration-300 ${
+                sidebarOpen ? "rotate-90" : ""
+              }`}
             onClick={toggleSidebar}
             size="middle"
           />
@@ -356,7 +373,7 @@ export const DriverProfile = () => {
           <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">
             {renderTabContent()}
           </div>
-          
+
           {/* Footer */}
           <div className="mt-4 text-center text-gray-500 text-sm py-2">
             <p>&copy; {new Date().getFullYear()} Gokeral. All rights reserved.</p>
@@ -375,19 +392,25 @@ export const DriverProfile = () => {
           address: driverData.address || "",
           languages: driverData.personalInfo?.languages || [],
           certificates: driverData.personalInfo?.certificates || [],
-          emergencyContact: driverData.personalInfo?.emergencyContact ? {
-            name: driverData.personalInfo.emergencyContact.name || "",
-            phone: driverData.personalInfo.emergencyContact.phone || "",
-            relation: driverData.personalInfo.emergencyContact.relationship || "",
-          } : undefined,
+          emergencyContact: driverData.personalInfo?.emergencyContact
+            ? {
+                name: driverData.personalInfo.emergencyContact.name || "",
+                phone: driverData.personalInfo.emergencyContact.phone || "",
+                relation: driverData.personalInfo.emergencyContact.relationship || "",
+              }
+            : undefined,
         }}
       />
 
       {/* Add Vehicle Modal */}
       <AddVehicleModal
         open={addVehicleModalOpen}
-        onClose={() => setAddVehicleModalOpen(false)}
+        onClose={() => {
+          setAddVehicleModalOpen(false);
+          setVehicleToEdit(null);
+        }}
         onSuccess={handleVehicleAdded}
+        vehicleData={vehicleToEdit}
       />
     </div>
   );

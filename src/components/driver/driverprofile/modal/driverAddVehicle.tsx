@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Modal } from "antd";
 import { Car, FileImage, AlertCircle, Upload } from "lucide-react";
 import vehicleService from "../../../../services/vehicleService";
@@ -7,13 +7,17 @@ interface AddVehicleModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  vehicleData?: any; // when present, modal works in edit mode
 }
 
 const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
   open,
   onClose,
   onSuccess,
+  vehicleData,
 }) => {
+  const isEditing = Boolean(vehicleData?._id);
+
   const [currentStep, setCurrentStep] = useState<"details" | "fare">("details");
   const [vehicleId, setVehicleId] = useState<string | null>(null);
 
@@ -39,7 +43,8 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
   const [error, setError] = useState("");
   const [fareError, setFareError] = useState("");
 
-  // Fare fields (UI only for now)
+  // Fare fields
+  // NOTE: backend currently supports fareStructure: { minimumFare, perKilometerRate, waitingChargePerMinute }
   const [baseFare, setBaseFare] = useState("");
   const [perKmRate, setPerKmRate] = useState("");
   const [minimumFare, setMinimumFare] = useState("");
@@ -48,23 +53,27 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
   const documents = useMemo(
     () => [
       {
-        label: "Upload Driving License",
+        label: isEditing ? "Update Driving License" : "Upload Driving License",
         setter: setLicenseFile,
         file: licenseFile,
       },
-      { label: "Upload Insurance", setter: setInsuranceFile, file: insuranceFile },
       {
-        label: "Upload Address Proof",
+        label: isEditing ? "Update Insurance" : "Upload Insurance",
+        setter: setInsuranceFile,
+        file: insuranceFile,
+      },
+      {
+        label: isEditing ? "Update Address Proof" : "Upload Address Proof",
         setter: setAddressProofFile,
         file: addressProofFile,
       },
       {
-        label: "Upload Police Certificate",
+        label: isEditing ? "Update Police Certificate" : "Upload Police Certificate",
         setter: setPoliceCertFile,
         file: policeCertFile,
       },
     ],
-    [licenseFile, insuranceFile, addressProofFile, policeCertFile]
+    [isEditing, licenseFile, insuranceFile, addressProofFile, policeCertFile]
   );
 
   const resetForm = () => {
@@ -97,6 +106,103 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
     setFareError("");
   };
 
+  const applyFareToState = (fare: any) => {
+    if (!fare) return;
+    // If backend doesn't have baseFare, default to minimumFare so edit doesn't look blank
+    const inferredBase =
+      fare.baseFare != null ? fare.baseFare : fare.minimumFare != null ? fare.minimumFare : null;
+
+    setBaseFare(inferredBase != null ? String(inferredBase) : "");
+    setMinimumFare(fare.minimumFare != null ? String(fare.minimumFare) : "");
+    setPerKmRate(fare.perKilometerRate != null ? String(fare.perKilometerRate) : "");
+    setWaitingCharge(
+      fare.waitingChargePerMinute != null ? String(fare.waitingChargePerMinute) : ""
+    );
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const init = async () => {
+      if (!open) {
+        resetForm();
+        return;
+      }
+
+      if (!vehicleData) return;
+
+      const passed = vehicleData?.raw || vehicleData;
+      const id = passed?._id || vehicleData?._id || null;
+      setVehicleId(id);
+
+      // Fast prefill from passed data (instant UI)
+      setMake(passed.companyName || passed.make || "");
+      setModel(passed.model || passed.vehicleModel || "");
+      setYear(String(passed.year || passed.vehicleYear || ""));
+      setSeats(String(passed.seats || passed.seatsNo || passed.seatingCapacity || ""));
+      setLicensePlate(
+        passed.licensePlateNumber || passed.licensePlate || passed.vehicleNumber || ""
+      );
+      setVehicleType(passed.vehicleType || passed.vehicleClass || "");
+      setVehicleClass(passed.vehicleClass || passed.vehicleType || "");
+
+      const existingImg =
+        (passed.vehicleImages && passed.vehicleImages[0]) ||
+        (passed.images && passed.images[0]) ||
+        passed.vehicleImage ||
+        null;
+      setImagePreview(existingImg);
+
+      applyFareToState(passed.fareStructure || passed.raw?.fareStructure || null);
+
+      // Fetch full vehicle to ensure fare + images are available in edit mode
+      if (id) {
+        try {
+          const full = await vehicleService.getVehicleById(id);
+          if (cancelled) return;
+
+          setMake(full?.companyName || full?.make || passed.companyName || passed.make || "");
+          setModel(full?.model || full?.vehicleModel || passed.model || passed.vehicleModel || "");
+          setYear(String(full?.year || passed.year || passed.vehicleYear || ""));
+          setSeats(
+            String(
+              full?.seats ||
+                full?.seatsNo ||
+                passed.seats ||
+                passed.seatsNo ||
+                passed.seatingCapacity ||
+                ""
+            )
+          );
+          setLicensePlate(
+            full?.licensePlateNumber ||
+              full?.licensePlate ||
+              passed.licensePlateNumber ||
+              passed.licensePlate ||
+              passed.vehicleNumber ||
+              ""
+          );
+          setVehicleType(full?.vehicleType || passed.vehicleType || passed.vehicleClass || "");
+          setVehicleClass(full?.vehicleClass || passed.vehicleClass || passed.vehicleType || "");
+
+          const fullImg = (full?.vehicleImages && full.vehicleImages[0]) || null;
+          if (fullImg) setImagePreview(fullImg);
+
+          applyFareToState(full?.fareStructure || null);
+        } catch (fetchErr) {
+          console.warn("Failed to fetch full vehicle for edit prefill:", fetchErr);
+        }
+      }
+    };
+
+    init();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, vehicleData]);
+
   const handleCancel = () => {
     resetForm();
     onClose();
@@ -121,25 +227,29 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const uploadAndRegisterDoc = async (
+    targetId: string,
+    file: File | null,
+    docType: string
+  ) => {
+    if (!file) return;
+    const uploadRes = await vehicleService.uploadVehicleDocument(targetId, file);
+    const fileUrl = uploadRes?.url || uploadRes?.data?.url || null;
+    if (fileUrl) await vehicleService.addVehicleDocument(targetId, docType, fileUrl);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      if (
-        !make ||
-        !model ||
-        !year ||
-        !seats ||
-        !licensePlate ||
-        !vehicleType ||
-        !vehicleClass
-      ) {
+      if (!make || !model || !year || !seats || !licensePlate || !vehicleType || !vehicleClass) {
         setError("Please fill in all required fields");
         return;
       }
 
+      // Create payload
       const vehiclePayload = {
         companyName: make,
         model,
@@ -150,6 +260,52 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         vehicleClass,
       };
 
+      // Update payload (backend UpdateVehicleDto naming)
+      const updatePayload = {
+        make,
+        vehicleModel: model,
+        year: parseInt(year, 10),
+        seatsNo: parseInt(seats, 10),
+        licensePlate: licensePlate,
+        vehicleType,
+        vehicleClass,
+      };
+
+      // EDIT FLOW
+      if (isEditing && vehicleId) {
+        const updated = await vehicleService.updateVehicle(vehicleId, updatePayload as any);
+        const targetId = updated?._id || vehicleId;
+
+        try {
+          await uploadAndRegisterDoc(targetId, licenseFile, "Driving_Licence");
+          await uploadAndRegisterDoc(targetId, insuranceFile, "Vehicle_Insurance_Proof");
+          await uploadAndRegisterDoc(targetId, addressProofFile, "Proof_Of_Address");
+          await uploadAndRegisterDoc(targetId, policeCertFile, "Police_Clearance_Certificate");
+        } catch (uploadErr) {
+          console.warn("Some documents failed to upload:", uploadErr);
+        }
+
+        if (vehicleImage) {
+          try {
+            const imgRes = await vehicleService.uploadVehicleImage(targetId, vehicleImage);
+            const imgUrl = imgRes?.url || imgRes?.data?.url || null;
+
+            if (imgUrl) {
+              // Replace image (not add)
+              await vehicleService.updateVehicle(targetId, { vehicleImages: [imgUrl] } as any);
+              setImagePreview(imgUrl);
+            }
+          } catch (imgErr) {
+            console.warn("Vehicle image upload failed:", imgErr);
+          }
+        }
+
+        setVehicleId(targetId);
+        setCurrentStep("fare");
+        return;
+      }
+
+      // CREATE FLOW
       const createdVehicle = await vehicleService.addVehicle(vehiclePayload as any);
       const createdId = createdVehicle?._id || createdVehicle?.id || null;
 
@@ -160,18 +316,18 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
 
       setVehicleId(createdId);
 
-      const uploadAndRegisterDoc = async (file: File | null, docType: string) => {
-        if (!file) return;
-        const uploadRes = await vehicleService.uploadVehicleDocument(createdId, file);
-        const fileUrl = uploadRes?.url || uploadRes?.data?.url || null;
-        if (fileUrl) await vehicleService.addVehicleDocument(createdId, docType, fileUrl);
-      };
+      // Backfill update (optional, safe)
+      try {
+        await vehicleService.updateVehicle(createdId, updatePayload as any);
+      } catch (err) {
+        console.warn("Backfill update failed (create succeeded):", err);
+      }
 
       try {
-        await uploadAndRegisterDoc(licenseFile, "drivingLicense");
-        await uploadAndRegisterDoc(insuranceFile, "insuranceProof");
-        await uploadAndRegisterDoc(addressProofFile, "addressProof");
-        await uploadAndRegisterDoc(policeCertFile, "policeCertificate");
+        await uploadAndRegisterDoc(createdId, licenseFile, "Driving_Licence");
+        await uploadAndRegisterDoc(createdId, insuranceFile, "Vehicle_Insurance_Proof");
+        await uploadAndRegisterDoc(createdId, addressProofFile, "Proof_Of_Address");
+        await uploadAndRegisterDoc(createdId, policeCertFile, "Police_Clearance_Certificate");
       } catch (uploadErr) {
         console.warn("Some documents failed to upload:", uploadErr);
       }
@@ -180,9 +336,10 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         try {
           const imgRes = await vehicleService.uploadVehicleImage(createdId, vehicleImage);
           const imgUrl = imgRes?.url || imgRes?.data?.url || null;
+
           if (imgUrl) {
-            await vehicleService.addVehicleImages(createdId, [imgUrl]);
-            await vehicleService.updateVehicle(createdId, { vehicleImage: imgUrl } as any);
+            await vehicleService.updateVehicle(createdId, { vehicleImages: [imgUrl] } as any);
+            setImagePreview(imgUrl);
           }
         } catch (imgErr) {
           console.warn("Vehicle image upload failed:", imgErr);
@@ -191,10 +348,8 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
 
       setCurrentStep("fare");
     } catch (err: any) {
-      console.error("Vehicle creation error:", err);
-      setError(
-        err?.response?.data?.message || "Failed to add vehicle. Please try again."
-      );
+      console.error("Vehicle creation/update error:", err);
+      setError(err?.response?.data?.message || "Failed to process vehicle. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -206,18 +361,30 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
     setLoading(true);
 
     try {
+      if (!vehicleId) {
+        setFareError("Vehicle ID not found. Please try again.");
+        return;
+      }
+
+      // Base Fare is compulsory now
       if (!baseFare || !perKmRate || !minimumFare || !waitingCharge) {
         setFareError("Please fill in all fare settings");
         return;
       }
 
-      console.log("Fare Settings Submitted", {
+      // IMPORTANT:
+      // Backend currently doesn't store baseFare inside fareStructure.
+      // We are enforcing it in UI as requested; if you want it saved, we need a small backend change.
+      await vehicleService.updateVehicle(
         vehicleId,
-        baseFare,
-        perKmRate,
-        minimumFare,
-        waitingCharge,
-      });
+        {
+          fareStructure: {
+            minimumFare: Number(minimumFare),
+            perKilometerRate: Number(perKmRate),
+            waitingChargePerMinute: Number(waitingCharge),
+          },
+        } as any
+      );
 
       onSuccess?.();
       resetForm();
@@ -225,8 +392,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
     } catch (err: any) {
       console.error("Fare submission error:", err);
       setFareError(
-        err?.response?.data?.message ||
-          "Failed to save fare settings. Please try again."
+        err?.response?.data?.message || "Failed to save fare settings. Please try again."
       );
     } finally {
       setLoading(false);
@@ -243,8 +409,9 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
       width={currentStep === "details" ? 900 : 800}
       destroyOnHidden
       centered
-      title={currentStep === "details" ? "Add Vehicle" : "Fare & Fees Settings"}
+      title={isEditing ? "Edit Vehicle" : currentStep === "details" ? "Add Vehicle" : "Fare & Fees Settings"}
       maskClosable={false}
+      bodyStyle={{ maxHeight: "70vh", overflowY: "auto" }}
     >
       {currentStep === "details" && (
         <form onSubmit={handleSubmit} className="w-full">
@@ -344,19 +511,11 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
                     key={idx}
                     className="flex items-center gap-2 text-white text-sm font-medium px-3 py-2 rounded-md cursor-pointer transition-colors"
                     style={{ backgroundColor: "oklch(0.59 0.19 149.34)" }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.backgroundColor =
-                        "oklch(0.54 0.19 149.34)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.backgroundColor =
-                        "oklch(0.59 0.19 149.34)")
-                    }
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "oklch(0.54 0.19 149.34)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "oklch(0.59 0.19 149.34)")}
                   >
                     <Upload size={16} />
-                    <span className="flex-1 truncate">
-                      {item.file ? item.file.name : item.label}
-                    </span>
+                    <span className="flex-1 truncate">{item.file ? item.file.name : item.label}</span>
                     <input
                       type="file"
                       className="hidden"
@@ -376,34 +535,19 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
               <label
                 className="flex items-center gap-2 text-white text-sm font-medium px-3 py-2 rounded-md cursor-pointer transition-colors mb-3"
                 style={{ backgroundColor: "oklch(0.59 0.19 149.34)" }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor =
-                    "oklch(0.54 0.19 149.34)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor =
-                    "oklch(0.59 0.19 149.34)")
-                }
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "oklch(0.54 0.19 149.34)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "oklch(0.59 0.19 149.34)")}
               >
                 <Upload size={16} />
                 <span className="flex-1 truncate">
-                  {vehicleImage ? vehicleImage.name : "Upload Image"}
+                  {vehicleImage ? vehicleImage.name : isEditing ? "Update Image" : "Upload Image"}
                 </span>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                />
+                <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
               </label>
 
               <div className="w-full h-40 bg-gray-200 rounded-md flex items-center justify-center overflow-hidden border border-gray-300">
                 {imagePreview ? (
-                  <img
-                    src={imagePreview}
-                    alt="Vehicle preview"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={imagePreview} alt="Vehicle preview" className="w-full h-full object-cover" />
                 ) : (
                   <div className="text-center text-gray-400">
                     <Car size={48} className="mx-auto mb-2" />
@@ -423,6 +567,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
             >
               Cancel
             </button>
+
             <button
               type="submit"
               disabled={loading}
@@ -489,11 +634,11 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <span className="text-red-500">*</span> Waiting Charge (₹/Hours)
+                <span className="text-red-500">*</span> Waiting Charge (₹/minute)
               </label>
               <input
                 type="number"
-                placeholder="Waiting charge"
+                placeholder="Waiting charge per minute"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={waitingCharge}
                 onChange={(e) => setWaitingCharge(e.target.value)}
@@ -502,13 +647,10 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
             </div>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-6">
-            <p className="text-sm font-medium text-gray-900 mb-2">
-              Tips for setting fares:
-            </p>
-            <p className="text-sm text-gray-700">
-              Base fare is the starting fare for any ride
-            </p>
+          {/* Tips box (as per screenshot) */}
+          <div className="bg-gray-50 rounded-lg p-6 mb-6">
+            <p className="text-sm font-medium text-gray-900 mb-2">Tips for setting fares:</p>
+            <p className="text-sm text-gray-700">Base fare is the starting fare for any ride</p>
             <p className="text-sm text-gray-700">
               Per kilometer rate should be competitive with other services in your area
             </p>
@@ -525,7 +667,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
               type="button"
               onClick={handlePreviousStep}
               disabled={loading}
-              className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
               Previous
             </button>
@@ -534,25 +676,21 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
               type="button"
               onClick={handleCancel}
               disabled={loading}
-              className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
 
             <button
-  type="submit"
-  disabled={loading}
-  className="px-6 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-  style={{ backgroundColor: "oklch(0.59 0.19 149.34)" }}
-  onMouseEnter={(e) =>
-    (e.currentTarget.style.backgroundColor = "oklch(0.54 0.19 149.34)")
-  }
-  onMouseLeave={(e) =>
-    (e.currentTarget.style.backgroundColor = "oklch(0.59 0.19 149.34)")
-  }
->
-  {loading ? "Submitting..." : "Submit"}
-</button>
+              type="submit"
+              disabled={loading}
+              className="px-6 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ backgroundColor: "oklch(0.59 0.19 149.34)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "oklch(0.54 0.19 149.34)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "oklch(0.59 0.19 149.34)")}
+            >
+              {loading ? "Saving..." : isEditing ? "Update" : "Submit"}
+            </button>
           </div>
         </form>
       )}
