@@ -9,7 +9,24 @@ interface DriverPersonalInfoTabProps {
   loading: boolean;
   onEditPersonalInfo: () => void;
 }
+const formatDob = (dob?: string) => {
+  if (!dob) return "Not set";
+  const raw = String(dob).trim();
+  if (!raw) return "Not set";
 
+  // already stored as DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return raw;
+
+  // ISO -> DD/MM/YYYY
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+};
 export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo }: DriverPersonalInfoTabProps) => {
   return (
     <div className="w-full space-y-8">
@@ -60,7 +77,7 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="py-3 border-b">
               <span className="text-gray-600 text-sm">Date of Birth</span>
-              <p className="font-medium text-gray-800">{driverData.personalInfo?.dob || "Not set"}</p>
+              <p className="font-medium text-gray-800">{formatDob(driverData.personalInfo?.dob)}</p>
             </div>
 
             <div className="py-3 border-b">

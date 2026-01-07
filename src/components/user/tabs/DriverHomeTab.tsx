@@ -37,7 +37,22 @@ interface DriverHomeTabProps {
   loading: boolean;
   onEditPersonalInfo: () => void;
 }
+const formatDob = (dob?: string) => {
+  if (!dob) return "Not set";
+  const raw = String(dob).trim();
+  if (!raw) return "Not set";
 
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return raw;
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+};
 export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: DriverHomeTabProps) => {
   return (
     <div className="w-full space-y-6">
@@ -135,7 +150,7 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
           <div className="space-y-3">
             <div className="flex justify-between py-2 border-b">
               <span className="text-gray-600">Date of Birth:</span>
-              <span className="font-medium">{driverData.personalInfo?.dob || "Not set"}</span>
+              <span className="font-medium">{formatDob(driverData.personalInfo?.dob)}</span>
             </div>
             <div className="flex justify-between py-2 border-b">
               <span className="text-gray-600">Blood Group:</span>
