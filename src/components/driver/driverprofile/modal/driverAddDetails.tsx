@@ -1,6 +1,20 @@
 import { useEffect } from "react";
 import { Modal, Form, Input, DatePicker, Select, Row, Col } from "antd";
 import dayjs from "dayjs";
+const parseDobToDayjs = (value?: string) => {
+  if (!value) return undefined;
+  const raw = String(value).trim();
+  if (!raw) return undefined;
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+    const [dd, mm, yyyy] = raw.split("/").map(Number);
+    return dayjs(new Date(yyyy, mm - 1, dd));
+  }
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return dayjs(date);
+};
 
 type EmergencyContact = {
 	name: string;
@@ -67,7 +81,7 @@ const DriverPersonalInfoModal = ({
 			form.setFieldsValue({
 				...initialValues,
 				dateOfBirth: initialValues.dateOfBirth
-					? dayjs(initialValues.dateOfBirth, "DD/MM/YYYY")
+					? parseDobToDayjs(initialValues.dateOfBirth)
 					: undefined,
 			});
 		} else {
