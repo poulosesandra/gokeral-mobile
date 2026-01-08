@@ -11,7 +11,10 @@ import {
   IdcardOutlined,
   CameraOutlined,
 } from "@ant-design/icons";
+import { useState } from "react";
 import type { UserData } from "../profile/UserProfile";
+import api from "../../../services/api";
+import { authService } from "../../../services/authServices";
 
 // Define base TabKey type
 export type UserTabKey = "home" | "personal" | "bookings" | "security" | "privacy" | "data";
@@ -24,9 +27,12 @@ interface HomeTabProps {
   userData: UserData;
   loading: boolean;
   handleTabChange: (key: TabKey) => void;
+  onProfileImageUpdate?: () => void; // Callback to refresh user data after upload
 }
 
-export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) => {
+export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpdate }: HomeTabProps) => {
+  const [uploading, setUploading] = useState(false);
+  
   const recentBookings: Array<{
     id: string;
     vehicle: string;
@@ -65,6 +71,53 @@ export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) =>
     return <Tag color={colors[status]}>{status}</Tag>;
   };
 
+  const handleProfileImageUpload = async (file: File) => {
+    // Client-side validation
+    const isImage = file.type.startsWith("image/");
+    if (!isImage) {
+      message.error("You can only upload image files!");
+      return false;
+    }
+
+    const isLt2M = file.size / 1024 / 1024 < 2;
+    if (!isLt2M) {
+      message.error("Image must be smaller than 2MB!");
+      return false;
+    }
+
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      
+      const res = await api.post("/users/upload-document", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      message.success(res.data?.message || "Profile picture updated");
+      
+      // Update localStorage with new user data
+      if (res.data?.user) {
+        authService.setCurrentUser(res.data.user);
+      } else if (res.data) {
+        authService.setCurrentUser(res.data);
+      }
+      
+      // Trigger refresh callback to update parent component
+      // Trigger refresh callback to update parent component and wait for it
+      if (onProfileImageUpdate) {
+        await onProfileImageUpdate();
+      }
+    } catch (err: any) {
+      console.error("Profile upload failed:", err);
+      message.error(err.response?.data?.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+    
+    return false; // Prevent default Upload behavior
+  };
+
   return (
     <div className="w-full space-y-6">
 
@@ -93,21 +146,7 @@ export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) =>
                 <Upload
                   accept="image/*"
                   showUploadList={false}
-                  beforeUpload={(file) => {
-                    const isImage = file.type.startsWith('image/');
-                    if (!isImage) {
-                      message.error('You can only upload image files!');
-                      return false;
-                    }
-                    const isLt2M = file.size / 1024 / 1024 < 2;
-                    if (!isLt2M) {
-                      message.error('Image must be smaller than 2MB!');
-                      return false;
-                    }
-                    // TODO: Implement actual upload to backend
-                    message.success('Profile picture upload functionality coming soon!');
-                    return false;
-                  }}
+                  beforeUpload={handleProfileImageUpload}
                 >
                   <Button
                     type="primary"
@@ -115,6 +154,7 @@ export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) =>
                     icon={<CameraOutlined />}
                     className="absolute bottom-2 right-2 shadow-lg"
                     style={{ width: '40px', height: '40px' }}
+                    loading={uploading}
                   />
                 </Upload>
               </div>
@@ -205,7 +245,7 @@ export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) =>
             </Button>
           </div>
 
-          <div className="space-y-4">
+                    <div className="space-y-4">
             {recentBookings.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No bookings yet</p>
             ) : (

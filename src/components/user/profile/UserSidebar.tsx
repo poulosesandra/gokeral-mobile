@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, Button, Tabs, Upload, message } from "antd";
+import { Avatar, Button, Tabs } from "antd";
 import {
   HomeOutlined,
   UserOutlined,
@@ -10,12 +10,8 @@ import {
   DatabaseOutlined,
   LogoutOutlined,
   CloseOutlined,
-  CameraOutlined,
 } from "@ant-design/icons";
 import type { TabKey, UserData } from "./UserProfile";
-import React, { useState } from "react";
-import api from "../../../services/api";
-import authService from "../../../services/authServices";
 
 interface SidebarProps {
   userData: UserData;
@@ -36,8 +32,6 @@ export const UserSidebar = ({
   windowWidth,
   toggleSidebar,
 }: SidebarProps) => {
-  const [uploading, setUploading] = useState(false);
-
   const tabItems = [
     { key: "home", label: "Home", icon: <HomeOutlined /> },
     { key: "personal", label: "Personal Info", icon: <UserOutlined /> },
@@ -71,79 +65,27 @@ export const UserSidebar = ({
           )}
 
           <div className="flex flex-col items-center space-y-2 mb-3 pt-2">
-            <div className="relative">
-              <div
-                className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center"
-                style={{
-                  width: "85px",
-                  height: "85px",
-                  boxShadow: "0 4px 14px 0 rgba(0, 0, 0, 0.15)",
-                }}
-              >
-                {userData.profileImage ? (
-                  <img
-                    src={userData.profileImage}
-                    alt="User avatar"
-                    className="w-full h-full object-cover rounded-full"
-                  />
-                ) : (
-                  <Avatar
-                    size={75}
-                    icon={<UserOutlined />}
-                    className="bg-gradient-to-r from-emerald-500 to-green-500"
-                  />
-                )}
-              </div>
-              <Upload
-                accept="image/*"
-                showUploadList={false}
-                beforeUpload={async (file) => {
-                  // client-side checks
-                  const isImage = file.type.startsWith("image/");
-                  if (!isImage) {
-                    message.error("You can only upload image files!");
-                    return false;
-                  }
-                  const isLt2M = file.size / 1024 / 1024 < 2;
-                  if (!isLt2M) {
-                    message.error("Image must be smaller than 2MB!");
-                    return false;
-                  }
-
-                  setUploading(true);
-                  try {
-                    const form = new FormData();
-                    form.append("file", file);
-                    const res = await api.post("/users/upload-document", form, {
-                      headers: { "Content-Type": "multipart/form-data" },
-                    });
-
-                    message.success(res.data?.message || "Profile picture updated");
-                    // backend returns updated user object (see user.controller)
-                    if (res.data?.user) {
-                      authService.setCurrentUser(res.data.user);
-                    } else if (res.data) {
-                      authService.setCurrentUser(res.data);
-                    }
-                  } catch (err: any) {
-                    console.error("Profile upload failed:", err);
-                    message.error(err.response?.data?.message || "Upload failed");
-                  } finally {
-                    setUploading(false);
-                  }
-                  return false; // prevent default Upload behavior
-                }}
-              >
-                <Button
-                  type="primary"
-                  shape="circle"
-                  icon={<CameraOutlined />}
-                  size="small"
-                  className="absolute bottom-0 right-0 shadow-lg"
-                  style={{ width: "28px", height: "28px" }}
-                  loading={uploading}
+            <div
+              className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center"
+              style={{
+                width: "85px",
+                height: "85px",
+                boxShadow: "0 4px 14px 0 rgba(0, 0, 0, 0.15)",
+              }}
+            >
+              {userData.profileImage ? (
+                <img
+                  src={userData.profileImage}
+                  alt="User avatar"
+                  className="w-full h-full object-cover rounded-full"
                 />
-              </Upload>
+              ) : (
+                <Avatar
+                  size={75}
+                  icon={<UserOutlined />}
+                  className="bg-gradient-to-r from-emerald-500 to-green-500"
+                />
+              )}
             </div>
 
             <h3 className="font-bold text-base text-center">{userData.fullName}</h3>

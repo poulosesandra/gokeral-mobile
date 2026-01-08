@@ -14,17 +14,27 @@ export const PersonalInfoTab = ({ userData, loading }: PersonalInfoTabProps) => 
   const [form] = Form.useForm();
   const [editing, setEditing] = useState(false);
 
-  const handleSave = async (values: any) => {
-    try {
-      // TODO: Implement API call to update user data
-      console.log("Saving personal info:", values);
-      message.success("Personal information updated successfully");
-      setEditing(false);
-    } catch (error) {
-      message.error("Failed to update personal information");
-      console.error(error);
+const handleSave = async (values: any) => {
+  try {
+    if (typeof updateUserData === 'function') {
+      await updateUserData({
+        fullName: values.fullName,
+        email: values.email,
+        phoneNumber: values.phoneNumber,
+        address: values.address,
+      });
     }
-  };
+
+    message.success("Personal information updated successfully");
+    setEditing(false);
+  } catch (error) {
+    message.error("Failed to update personal information");
+    console.error('Full error:', error);
+    if (error && typeof error === 'object' && 'response' in error) {
+      console.error('Backend error:', (error as any).response?.data);
+    }
+  }
+};
 
   return (
     <div className="w-full">
