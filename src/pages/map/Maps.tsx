@@ -237,8 +237,8 @@ const Maps: React.FC = () => {
             visible={panelVisible}
             route={selectedRoute}
             onClose={() => setSelectedRouteIndex(-1)}
-            onConfirm={(vehicle, passengers) => {
-              console.log('Booking options', { vehicle, passengers, selectedRouteIndex });
+            onConfirm={(vehicle) => {
+              console.log('Booking options', { vehicle, selectedRouteIndex });
               message.success('Options saved');
             }}
           />

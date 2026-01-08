@@ -334,19 +334,9 @@ const HomePage = () => {
         {/* Floating Shapes */}
         <div
           className="absolute top-20 left-10 w-40 h-40 bg-white/30 rounded-full blur-2xl"
-          style={{
-            transform: `translate(${scrollY * 0.08}px, ${scrollY * 0.08}px) scale(${1 + scrollY * 0.0001})`,
-            willChange: 'transform',
-            transition: 'transform 0.15s ease-out',
-          }}
         ></div>
         <div
           className="absolute bottom-20 right-10 w-60 h-60 bg-white/30 rounded-full blur-2xl"
-          style={{
-            transform: `translate(${-scrollY * 0.06}px, ${-scrollY * 0.06}px) scale(${1 + scrollY * 0.0001})`,
-            willChange: 'transform',
-            transition: 'transform 0.15s ease-out',
-          }}
         ></div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -360,10 +350,6 @@ const HomePage = () => {
               <div
                 key={index}
                 className="text-center group"
-                style={{
-                  transform: `translateY(${Math.max(0, (scrollY - 1000) * 0.03 * (index + 1))}px)`,
-                  opacity: Math.min(1, (scrollY - 800) / 400),
-                }}
               >
                 <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-green-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
                   <feature.icon className="h-10 w-10 text-white" />

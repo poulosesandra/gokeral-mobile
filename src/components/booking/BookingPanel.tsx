@@ -12,11 +12,10 @@ interface BookingPanelProps {
   onConfirm?: (vehicle: VehicleData) => void; 
 }
 
-const vehicleTypes = ['Auto', 'Sedan', 'SUV'];
+const vehicleTypes = ['Auto', 'Five Seater', 'Seven Seater'];
 
 const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, onConfirm }) => {
   const [vehicleType, setVehicleType] = useState<string>(vehicleTypes[0]);
-  const [passengers, setPassengers] = useState<number>(1);
   
   // State for the new Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,20 +25,19 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
   useEffect(() => {
     if (!visible) return;
     setVehicleType(vehicleTypes[0]);
-    setPassengers(1);
     setIsModalOpen(false); // Reset modal when panel re-opens
   }, [visible]);
 
   const leg = route?.legs?.[0];
 
-  const fetchVehicles = async (type: string, pax: number) => {
+  const fetchVehicles = async (type: string) => {
     setIsLoadingVehicles(true);
     try {
       const all = await vehicleService.getAvailableVehicles();
       let filtered = all;
       if (type === 'Auto') {
         filtered = all.filter((v: any) => v.vehicleType === 'Auto' || v.model === 'RE');
-      } else if (type === 'SUV') {
+      } else if (type === 'Seven Seater') {
         filtered = all.filter((v: any) => v.seats >= 6);
       } else {
         filtered = all.filter((v: any) => v.seats <= 5 && v.model !== 'RE');
@@ -50,14 +48,14 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
     } finally {
       setIsLoadingVehicles(false);
     }
-  };
+  }; 
 
   const handleProceed = () => {
     // 1. Open the modal immediately
     setIsModalOpen(true);
     // 2. Start fetching data
-    fetchVehicles(vehicleType, passengers);
-  };
+    fetchVehicles(vehicleType);
+  }; 
 
   const handleFinalSelection = (selectedVehicle: VehicleData) => {
     // This is where you finalize the booking
@@ -98,9 +96,12 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
           {/* Vehicle Type Selector */}
           <div className="mb-4">
             <div className="text-sm font-medium text-gray-700 mb-2">Vehicle type</div>
-            <div className="flex gap-3">
+            <div className="flex flex-col items-center gap-3">
               {vehicleTypes.map((t) => (
-                <label key={t} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${vehicleType === t ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                <label
+                  key={t}
+                  className={`flex items-center justify-center gap-2 py-5 px-8 rounded-lg border cursor-pointer transition-colors w-full max-w-[96%] mx-auto h-16 ${vehicleType === t ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                >
                   <input
                     type="radio"
                     name="vehicle"
@@ -108,26 +109,15 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
                     checked={vehicleType === t}
                     onChange={() => setVehicleType(t)}
                     className="hidden" // Hiding default radio, using custom styling
+                    aria-checked={vehicleType === t}
                   />
-                  <span className={`text-sm ${vehicleType === t ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>{t}</span>
+                  <span className={`text-lg ${vehicleType === t ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>{t}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* Passenger Counter */}
-          <div className="mb-4">
-            <div className="text-sm font-medium text-gray-700 mb-2">Passengers</div>
-            <select
-              value={passengers}
-              onChange={(e) => setPassengers(Number(e.target.value))}
-              className="border border-gray-300 rounded-lg p-2 w-24 focus:ring-2 focus:ring-blue-500 outline-none"
-            >
-              {[1,2,3,4,5,6].map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
+
         </div>
 
         {/* Action Buttons - sticky footer */}
