@@ -9,7 +9,8 @@ import { DriverSidebar, type DriverTabKey } from "./driverprofile/DriverSidebar"
 import { DriverHomeTab, type DriverData } from "../user/tabs/DriverHomeTab";
 import { DriverPersonalInfoTab } from "../user/tabs/DriverPersonalInfoTab";
 import { VehiclesTab } from "../user/tabs/VehiclesTab";
-import { BookingsTabUser } from "../user/tabs/BookingTab";
+
+import { DriverBookingsTab } from "../user/tabs/DriverBookingsTab";
 import { SecurityTab } from "../user/tabs/SecurityTab";
 import { PrivacyTab } from "../user/tabs/PrivacyTab";
 import { DataTab } from "../user/tabs/DataTab";
@@ -278,7 +279,7 @@ export const DriverProfile = () => {
           />
         );
       case "bookings":
-        return <BookingsTabUser loading={loading} />;
+        return <DriverBookingsTab loading={loading} />;
       case "settings":
         return (
           <div className="space-y-6">
