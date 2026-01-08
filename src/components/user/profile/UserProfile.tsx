@@ -146,7 +146,28 @@ export const UserProfile = () => {
       throw error;
     }
   };
+  const refreshUserProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await authService.fetchUserProfile();
+      const backendData = response.user || response;
 
+      const userData: UserData = {
+        fullName: backendData.fullName || backendData.name || 'User',
+        email: backendData.email || '',
+        phoneNumber: backendData.phoneNumber || '',
+        address: backendData.address || '',
+        profileImage: backendData.profileImage || null,
+        location: backendData.address || null,
+      };
+
+      setUserData(userData);
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      console.error("Error refreshing user data:", error);
+    }
+  }, []);
   if (loading && !userData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -175,10 +196,11 @@ export const UserProfile = () => {
   const tabContent: Record<TabKey, JSX.Element> = {
     home: (
       <HomeTab
-        userData={userData}
-        loading={loading}
-        handleTabChange={handleTabChange}
-      />
+  userData={userData}
+  loading={loading}
+  handleTabChange={handleTabChange}
+  onProfileImageUpdate={refreshUserProfile}
+/>
     ),
     personal: (
       <PersonalInfoTab

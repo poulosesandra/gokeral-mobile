@@ -8,30 +8,34 @@ import type { UserData } from "../profile/UserProfile";
 interface PersonalInfoTabProps {
   userData: UserData;
   loading: boolean;
-  updateUserData?: (values: Partial<UserData>) => Promise<void>;
+  updateUserData?: (values: Partial<UserData>) => Promise<void>;  // ADD THIS
 }
 
-export const PersonalInfoTab = ({ userData, _loading, updateUserData }: PersonalInfoTabProps) => {
+export const PersonalInfoTab = ({ userData, loading, updateUserData }: PersonalInfoTabProps) => {  // ADD updateUserData
   const [form] = Form.useForm();
   const [editing, setEditing] = useState(false);
 
-  const handleSave = async (values: any) => {
-    try {
-      // If parent provided update handler, call it
-      if (typeof updateUserData === 'function') {
-        await updateUserData({
-          fullName: values.fullName,
-          address: values.address,
-        });
-      }
-
-      message.success("Personal information updated successfully");
-      setEditing(false);
-    } catch (error) {
-      message.error("Failed to update personal information");
-      console.error(error);
+const handleSave = async (values: any) => {
+  try {
+    if (typeof updateUserData === 'function') {
+      await updateUserData({
+        fullName: values.fullName,  // CHANGE THIS
+        email: values.email,
+        phoneNumber: values.phoneNumber,
+        address: values.address,
+      });
     }
-  };
+
+    message.success("Personal information updated successfully");
+    setEditing(false);
+  } catch (error) {
+    message.error("Failed to update personal information");
+    console.error('Full error:', error);
+    if (error && typeof error === 'object' && 'response' in error) {
+      console.error('Backend error:', (error as any).response?.data);
+    }
+  }
+};
 
   return (
     <div className="w-full">
