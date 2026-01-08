@@ -31,48 +31,19 @@ export const vehicleService = {
     return response.data;
   },
 
-  // Public listing for users — falls back to two dummy vehicles if API fails or returns none
+  // Public listing for users — returns empty array if API fails
   getAvailableVehicles: async (): Promise<any[]> => {
     try {
-      const response = await api.get('/vehicles');
+      const response = await api.get('/drivers/vehicles/public');
       const data = response.data;
-      if (Array.isArray(data) && data.length > 0) return data;
+      if (Array.isArray(data)) return data;
+      return [];
     } catch (err) {
-      // If the API isn't available, we'll return demo vehicles so the UI still works.
-      // The error is logged for debugging; UI uses fallback.
+      // Log error but return empty array - no more hardcoded fallback data
       // eslint-disable-next-line no-console
-      console.warn('vehicles API failed — using fallback demo vehicles', err);
+      console.warn('vehicles API failed:', err);
+      return [];
     }
-
-    // Fallback dummy vehicles (no images as requested)
-    return [
-      {
-        id: 'demo-1',
-        driverName: 'Rajesh Kumar',
-        companyName: 'Maruti Suzuki',
-        model: 'Dzire',
-        year: 2022,
-        seats: 4,
-        licensePlateNumber: 'KL-07-BW-1234',
-        vehicleImage: undefined,
-        rating: 4.8,
-        price: '₹450',
-        vehicleType: 'Sedan',
-      },
-      {
-        id: 'demo-2',
-        driverName: 'Anil Menon',
-        companyName: 'Toyota',
-        model: 'Etios',
-        year: 2021,
-        seats: 4,
-        licensePlateNumber: 'KL-07-CC-5678',
-        vehicleImage: undefined,
-        rating: 4.6,
-        price: '₹480',
-        vehicleType: 'Sedan',
-      },
-    ];
   },
 
   getVehicleById: async (id: string): Promise<Vehicle> => {

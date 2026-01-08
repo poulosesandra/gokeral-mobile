@@ -2,25 +2,28 @@ import React, { useEffect, useState } from 'react';
 import { message } from 'antd';
 import VehicleListModal from './modal/VehicleListModal';
 import type { VehicleData } from './modal/VehicleListModal';
-import vehicleService from '../../services/vehicleService';
+import bookingService from '../../services/bookingService';
 
 interface BookingPanelProps {
   visible: boolean;
   route?: google.maps.DirectionsRoute | null;
   onClose?: () => void;
   // Updated onConfirm to potentially handle final booking after modal selection
-  onConfirm?: (vehicle: VehicleData) => void; 
+  onConfirm?: (vehicle: VehicleData) => void;
+  // Pickup location for finding nearby drivers
+  pickupLocation?: { lat: number; lng: number } | null;
 }
 
-const vehicleTypes = ['Auto', 'Five Seater', 'Seven Seater'];
+const vehicleTypes = ['Auto', 'Sedan', 'SUV'];
 
-const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, onConfirm }) => {
+const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, onConfirm, pickupLocation }) => {
   const [vehicleType, setVehicleType] = useState<string>(vehicleTypes[0]);
   
   // State for the new Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
   const [availableVehicles, setAvailableVehicles] = useState<VehicleData[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -30,21 +33,50 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
 
   const leg = route?.legs?.[0];
 
-  const fetchVehicles = async (type: string) => {
+  const fetchNearbyDrivers = async (type: string) => {
     setIsLoadingVehicles(true);
+    setErrorMessage(null);
+
     try {
-      const all = await vehicleService.getAvailableVehicles();
-      let filtered = all;
-      if (type === 'Auto') {
-        filtered = all.filter((v: any) => v.vehicleType === 'Auto' || v.model === 'RE');
-      } else if (type === 'Seven Seater') {
-        filtered = all.filter((v: any) => v.seats >= 6);
-      } else {
-        filtered = all.filter((v: any) => v.seats <= 5 && v.model !== 'RE');
+      if (!pickupLocation) {
+        setErrorMessage('Please select a pickup location first');
+        setAvailableVehicles([]);
+        return;
       }
-      setAvailableVehicles(filtered as VehicleData[]);
-    } catch (err) {
-      console.error('Failed to fetch vehicles', err);
+
+      // Call backend API to find nearest drivers
+      const drivers = await bookingService.findNearestDrivers(
+        pickupLocation.lat,
+        pickupLocation.lng,
+        type
+      );
+
+      if (drivers && drivers.length > 0) {
+        // Transform backend response to VehicleData format
+        const vehicles: VehicleData[] = drivers.map((driver: any) => ({
+          id: driver._id || driver.driverId,
+          driverName: driver.fullName || driver.driverName || 'Unknown Driver',
+          companyName: driver.vehicle?.make || 'Unknown',
+          model: driver.vehicle?.vehicleModel || 'Unknown',
+          year: driver.vehicle?.year || 2020,
+          seats: driver.vehicle?.seatsNo || 4,
+          licensePlateNumber: driver.vehicle?.licensePlate || 'N/A',
+          vehicleImage: driver.vehicle?.vehicleImages?.[0] || undefined,
+          rating: driver.drivingExperience?.averageRating || 4.5,
+          price: `₹${Math.round(150 + (driver.distance || 0) * 15)}`, // Estimate based on distance
+          vehicleType: driver.vehicle?.vehicleType || type,
+          distance: driver.distance,
+          phoneNumber: driver.phoneNumber,
+        }));
+        setAvailableVehicles(vehicles);
+      } else {
+        setAvailableVehicles([]);
+        setErrorMessage('No drivers available nearby. Please try again later.');
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch nearby drivers', err);
+      setAvailableVehicles([]);
+      setErrorMessage(err.response?.data?.message || 'Failed to find drivers. Please try again.');
     } finally {
       setIsLoadingVehicles(false);
     }
@@ -53,8 +85,8 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
   const handleProceed = () => {
     // 1. Open the modal immediately
     setIsModalOpen(true);
-    // 2. Start fetching data
-    fetchVehicles(vehicleType);
+    // 2. Start fetching nearby drivers from backend
+    fetchNearbyDrivers(vehicleType);
   }; 
 
   const handleFinalSelection = (selectedVehicle: VehicleData) => {
@@ -144,6 +176,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         loading={isLoadingVehicles}
         vehicles={availableVehicles}
         onSelectVehicle={handleFinalSelection}
+        errorMessage={errorMessage}
       />
     </>
   );

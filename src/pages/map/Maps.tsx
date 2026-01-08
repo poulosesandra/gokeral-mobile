@@ -241,6 +241,14 @@ const Maps: React.FC = () => {
               console.log('Booking options', { vehicle, selectedRouteIndex });
               message.success('Options saved');
             }}
+            pickupLocation={
+              directionsResponse?.routes?.[selectedRouteIndex]?.legs?.[0]?.start_location
+                ? {
+                    lat: directionsResponse.routes[selectedRouteIndex].legs[0].start_location.lat(),
+                    lng: directionsResponse.routes[selectedRouteIndex].legs[0].start_location.lng(),
+                  }
+                : userLocation
+            }
           />
         </div>
 
