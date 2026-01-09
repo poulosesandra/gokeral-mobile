@@ -16,6 +16,21 @@ const bookingService = {
     const res = await api.post('/bookings/create', bookingData);
     return res.data;
   },
+
+  async getUserBookings() {
+    const res = await api.get('/bookings/my-bookings');
+    return res.data;
+  },
+
+  async getUserCurrentBooking() {
+    const res = await api.get('/bookings/my-bookings/current');
+    return res.data;
+  },
+
+  async getUserPendingBookings() {
+    const res = await api.get('/bookings/my-bookings/pending');
+    return res.data;
+  },
 };
 
 export default bookingService;
