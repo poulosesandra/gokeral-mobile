@@ -45,7 +45,8 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         if (!enabled || !driverId) return;
 
         try {
-            const response = await fetch('/api/rides/pending', {
+            // ✅ Updated endpoint to call the new backend method
+            const response = await fetch('/api/bookings/pending-for-driver', {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                 },
@@ -63,7 +64,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
                     customerId: ride.customerId,
                     customerName: ride.customerName,
                     pickupLocation: ride.pickupLocation,
-                    dropLocation: ride.dropoffLocation,
+                    dropLocation: ride.dropLocation || ride.dropoffLocation,
                     pickupLatitude: ride.pickupLatitude,
                     pickupLongitude: ride.pickupLongitude,
                     dropoffLatitude: ride.dropoffLatitude,
