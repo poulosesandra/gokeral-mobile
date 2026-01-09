@@ -2,9 +2,12 @@
 
 import { Card, Skeleton, message } from "antd";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
 import MapArea from '../../map/MapArea';
+
+// Define libraries outside component to prevent recreation on each render
+const GOOGLE_MAPS_LIBRARIES: ("places")[] = ["places"];
 
 export type DriverData = {
   fullName: string;
@@ -35,20 +38,28 @@ interface DriverHomeTabProps {
 }
 
 export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: DriverHomeTabProps) => {
-  const libraries: ("places")[] = ["places"];
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE",
-    libraries,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const locationRequestRef = useRef(false);
+  const locationFetchedRef = useRef(false);
 
   useEffect(() => {
+    // ✅ Prevent duplicate geolocation requests using a ref flag
+    if (locationRequestRef.current) {
+      return;
+    }
+
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       message.info('Geolocation is not supported by your browser.');
       return;
     }
+
+    locationRequestRef.current = true;
 
     const allow = window.confirm('Allow Kerides to access your location to show it on your profile?');
     if (!allow) {
@@ -59,6 +70,7 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setDriverLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        locationFetchedRef.current = true;
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
@@ -66,6 +78,7 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
         } else {
           message.error('Unable to get location: ' + err.message);
         }
+        locationFetchedRef.current = true;
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );

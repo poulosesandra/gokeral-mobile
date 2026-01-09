@@ -1,5 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
-import socketService from '../services/socketService';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 interface RideAcceptedData {
     rideId: string;
@@ -20,18 +19,11 @@ interface DriverLocation {
     timestamp: number;
 }
 
-interface RideEvent {
-    rideId: string;
-    driverId?: string;
-    message?: string;
-    status?: string;
-    [key: string]: any;
-}
-
 /**
- * Hook for customer to listen for ride acceptance and driver updates
+ * Hook for customer to poll ride status and driver updates via REST API
+ * Replaces socket-based listener with REST API polling
  */
-export const useCustomerRideListener = (userId: string, enabled: boolean = true) => {
+export const useCustomerRideListener = (userId: string, rideId?: string, enabled: boolean = true) => {
     const [rideAccepted, setRideAccepted] = useState<RideAcceptedData | null>(null);
     const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
     const [rideStarted, setRideStarted] = useState(false);
@@ -39,82 +31,123 @@ export const useCustomerRideListener = (userId: string, enabled: boolean = true)
     const [rideCancelled, setRideCancelled] = useState(false);
     const [driverArrived, setDriverArrived] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
 
+    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const locationPollingRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Poll ride status every 3 seconds
+    const pollRideStatus = useCallback(async () => {
+        if (!rideId) return;
+
+        try {
+            setLoading(true);
+            const response = await fetch(`/api/rides/${rideId}/status`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch ride status');
+
+            const data = await response.json();
+
+            if (data.status === 'ACCEPTED') {
+                setRideAccepted({
+                    rideId: data.rideId,
+                    driverId: data.driverId,
+                    driverName: data.driverName,
+                    driverPhoto: data.driverPhoto,
+                    driverRating: data.driverRating,
+                    vehicleNumber: data.vehicleNumber,
+                    vehiclePhoto: data.vehiclePhoto,
+                    status: data.status,
+                });
+                setError(null);
+            } else if (data.status === 'STARTED') {
+                setRideStarted(true);
+                setError(null);
+            } else if (data.status === 'COMPLETED') {
+                setRideCompleted(true);
+                setRideAccepted(null);
+                setDriverLocation(null);
+                setRideStarted(false);
+            } else if (data.status === 'CANCELLED') {
+                setRideCancelled(true);
+                setRideAccepted(null);
+                setDriverLocation(null);
+                setRideStarted(false);
+            }
+
+            setLoading(false);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error fetching ride status');
+            setLoading(false);
+        }
+    }, [rideId]);
+
+    // Poll driver location every 2 seconds
+    const pollDriverLocation = useCallback(async () => {
+        if (!rideId || !rideAccepted) return;
+
+        try {
+            const response = await fetch(`/api/rides/${rideId}/driver-location`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch driver location');
+
+            const data = await response.json();
+            setDriverLocation({
+                driverId: data.driverId,
+                rideId: data.rideId,
+                latitude: data.latitude,
+                longitude: data.longitude,
+                timestamp: Date.now(),
+            });
+        } catch (err) {
+            console.error('Error fetching driver location:', err);
+        }
+    }, [rideId, rideAccepted]);
+
+    // Start polling ride status
     useEffect(() => {
-        if (!enabled || !userId) return;
+        if (!enabled || !rideId) return;
 
-        // Authenticate on socket
-        socketService.authenticate(userId, 'CUSTOMER');
+        // Poll immediately
+        pollRideStatus();
 
-        // Listen for ride acceptance
-        const handleRideAccepted = (data: RideAcceptedData) => {
-            setRideAccepted(data);
-            setError(null);
-        };
+        // Poll every 3 seconds
+        pollingIntervalRef.current = setInterval(pollRideStatus, 3000);
 
-        // Listen for driver location updates
-        const handleDriverLocation = (data: DriverLocation) => {
-            setDriverLocation(data);
-        };
-
-        // Listen for ride started
-        const handleRideStarted = (data: RideEvent) => {
-            setRideStarted(true);
-            setError(null);
-        };
-
-        // Listen for ride completed
-        const handleRideCompleted = (data: RideEvent) => {
-            setRideCompleted(true);
-            setRideAccepted(null);
-            setDriverLocation(null);
-            setRideStarted(false);
-        };
-
-        // Listen for ride cancelled
-        const handleRideCancelled = (data: RideEvent) => {
-            setRideCancelled(true);
-            setRideAccepted(null);
-            setDriverLocation(null);
-            setRideStarted(false);
-        };
-
-        // Listen for driver arrived
-        const handleDriverArrived = (data: RideEvent) => {
-            setDriverArrived(true);
-            setError(null);
-        };
-
-        // Listen for errors
-        const handleError = (data: any) => {
-            setError(data.message);
-        };
-
-        socketService.on('ride_accepted', handleRideAccepted);
-        socketService.on('driver_location_update', handleDriverLocation);
-        socketService.on('ride_started', handleRideStarted);
-        socketService.on('ride_completed', handleRideCompleted);
-        socketService.on('ride_cancelled', handleRideCancelled);
-        socketService.on('driver_arrived', handleDriverArrived);
-        socketService.on('ride_request_error', handleError);
-        socketService.on('auth_success', () => {
-            console.log('Customer authenticated on socket');
-        });
-
-        // Cleanup
         return () => {
-            socketService.off('ride_accepted', handleRideAccepted);
-            socketService.off('driver_location_update', handleDriverLocation);
-            socketService.off('ride_started', handleRideStarted);
-            socketService.off('ride_completed', handleRideCompleted);
-            socketService.off('ride_cancelled', handleRideCancelled);
-            socketService.off('driver_arrived', handleDriverArrived);
-            socketService.off('ride_request_error', handleError);
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+            }
         };
-    }, [userId, enabled]);
+    }, [rideId, enabled, pollRideStatus]);
+
+    // Start polling driver location after ride is accepted
+    useEffect(() => {
+        if (!enabled || !rideAccepted || !rideId) return;
+
+        // Poll immediately
+        pollDriverLocation();
+
+        // Poll every 2 seconds
+        locationPollingRef.current = setInterval(pollDriverLocation, 2000);
+
+        return () => {
+            if (locationPollingRef.current) {
+                clearInterval(locationPollingRef.current);
+            }
+        };
+    }, [rideId, rideAccepted, enabled, pollDriverLocation]);
 
     const requestRide = useCallback(
-        (rideData: {
+        async (rideData: {
             customerId: string;
             pickupLocation: string;
             dropLocation: string;
@@ -125,21 +158,90 @@ export const useCustomerRideListener = (userId: string, enabled: boolean = true)
             estimatedFare?: number;
             estimatedDistance?: number;
         }) => {
-            socketService.requestRide(rideData);
+            try {
+                setLoading(true);
+                const response = await fetch('/api/rides/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    },
+                    body: JSON.stringify(rideData),
+                });
+
+                if (!response.ok) throw new Error('Failed to request ride');
+
+                const data = await response.json();
+                setError(null);
+                return data;
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : 'Error requesting ride';
+                setError(errorMessage);
+                throw err;
+            } finally {
+                setLoading(false);
+            }
         },
         []
     );
 
     const updateLocation = useCallback(
-        (rideId: string, latitude: number, longitude: number) => {
-            socketService.updateCustomerLocation(userId, rideId, latitude, longitude);
+        async (rideId: string, latitude: number, longitude: number) => {
+            try {
+                const response = await fetch('/api/customers/location/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    },
+                    body: JSON.stringify({
+                        customerId: userId,
+                        rideId,
+                        latitude,
+                        longitude,
+                    }),
+                });
+
+                if (!response.ok) throw new Error('Failed to update location');
+            } catch (err) {
+                console.error('Error updating customer location:', err);
+            }
         },
         [userId]
     );
 
-    const cancelRide = useCallback((rideId: string, reason?: string) => {
-        socketService.cancelRide(rideId, userId, reason);
-    }, [userId]);
+    const cancelRide = useCallback(
+        async (rideId: string, reason?: string) => {
+            try {
+                setLoading(true);
+                const response = await fetch(`/api/rides/${rideId}/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    },
+                    body: JSON.stringify({
+                        customerId: userId,
+                        reason: reason || 'Customer cancelled',
+                    }),
+                });
+
+                if (!response.ok) throw new Error('Failed to cancel ride');
+
+                setRideCancelled(true);
+                setRideAccepted(null);
+                setDriverLocation(null);
+                setRideStarted(false);
+                setError(null);
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : 'Error cancelling ride';
+                setError(errorMessage);
+            } finally {
+                setLoading(false);
+            }
+        },
+        [userId]
+    );
 
     const reset = useCallback(() => {
         setRideAccepted(null);
@@ -149,6 +251,13 @@ export const useCustomerRideListener = (userId: string, enabled: boolean = true)
         setRideCancelled(false);
         setDriverArrived(false);
         setError(null);
+
+        if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+        }
+        if (locationPollingRef.current) {
+            clearInterval(locationPollingRef.current);
+        }
     }, []);
 
     return {
@@ -159,6 +268,7 @@ export const useCustomerRideListener = (userId: string, enabled: boolean = true)
         rideCancelled,
         driverArrived,
         error,
+        loading,
         requestRide,
         updateLocation,
         cancelRide,
