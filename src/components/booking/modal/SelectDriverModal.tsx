@@ -58,22 +58,54 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
         try {
             setLoading(true);
 
-            // ✅ Call backend to get nearby drivers within 2 KM
-            const response = await api.get('/bookings/nearby-drivers', {
-                params: {
-                    latitude: pickupLatitude,
-                    longitude: pickupLongitude,
-                    radius: 2, // 2 KM radius
-                },
-            });
+            // ✅ Try to get nearby drivers with operating area filter first
+            try {
+                const response = await api.get('/bookings/nearby-drivers', {
+                    params: {
+                        latitude: pickupLatitude,
+                        longitude: pickupLongitude,
+                        radius: 2, // 2 KM radius
+                    },
+                });
 
-            // ✅ Limit to maximum 10 drivers
-            const limitedDrivers = (response.data || []).slice(0, maxDrivers);
-            setDrivers(limitedDrivers);
-        } catch (error) {
-            console.error('Failed to fetch nearby drivers:', error);
-            message.error('Failed to load nearby drivers');
-            setDrivers([]);
+                const limitedDrivers = (response.data || []).slice(0, maxDrivers);
+
+                // If we got results, use them
+                if (limitedDrivers.length > 0) {
+                    setDrivers(limitedDrivers);
+                    console.log(`✅ Found ${limitedDrivers.length} nearby drivers`);
+                    return;
+                }
+
+                // If no results, fall through to flexible endpoint
+                console.warn('⚠️ No drivers found with operating area filter, trying flexible search...');
+            } catch (error: any) {
+                // If error occurred (like 403), try flexible endpoint
+                console.warn('⚠️ Operating area filter failed, trying flexible search...', error.message);
+            }
+
+            // ✅ Fallback: Get nearby drivers without operating area restriction
+            try {
+                const flexibleResponse = await api.get('/bookings/nearby-drivers-flexible', {
+                    params: {
+                        latitude: pickupLatitude,
+                        longitude: pickupLongitude,
+                        radius: 2,
+                    },
+                });
+
+                const limitedDrivers = (flexibleResponse.data || []).slice(0, maxDrivers);
+                setDrivers(limitedDrivers);
+                if (limitedDrivers.length > 0) {
+                    console.log(`✅ Found ${limitedDrivers.length} nearby drivers (flexible search)`);
+                } else {
+                    message.warning('No drivers available in your area. Please check back later.');
+                }
+            } catch (flexibleError) {
+                console.error('❌ Both driver search endpoints failed:', flexibleError);
+                message.error('Failed to load nearby drivers. Please try again.');
+                setDrivers([]);
+            }
         } finally {
             setLoading(false);
         }

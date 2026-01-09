@@ -11,6 +11,11 @@ const bookingService = {
     const res = await api.post('/bookings/find-nearest-drivers', body);
     return res.data;
   },
+
+  async createBooking(bookingData: any) {
+    const res = await api.post('/bookings/create', bookingData);
+    return res.data;
+  },
 };
 
 export default bookingService;
