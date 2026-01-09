@@ -136,12 +136,12 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
       setVehicleId(id);
 
       // Fast prefill from passed data (instant UI)
-      setMake(passed.companyName || passed.make || "");
-      setModel(passed.model || passed.vehicleModel || "");
+      setMake(passed.make || passed.companyName || "");
+      setModel(passed.vehicleModel || passed.model || "");
       setYear(String(passed.year || passed.vehicleYear || ""));
-      setSeats(String(passed.seats || passed.seatsNo || passed.seatingCapacity || ""));
+      setSeats(String(passed.seatsNo || passed.seats || passed.seatingCapacity || ""));
       setLicensePlate(
-        passed.licensePlateNumber || passed.licensePlate || passed.vehicleNumber || ""
+        passed.licensePlate || passed.licensePlateNumber || passed.vehicleNumber || ""
       );
       setVehicleType(passed.vehicleType || passed.vehicleClass || "");
       setVehicleClass(passed.vehicleClass || passed.vehicleType || "");
@@ -167,20 +167,20 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
           setSeats(
             String(
               full?.seats ||
-                full?.seatsNo ||
-                passed.seats ||
-                passed.seatsNo ||
-                passed.seatingCapacity ||
-                ""
+              full?.seatsNo ||
+              passed.seats ||
+              passed.seatsNo ||
+              passed.seatingCapacity ||
+              ""
             )
           );
           setLicensePlate(
             full?.licensePlateNumber ||
-              full?.licensePlate ||
-              passed.licensePlateNumber ||
-              passed.licensePlate ||
-              passed.vehicleNumber ||
-              ""
+            full?.licensePlate ||
+            passed.licensePlateNumber ||
+            passed.licensePlate ||
+            passed.vehicleNumber ||
+            ""
           );
           setVehicleType(full?.vehicleType || passed.vehicleType || passed.vehicleClass || "");
           setVehicleClass(full?.vehicleClass || passed.vehicleClass || passed.vehicleType || "");
@@ -251,13 +251,18 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
 
       // Create payload
       const vehiclePayload = {
-        companyName: make,
-        model,
+        make,
+        vehicleModel: model,
         year: parseInt(year, 10),
-        seats: parseInt(seats, 10),
-        licensePlateNumber: licensePlate,
+        seatsNo: parseInt(seats, 10),
+        licensePlate,
         vehicleType,
         vehicleClass,
+        fareStructure: {
+          minimumFare: minimumFare ? parseFloat(minimumFare) : 0,
+          perKilometerRate: perKmRate ? parseFloat(perKmRate) : 0,
+          waitingChargePerMinute: waitingCharge ? parseFloat(waitingCharge) : 0,
+        },
       };
 
       // Update payload (backend UpdateVehicleDto naming)
@@ -266,9 +271,14 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         vehicleModel: model,
         year: parseInt(year, 10),
         seatsNo: parseInt(seats, 10),
-        licensePlate: licensePlate,
+        licensePlate,
         vehicleType,
         vehicleClass,
+        fareStructure: {
+          minimumFare: minimumFare ? parseFloat(minimumFare) : 0,
+          perKilometerRate: perKmRate ? parseFloat(perKmRate) : 0,
+          waitingChargePerMinute: waitingCharge ? parseFloat(waitingCharge) : 0,
+        },
       };
 
       // EDIT FLOW

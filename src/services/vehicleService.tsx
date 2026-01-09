@@ -1,14 +1,19 @@
 import api from './api';
 
 export interface VehicleData {
-  companyName: string;
-  model: string;
+  make: string;
+  vehicleModel: string;
   year: number;
-  seats: number;
-  licensePlateNumber: string;
+  seatsNo: number;
+  licensePlate: string;
   vehicleType: string;
   vehicleClass: string;
-  vehicleImage?: string;
+  fareStructure: {
+    minimumFare: number;
+    perKilometerRate: number;
+    waitingChargePerMinute: number;
+  };
+  vehicleImages?: string[];
   documents?: Record<string, string>;
 }
 

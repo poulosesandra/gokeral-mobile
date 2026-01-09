@@ -18,7 +18,7 @@ const vehicleTypes = ['Auto', 'Sedan', 'SUV'];
 
 const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, onConfirm, pickupLocation }) => {
   const [vehicleType, setVehicleType] = useState<string>(vehicleTypes[0]);
-  
+
   // State for the new Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
@@ -56,11 +56,11 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         const vehicles: VehicleData[] = drivers.map((driver: any) => ({
           id: driver._id || driver.driverId,
           driverName: driver.fullName || driver.driverName || 'Unknown Driver',
-          companyName: driver.vehicle?.make || 'Unknown',
-          model: driver.vehicle?.vehicleModel || 'Unknown',
+          make: driver.vehicle?.make || 'Unknown',
+          vehicleModel: driver.vehicle?.vehicleModel || 'Unknown',
           year: driver.vehicle?.year || 2020,
-          seats: driver.vehicle?.seatsNo || 4,
-          licensePlateNumber: driver.vehicle?.licensePlate || 'N/A',
+          seatsNo: driver.vehicle?.seatsNo || 4,
+          licensePlate: driver.vehicle?.licensePlate || 'N/A',
           vehicleImage: driver.vehicle?.vehicleImages?.[0] || undefined,
           rating: driver.drivingExperience?.averageRating || 4.5,
           price: `₹${Math.round(150 + (driver.distance || 0) * 15)}`, // Estimate based on distance
@@ -80,20 +80,20 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
     } finally {
       setIsLoadingVehicles(false);
     }
-  }; 
+  };
 
   const handleProceed = () => {
     // 1. Open the modal immediately
     setIsModalOpen(true);
     // 2. Start fetching nearby drivers from backend
     fetchNearbyDrivers(vehicleType);
-  }; 
+  };
 
   const handleFinalSelection = (selectedVehicle: VehicleData) => {
     // This is where you finalize the booking
     setIsModalOpen(false);
     if (onConfirm) onConfirm(selectedVehicle);
-    message.success(`Booked ${selectedVehicle.companyName} ${selectedVehicle.model} with ${selectedVehicle.driverName}`);
+    message.success(`Booked ${selectedVehicle.make} ${selectedVehicle.vehicleModel} with ${selectedVehicle.driverName}`);
     if (onClose) onClose(); // Close the main panel
   };
 
@@ -170,7 +170,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
       </div>
 
       {/* Render the new Modal Portal/Component */}
-      <VehicleListModal 
+      <VehicleListModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         loading={isLoadingVehicles}
