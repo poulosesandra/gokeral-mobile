@@ -19,7 +19,7 @@ import type { UserTabKey } from "../tabs/HomeTab";
 export type TabKey = UserTabKey | "vehicles";
 
 export type UserData = {
-  name: string;
+  fullName: string;
   email: string;
   phoneNumber: string;
   address: string;
@@ -48,11 +48,11 @@ export const UserProfile = () => {
       
       if (storedUserData) {
         const userData: UserData = {
-          name: storedUserData.fullName || storedUserData.name || 'User',
+          fullName: storedUserData.fullName || storedUserData.name || 'User',
           email: storedUserData.email || '',
           phoneNumber: storedUserData.phoneNumber || '',
           address: storedUserData.address || '',
-          profileImage: null,
+          profileImage: storedUserData.profileImage || null,
           location: storedUserData.address || null,
         };
         
@@ -111,30 +111,39 @@ export const UserProfile = () => {
   const updateUserData = async (values: Partial<UserData>) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("accessToken");
-      const stored = localStorage.getItem("userData");
-      const userEmail = stored ? JSON.parse(stored).email : localStorage.getItem("userEmail");
 
-      await axios.put(
-        `${import.meta.env.VITE_API_URL}/userDetails`,
-        { ...values },
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            "x-auth-token": token,
-          },
-          params: {
-            id: userEmail,
-          },
-        }
-      );
+      // Use central authService method (which calls backend /users/update)
+      const payload: any = {
+        fullName: values.fullName,
+        email: values.email,
+        phoneNumber: values.phoneNumber,
+      };
+      if (values.address !== undefined) payload.address = values.address;
+      if (values.profileImage !== undefined) payload.profileImage = values.profileImage;
 
-      getUserDetails();
-      setUserData((prev) => prev ? { ...prev, ...values } : null);
+      const res = await authService.updateUserProfile(payload);
+
+      // refresh local user data from returned response (authService already sets current user)
+      if (res) {
+        const fresh = {
+          fullName: res.fullName || res.name || 'User',
+          email: res.email || '',
+          phoneNumber: res.phoneNumber || '',
+          address: res.address || '',
+          profileImage: res.profileImage || null,
+          location: res.address || null,
+        };
+        setUserData(fresh);
+      } else {
+        // fallback: re-fetch from local storage
+        await getUserDetails();
+      }
+
       setLoading(false);
     } catch (error) {
       setLoading(false);
       console.error("Error updating user data:", error);
+      throw error;
     }
   };
 
@@ -210,7 +219,7 @@ export const UserProfile = () => {
       <UserHeader
         navigate={navigate}
         handleLogout={handleLogout}
-        username={userData.name}
+        username={userData.fullName}
       />
 
       <div className="flex relative w-full pl-0 pr-10">
