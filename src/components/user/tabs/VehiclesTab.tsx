@@ -75,11 +75,11 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
         const data = await vehicleService.getVehicles();
 
         const mapped = (data || []).map((v: any) => {
-          const company = v.companyName || v.make || "";
-          const model = v.model || v.vehicleModel || "";
+          const company = v.make || v.companyName || "";
+          const model = v.vehicleModel || v.model || "";
           const title = company ? `${company}${model ? " " + model : ""}` : v.vehicleModel || model || "";
           const license = v.licensePlate || v.licensePlateNumber || v.vehicleNumber || "";
-          const seats = Number(v.seats ?? v.seatsNo ?? 0) || 0;
+          const seats = Number(v.seatsNo ?? v.seats ?? 0) || 0;
           const year = Number(v.year || 0) || 0;
           const images = v.vehicleImages || (v.vehicleImage ? [v.vehicleImage] : []);
 
@@ -256,18 +256,18 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
                         <>
                           <div className="flex justify-between">
                             <span>Make</span>
-                            <span className="font-medium">{raw.companyName || raw.make || "-"}</span>
+                            <span className="font-medium">{raw.make || raw.companyName || "-"}</span>
                           </div>
 
                           <div className="flex justify-between">
                             <span>Model</span>
-                            <span className="font-medium">{raw.model || raw.vehicleModel || "-"}</span>
+                            <span className="font-medium">{raw.vehicleModel || raw.model || "-"}</span>
                           </div>
 
                           <div className="flex justify-between">
                             <span>License Plate</span>
                             <span className="font-medium">
-                              {raw.licensePlateNumber || raw.licensePlate || raw.vehicleNumber || "-"}
+                              {raw.licensePlate || raw.licensePlateNumber || raw.vehicleNumber || "-"}
                             </span>
                           </div>
 
