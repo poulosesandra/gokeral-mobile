@@ -301,7 +301,7 @@ export const authService = {
     };
     const res = await api.patch('/users/update', payload);
     if (res.data) {
-      authService.setCurrentUser(res.data, );
+      authService.setCurrentUser(res.data,);
     }
     return res.data;
   },
@@ -323,6 +323,82 @@ export const authService = {
       authService.setCurrentUser(res.data);
     }
     return res.data;
+  },
+
+  // ==================== LOCATION METHODS ====================
+
+  // Update Driver Location (Real-time tracking)
+  requestAndUpdateDriverLocation: async () => {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+
+            console.log('📍 [DRIVER LOCATION] Getting location:', { latitude, longitude });
+
+            // Send location to backend - POST /drivers/location/update
+            const response = await api.post('/drivers/location/update', {
+              latitude,
+              longitude,
+              isOnline: true,
+            });
+
+            console.log('✅ [DRIVER LOCATION] Updated:', response.data);
+            resolve(response.data);
+          } catch (error: any) {
+            console.error('❌ [DRIVER LOCATION] Update failed:', error.response?.data || error.message);
+            reject(error);
+          }
+        },
+        (error) => {
+          console.error('❌ [GEOLOCATION] Error:', error);
+          reject(error);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  },
+
+  // Search for Nearby Available Drivers (For Customer Booking)
+  getNearbyDrivers: async (latitude: number, longitude: number, radiusKm: number = 5) => {
+    try {
+      console.log('🔍 [SEARCH DRIVERS] Nearby drivers:', { latitude, longitude, radiusKm });
+
+      // GET /bookings/nearby-drivers?latitude=X&longitude=Y&radius=Z
+      const response = await api.get('/bookings/nearby-drivers', {
+        params: {
+          latitude,
+          longitude,
+          radius: radiusKm,
+        },
+      });
+
+      console.log('✅ [SEARCH DRIVERS] Found drivers:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [SEARCH DRIVERS] Error:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Update Driver Location Periodically (Background tracking)
+  startLocationTracking: (intervalMs: number = 30000) => {
+    return setInterval(async () => {
+      try {
+        await authService.requestAndUpdateDriverLocation();
+      } catch (error) {
+        console.error('❌ [LOCATION TRACKING] Error:', error);
+      }
+    }, intervalMs);
+  },
+
+  // Stop Location Tracking
+  stopLocationTracking: (intervalId: any) => {
+    if (intervalId) {
+      clearInterval(intervalId);
+      console.log('⏹️ [LOCATION TRACKING] Stopped');
+    }
   },
 };
 

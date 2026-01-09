@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { message } from 'antd';
 import VehicleListModal from './modal/VehicleListModal';
+import SelectDriverModal from './modal/SelectDriverModal';
 import type { VehicleData } from './modal/VehicleListModal';
-import bookingService from '../../services/bookingService';
 
 interface BookingPanelProps {
   visible: boolean;
@@ -19,82 +19,68 @@ const vehicleTypes = ['Auto', 'Sedan', 'SUV'];
 const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, onConfirm, pickupLocation }) => {
   const [vehicleType, setVehicleType] = useState<string>(vehicleTypes[0]);
 
-  // State for the new Modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // State for driver selection modal
+  const [isSelectDriverModalOpen, setIsSelectDriverModalOpen] = useState(false);
+
+  // State for the confirm booking modal
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
   const [availableVehicles, setAvailableVehicles] = useState<VehicleData[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) return;
     setVehicleType(vehicleTypes[0]);
-    setIsModalOpen(false); // Reset modal when panel re-opens
+    setIsSelectDriverModalOpen(false);
   }, [visible]);
 
   const leg = route?.legs?.[0];
 
-  const fetchNearbyDrivers = async (type: string) => {
-    setIsLoadingVehicles(true);
-    setErrorMessage(null);
+  const handleProceed = () => {
+    // ✅ Open driver selection modal
+    if (!pickupLocation) {
+      message.error('Please select a pickup location first');
+      return;
+    }
+    setIsSelectDriverModalOpen(true);
+  };
 
+  const handleDriverSelected = async (driver: any) => {
     try {
-      if (!pickupLocation) {
-        setErrorMessage('Please select a pickup location first');
-        setAvailableVehicles([]);
-        return;
-      }
+      setIsLoadingVehicles(true);
 
-      // Call backend API to find nearest drivers
-      const drivers = await bookingService.findNearestDrivers(
-        pickupLocation.lat,
-        pickupLocation.lng,
-        type
-      );
+      // ✅ Convert driver data to VehicleData format
+      const vehicleData: VehicleData = {
+        id: driver._id,
+        driverName: driver.fullName,
+        make: driver.vehicle?.make || 'Unknown',
+        vehicleModel: driver.vehicle?.vehicleModel || 'Unknown',
+        year: driver.vehicle?.year || 2020,
+        seatsNo: driver.vehicle?.seatsNo || 4,
+        licensePlate: driver.vehicle?.licensePlate || 'N/A',
+        vehicleImage: driver.vehicle?.vehicleImages?.[0] || undefined,
+        rating: driver.drivingExperience?.averageRating || 4.5,
+        price: `₹150`, // Base fare
+        vehicleType: driver.vehicle?.vehicleType || vehicleType,
+        distance: driver.distance,
+        phoneNumber: driver.phoneNumber,
+      };
 
-      if (drivers && drivers.length > 0) {
-        // Transform backend response to VehicleData format
-        const vehicles: VehicleData[] = drivers.map((driver: any) => ({
-          id: driver._id || driver.driverId,
-          driverName: driver.fullName || driver.driverName || 'Unknown Driver',
-          make: driver.vehicle?.make || 'Unknown',
-          vehicleModel: driver.vehicle?.vehicleModel || 'Unknown',
-          year: driver.vehicle?.year || 2020,
-          seatsNo: driver.vehicle?.seatsNo || 4,
-          licensePlate: driver.vehicle?.licensePlate || 'N/A',
-          vehicleImage: driver.vehicle?.vehicleImages?.[0] || undefined,
-          rating: driver.drivingExperience?.averageRating || 4.5,
-          price: `₹${Math.round(150 + (driver.distance || 0) * 15)}`, // Estimate based on distance
-          vehicleType: driver.vehicle?.vehicleType || type,
-          distance: driver.distance,
-          phoneNumber: driver.phoneNumber,
-        }));
-        setAvailableVehicles(vehicles);
-      } else {
-        setAvailableVehicles([]);
-        setErrorMessage('No drivers available nearby. Please try again later.');
-      }
-    } catch (err: any) {
-      console.error('Failed to fetch nearby drivers', err);
-      setAvailableVehicles([]);
-      setErrorMessage(err.response?.data?.message || 'Failed to find drivers. Please try again.');
+      setAvailableVehicles([vehicleData]);
+      setIsSelectDriverModalOpen(false);
+      setIsConfirmModalOpen(true);
+    } catch (err) {
+      message.error('Failed to select driver');
     } finally {
       setIsLoadingVehicles(false);
     }
   };
 
-  const handleProceed = () => {
-    // 1. Open the modal immediately
-    setIsModalOpen(true);
-    // 2. Start fetching nearby drivers from backend
-    fetchNearbyDrivers(vehicleType);
-  };
-
   const handleFinalSelection = (selectedVehicle: VehicleData) => {
-    // This is where you finalize the booking
-    setIsModalOpen(false);
+    // ✅ Close modal and proceed with booking
+    setIsConfirmModalOpen(false);
     if (onConfirm) onConfirm(selectedVehicle);
     message.success(`Booked ${selectedVehicle.make} ${selectedVehicle.vehicleModel} with ${selectedVehicle.driverName}`);
-    if (onClose) onClose(); // Close the main panel
+    if (onClose) onClose();
   };
 
   return (
@@ -169,14 +155,23 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         </div>
       </div>
 
-      {/* Render the new Modal Portal/Component */}
+      {/* Render the driver selection modal */}
+      <SelectDriverModal
+        isOpen={isSelectDriverModalOpen}
+        onClose={() => setIsSelectDriverModalOpen(false)}
+        onSelectDriver={handleDriverSelected}
+        pickupLatitude={pickupLocation?.lat || 0}
+        pickupLongitude={pickupLocation?.lng || 0}
+        maxDrivers={10}
+      />
+
+      {/* Render the confirm booking modal */}
       <VehicleListModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isConfirmModalOpen}
+        onClose={() => setIsConfirmModalOpen(false)}
         loading={isLoadingVehicles}
         vehicles={availableVehicles}
         onSelectVehicle={handleFinalSelection}
-        errorMessage={errorMessage}
       />
     </>
   );
