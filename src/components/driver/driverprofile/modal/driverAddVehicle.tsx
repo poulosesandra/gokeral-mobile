@@ -45,7 +45,6 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
 
   // Fare fields
   // NOTE: backend currently supports fareStructure: { minimumFare, perKilometerRate, waitingChargePerMinute }
-  const [baseFare, setBaseFare] = useState("");
   const [perKmRate, setPerKmRate] = useState("");
   const [minimumFare, setMinimumFare] = useState("");
   const [waitingCharge, setWaitingCharge] = useState("");
@@ -96,7 +95,6 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
     setVehicleImage(null);
     setImagePreview(null);
 
-    setBaseFare("");
     setPerKmRate("");
     setMinimumFare("");
     setWaitingCharge("");
@@ -108,11 +106,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
 
   const applyFareToState = (fare: any) => {
     if (!fare) return;
-    // If backend doesn't have baseFare, default to minimumFare so edit doesn't look blank
-    const inferredBase =
-      fare.baseFare != null ? fare.baseFare : fare.minimumFare != null ? fare.minimumFare : null;
 
-    setBaseFare(inferredBase != null ? String(inferredBase) : "");
     setMinimumFare(fare.minimumFare != null ? String(fare.minimumFare) : "");
     setPerKmRate(fare.perKilometerRate != null ? String(fare.perKilometerRate) : "");
     setWaitingCharge(
@@ -376,15 +370,11 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         return;
       }
 
-      // Base Fare is compulsory now
-      if (!baseFare || !perKmRate || !minimumFare || !waitingCharge) {
+      if (!perKmRate || !minimumFare || !waitingCharge) {
         setFareError("Please fill in all fare settings");
         return;
       }
 
-      // IMPORTANT:
-      // Backend currently doesn't store baseFare inside fareStructure.
-      // We are enforcing it in UI as requested; if you want it saved, we need a small backend change.
       await vehicleService.updateVehicle(
         vehicleId,
         {
@@ -602,20 +592,6 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <span className="text-red-500">*</span> Base Fare (₹)
-              </label>
-              <input
-                type="number"
-                placeholder="Base fare amount"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={baseFare}
-                onChange={(e) => setBaseFare(e.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 <span className="text-red-500">*</span> Per Kilometer Rate (₹)
               </label>
               <input
@@ -657,10 +633,9 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
             </div>
           </div>
 
-          {/* Tips box (as per screenshot) */}
+          {/* Tips box */}
           <div className="bg-gray-50 rounded-lg p-6 mb-6">
             <p className="text-sm font-medium text-gray-900 mb-2">Tips for setting fares:</p>
-            <p className="text-sm text-gray-700">Base fare is the starting fare for any ride</p>
             <p className="text-sm text-gray-700">
               Per kilometer rate should be competitive with other services in your area
             </p>
