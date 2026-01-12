@@ -3,6 +3,15 @@ import { Card, Button, Spin, message, Tag, Row, Col, Avatar } from 'antd';
 import { EnvironmentOutlined, PhoneOutlined, StarOutlined } from 'lucide-react';
 import { useCustomerRideListener } from '../../hooks/useCustomerRideListener';
 
+const mapVehicleType = (t?: string) => {
+  if (!t) return 'Auto';
+  const s = String(t).toLowerCase();
+  if (s.includes('auto')) return 'Auto';
+  if (s.includes('suv')) return 'Seven Seater';
+  if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
+  return t;
+};
+
 interface RideAcceptanceCardProps {
     userId: string;
     rideId: string;
@@ -112,7 +121,7 @@ const RideAcceptanceCard: React.FC<RideAcceptanceCardProps> = ({
                     </div>
                     <div className="flex justify-between items-center">
                         <span className="text-gray-600">Vehicle Type</span>
-                        <span className="font-bold text-gray-800">Sedan</span>
+                        <span className="font-bold text-gray-800">{mapVehicleType(rideAccepted.vehicleType)}</span>
                     </div>
                     <div className="flex justify-between items-center">
                         <span className="text-gray-600">License</span>

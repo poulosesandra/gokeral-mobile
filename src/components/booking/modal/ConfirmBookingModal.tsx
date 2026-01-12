@@ -3,6 +3,15 @@ import { message } from 'antd';
 import bookingService from '../../../services/bookingService';
 import type { VehicleData } from './VehicleListModal';
 
+const mapVehicleType = (t?: string) => {
+  if (!t) return 'Auto';
+  const s = String(t).toLowerCase();
+  if (s.includes('auto')) return 'Auto';
+  if (s.includes('suv')) return 'Seven Seater';
+  if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
+  return t;
+};
+
 interface ConfirmBookingModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -95,7 +104,7 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                     bookingFee: 10,
                     total: estimatedFare,
                 },
-                vehiclePreference: selectedVehicle.vehicleType || 'Sedan',
+                vehiclePreference: mapVehicleType(selectedVehicle.vehicleType),
                 userInfo: {
                     date: new Date().toISOString().split('T')[0],
                     time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),

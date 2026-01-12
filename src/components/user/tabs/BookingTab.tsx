@@ -5,6 +5,16 @@ import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate, Input } fr
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined } from "@ant-design/icons";
 import bookingService from "../../../services/bookingService";
 
+// NOTE: Replacing utility imports with hardcoded mapping as requested
+const mapVehicleType = (t?: string) => {
+  if (!t) return 'Auto';
+  const s = String(t).toLowerCase();
+  if (s.includes('auto')) return 'Auto';
+  if (s.includes('suv')) return 'Seven Seater';
+  if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
+  return t;
+};
+
 interface Booking {
   _id?: string;
   id?: string;
@@ -394,7 +404,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                   </p>
                   <p>
                     <span className="font-semibold">Vehicle: </span>
-                    {selectedBooking.driver.vehicle?.vehicleType || "N/A"}
+                    {mapVehicleType(selectedBooking.driver.vehicle?.vehicleType) || "N/A"}
                   </p>
                   <p>
                     <span className="font-semibold">License Plate: </span>
