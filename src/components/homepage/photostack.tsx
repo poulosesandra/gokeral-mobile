@@ -28,30 +28,6 @@ const PhotoStack: React.FC<PhotoStackProps> = ({
   const initializedRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    if (!images || images.length === 0) return;
-    
-    // Only initialize once, ignore subsequent renders with same images
-    if (initializedRef.current) return;
-    
-    initializedRef.current = true;
-
-    // Show ALL images in the stack with alternating peek pattern
-    const initialCards: Card[] = images.map((img, idx) => ({
-      id: idx,
-      image: img,
-      zIndex: images.length - idx,
-      rotation: idx % 2 === 0 ? -6 : 6,
-      offsetX: idx % 2 === 0 ? -20 : 20,
-      offsetY: idx * 4,
-      scale: 1 - idx * 0.02,
-      isExiting: false,
-    }));
-
-    setCards(initialCards);
-    currentIndexRef.current = images.length;
-  }, [images]);
-
   const cycleCards = useCallback(() => {
     if (!images || images.length === 0 || isCycling) return;
 
@@ -102,6 +78,42 @@ const PhotoStack: React.FC<PhotoStackProps> = ({
     }, 600);
   }, [images, isCycling]);
 
+  useEffect(() => {
+    if (!images || images.length === 0) return;
+
+    // Only initialize once, ignore subsequent renders with same images
+    if (initializedRef.current) return;
+
+    initializedRef.current = true;
+
+    // Show ALL images in the stack with alternating peek pattern
+    const initialCards: Card[] = images.map((img, idx) => ({
+      id: idx,
+      image: img,
+      zIndex: images.length - idx,
+      rotation: idx % 2 === 0 ? -6 : 6,
+      offsetX: idx % 2 === 0 ? -20 : 20,
+      offsetY: idx * 4,
+      scale: 1 - idx * 0.02,
+      isExiting: false,
+    }));
+
+    setCards(initialCards);
+    currentIndexRef.current = images.length;
+
+    // Start an initial cycle automatically (so it doesn't require a click to begin)
+    let initialTimer: ReturnType<typeof setTimeout> | null = null;
+    if (images.length > 1) {
+      initialTimer = setTimeout(() => {
+        cycleCards();
+      }, 600);
+    }
+
+    return () => {
+      if (initialTimer) clearTimeout(initialTimer);
+    };
+  }, [images, cycleCards]);
+
   // Auto-cycle effect
   useEffect(() => {
     if (!images || images.length <= 1) return;
@@ -143,16 +155,16 @@ const PhotoStack: React.FC<PhotoStackProps> = ({
   }
 
   return (
-    <div className={`relative w-full max-w-xs mx-auto ${className}`}>
+    <div className={`relative w-full max-w-xs md:max-w-md mx-auto transform scale-90 md:scale-100 ${className}`}>
       <div 
-        className="relative w-full aspect-[3/4] cursor-pointer"
+        className="relative w-full aspect-[4/3] cursor-pointer"
         onClick={handleClick}
         style={{ perspective: '1000px' }}
       >
         {cards.map((card) => (
           <div
             key={card.id}
-            className="absolute inset-0 transition-all duration-[600ms] ease-out"
+            className="absolute inset-0 transition-all lg:transition-all duration-[600ms] ease-out"
             style={{
               zIndex: card.zIndex,
               transform: card.isExiting

@@ -5,7 +5,7 @@ import { Spin, message, Button } from "antd";
 import { useNavigate } from "react-router-dom";
 import { MenuOutlined } from "@ant-design/icons";
 import { UserHeader } from "../UserHeader";
-import { DriverSidebar, type DriverTabKey } from "../driverprofile/DriverSidebar";
+import { DriverSidebar, type DriverTabKey } from "../driver/driverprofile/DriverSidebar";
 import { DriverHomeTab, type DriverData } from "../user/tabs/DriverHomeTab";
 import { DriverPersonalInfoTab } from "../user/tabs/DriverPersonalInfoTab";
 import { VehiclesTab } from "../user/tabs/VehiclesTab";
@@ -13,7 +13,7 @@ import { BookingsTabUser } from "../user/tabs/BookingTab";
 import { SecurityTab } from "../user/tabs/SecurityTab";
 import { PrivacyTab } from "../user/tabs/PrivacyTab";
 import { DataTab } from "../user/tabs/DataTab";
-import DriverAddDetails from "../driverprofile/modal/driverAddDetails";
+import DriverAddDetails from "../driver/driverprofile/modal/driverAddDetails";
 import { authService } from "../../services/authServices";
 
 export const DriverProfile = () => {

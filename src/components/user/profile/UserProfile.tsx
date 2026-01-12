@@ -3,18 +3,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { UserHeader } from "../UserHeader"
 import { UserSidebar } from "./UserSidebar";
-import { HomeTab } from "../user/tabs/HomeTab";
-import { PersonalInfoTab } from "../user/tabs/PersonalInfoTab";
-import {  BookingsTabUser } from "../user/tabs/BookingTab";
-import { SecurityTab } from "../user/tabs/SecurityTab";
-import { PrivacyTab } from "../user/tabs/PrivacyTab";
-import { DataTab } from "../user/tabs/DataTab";
+import { HomeTab } from "../tabs/HomeTab";
+import { PersonalInfoTab } from "../tabs/PersonalInfoTab";
+import {  BookingsTabUser } from "../tabs/BookingTab";
+import { SecurityTab } from "../tabs/SecurityTab";
+import { PrivacyTab } from "../tabs/PrivacyTab";
+import { DataTab } from "../tabs/DataTab";
 import { Button, Spin } from "antd";
 import { MenuOutlined } from "@ant-design/icons";
 import type { JSX } from "react/jsx-runtime";
 import "../../styles/UserProfile.css";
 import { authService } from "../../../services/authServices";
-import type { UserTabKey } from "../user/tabs/HomeTab";
+import type { UserTabKey } from "../tabs/HomeTab";
 
 export type TabKey = UserTabKey | "vehicles";
 
