@@ -3,6 +3,15 @@ import { Spin, Empty, Card, Avatar, Rate, Tag, Button, message, Modal, Input } f
 import { PhoneOutlined, EnvironmentOutlined, CarOutlined, CloseOutlined } from '@ant-design/icons';
 import api from '../../../services/api';
 
+const mapVehicleType = (t?: string) => {
+  if (!t) return 'Auto';
+  const s = String(t).toLowerCase();
+  if (s.includes('auto')) return 'Auto';
+  if (s.includes('suv')) return 'Seven Seater';
+  if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
+  return t;
+};
+
 interface Driver {
     _id: string;
     fullName: string;
@@ -214,7 +223,7 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                                                         </div>
                                                         <div className="text-xs text-gray-600 ml-6 mt-1">
                                                             <div>
-                                                                {driver.vehicle.vehicleType} • {driver.vehicle.seatsNo} seats
+                                                                {mapVehicleType(driver.vehicle.vehicleType)} • {driver.vehicle.seatsNo} seats
                                                             </div>
                                                             <div className="font-mono text-gray-700 font-semibold">
                                                                 Plate: {driver.vehicle.licensePlate}

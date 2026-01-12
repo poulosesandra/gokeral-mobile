@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
 import { useNavigate } from 'react-router-dom';
-import { message } from 'antd';
+import { message } from 'antd'
 import MapControls from '../../components/map/MapControls';
 import MapArea from '../../components/map/MapArea';
 import BookingPanel from '../../components/booking/BookingPanel';

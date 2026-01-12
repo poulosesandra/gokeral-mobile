@@ -3,6 +3,16 @@ import { Spin, Empty, Card, Avatar, Rate, Tag, Divider, Button, message } from '
 import { PhoneOutlined, EnvironmentOutlined, CarOutlined } from '@ant-design/icons';
 import { api } from '../../services/api';
 
+// Hardcoded mapping for vehicle types
+const mapVehicleType = (t?: string) => {
+  if (!t) return 'Auto';
+  const s = String(t).toLowerCase();
+  if (s.includes('auto')) return 'Auto';
+  if (s.includes('suv')) return 'Seven Seater';
+  if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
+  return t;
+};
+
 interface Driver {
     _id: string;
     fullName: string;
@@ -132,7 +142,7 @@ const NearbyDrivers: React.FC<NearbyDriversProps> = ({ latitude, longitude, radi
                                             </span>
                                         </div>
                                         <div className="text-xs text-gray-600 ml-6">
-                                            <div>{driver.vehicle.vehicleType} • {driver.vehicle.seatsNo} seats</div>
+                                            <div>{mapVehicleType(driver.vehicle.vehicleType)} • {driver.vehicle.seatsNo} seats</div>
                                             <div className="text-gray-500">{driver.vehicle.licensePlate}</div>
                                         </div>
                                     </div>

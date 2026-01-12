@@ -5,6 +5,16 @@ import { PlusOutlined, CarOutlined, DeleteOutlined, EditOutlined } from "@ant-de
 import { useState, useEffect } from "react";
 import vehicleService from "../../../services/vehicleService";
 
+// Hardcoded mapping — replace legacy types with the new set
+const mapVehicleType = (t?: string) => {
+  if (!t) return 'Auto';
+  const s = String(t).toLowerCase();
+  if (s.includes('auto')) return 'Auto';
+  if (s.includes('suv')) return 'Seven Seater';
+  if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
+  return t;
+};
+
 export interface Vehicle {
   _id: string;
   vehicleType: string;
@@ -215,7 +225,7 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
                 <div className="grid grid-cols-2 gap-3 pt-3 border-t">
                   <div>
                     <span className="text-gray-600 text-sm">Type</span>
-                    <p className="font-medium text-gray-800">{vehicle.vehicleType}</p>
+                    <p className="font-medium text-gray-800">{mapVehicleType(vehicle.vehicleType)}</p>
                   </div>
                   <div>
                     <span className="text-gray-600 text-sm">Year</span>
@@ -273,9 +283,8 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
 
                           <div className="flex justify-between">
                             <span>Vehicle Class</span>
-                            <span className="font-medium">{raw.vehicleClass || raw.vehicleType || "-"}</span>
+                            <span className="font-medium">{mapVehicleType(raw.vehicleClass || raw.vehicleType) || "-"}</span>
                           </div>
-
                           <div className="flex justify-between">
                             <span>Status</span>
                             <span className="font-medium">{raw.status || vehicle.status || "-"}</span>

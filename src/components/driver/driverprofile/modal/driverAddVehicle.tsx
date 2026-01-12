@@ -492,9 +492,9 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
                 required
               >
                 <option value="">Vehicle Type</option>
-                <option value="Sedan">Sedan</option>
-                <option value="SUV">SUV</option>
-                <option value="Hatchback">Hatchback</option>
+                <option value="Auto">Auto</option>
+                <option value="Five Seater">Five Seater</option>
+                <option value="Seven Seater">Seven Seater</option>
               </select>
               <select
                 className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"

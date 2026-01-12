@@ -14,7 +14,7 @@ interface BookingPanelProps {
   pickupLocation?: { lat: number; lng: number } | null;
 }
 
-const vehicleTypes = ['Auto', 'Sedan', 'SUV'];
+const vehicleTypes = ['Auto', 'Five Seater', 'Seven Seater'];
 
 const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, onConfirm, pickupLocation }) => {
   const [vehicleType, setVehicleType] = useState<string>(vehicleTypes[0]);
