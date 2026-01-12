@@ -25,6 +25,8 @@ const Maps: React.FC = () => {
   const panelVisible = Boolean(directionsResponse && directionsResponse.routes && directionsResponse.routes.length > 0 && selectedRouteIndex >= 0);
   const selectedRoute = directionsResponse?.routes?.[selectedRouteIndex] ?? null;
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  // Mobile layout flag: true for widths < 768px
+  const [isSmallScreen, setIsSmallScreen] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   
   // Get user data for header
   const currentUser = authService.getCurrentUser();
@@ -67,6 +69,27 @@ const Maps: React.FC = () => {
       map.panTo(center);
     }
   }, [center, map]);
+
+  // Keep track of small-screen state and lock body scroll when the mobile booking overlay is open
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => setIsSmallScreen(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    onResize();
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    let prev = '';
+    if (isSmallScreen && panelVisible) {
+      prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isSmallScreen, panelVisible]);
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -215,8 +238,8 @@ const Maps: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex flex-1 w-full pt-2 pb-2 px-2 gap-2">
-        <div className={`transition-all duration-300 w-[400px] h-full min-h-0`}>
+      <div className="flex flex-1 w-full pt-2 pb-2 px-2 gap-2 flex-col md:flex-row">
+        <div className={`transition-all duration-300 md:w-[400px] w-full md:h-full h-auto min-h-0 overflow-auto`}>
           <MapControls 
             onDirectionsCalculated={(result) => setDirectionsResponse(result)}
             onClearRoute={() => {
@@ -232,7 +255,7 @@ const Maps: React.FC = () => {
           />
         </div>
 
-        <div className={`transition-all duration-300 ${panelVisible ? 'w-[400px] h-full min-h-0' : 'w-0 overflow-hidden'}`}>
+        <div className={`transition-all duration-300 ${panelVisible ? 'w-full md:w-[400px] h-auto md:h-full min-h-0 mt-2 md:mt-0' : 'w-0 md:w-0 overflow-hidden'} ${isSmallScreen ? 'hidden md:block' : ''}`}>
           <BookingPanel
             visible={panelVisible}
             route={selectedRoute}
@@ -252,7 +275,37 @@ const Maps: React.FC = () => {
           />
         </div>
 
-        <div className={`transition-all duration-300 flex-1`}>
+        {/* Mobile overlay: show booking panel as a full-screen modal on small screens so it's visible without scrolling */}
+        {isSmallScreen && panelVisible && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center">
+            <div className="fixed inset-0 bg-black/40" onClick={() => setSelectedRouteIndex(-1)} />
+            <div className="relative w-full max-w-md h-full bg-white overflow-auto p-4 shadow-xl">
+              <div className="flex justify-end">
+                <button aria-label="Close booking" onClick={() => setSelectedRouteIndex(-1)} className="p-2 rounded-md bg-white shadow-sm">✕</button>
+              </div>
+
+              <BookingPanel
+                visible={panelVisible}
+                route={selectedRoute}
+                onClose={() => setSelectedRouteIndex(-1)}
+                onConfirm={(vehicle) => {
+                  console.log('Booking options', { vehicle, selectedRouteIndex });
+                  message.success('Options saved');
+                }}
+                pickupLocation={
+                  directionsResponse?.routes?.[selectedRouteIndex]?.legs?.[0]?.start_location
+                    ? {
+                        lat: directionsResponse.routes[selectedRouteIndex].legs[0].start_location.lat(),
+                        lng: directionsResponse.routes[selectedRouteIndex].legs[0].start_location.lng(),
+                      }
+                    : userLocation
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        <div className={`transition-all duration-300 flex-1 min-h-0`}>
           <MapArea 
             onLoad={(map) => setMap(map)}
             directionsResponse={directionsResponse}
