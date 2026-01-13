@@ -119,8 +119,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       : bookings.filter((b) => b.status === filterStatus);
 
   const completedBookings = bookings.filter((b) => b.status === "COMPLETED").length;
-  const cancelledBookings = bookings.filter((b) => b.status === "CANCELLED").length;
-  const totalBookings = bookings.length;
+  const cancelledBookings = bookings.filter((b) => b.status === "CANCELLED").length;  
 
   const handleViewDetails = (booking: Booking) => {
     setSelectedBooking(booking);
@@ -448,7 +447,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
               <div>
                 <p className="text-gray-600 text-sm mb-2">Your Rating</p>
                 <div className="bg-gray-50 p-3 rounded space-y-2">
-                  <Rate value={selectedBooking.driverRating} readOnly />
+                  <Rate value={selectedBooking.driverRating} disabled />
                   {selectedBooking.driverReview && (
                     <p className="text-gray-600 mt-2">{selectedBooking.driverReview}</p>
                   )}

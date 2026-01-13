@@ -36,7 +36,9 @@ export const DriverSidebar = ({
   isOpen,
   onClose,
   windowWidth,
+  driverData,
   handleLogout,
+  onProfileImageUpdate,
 }: DriverSidebarProps) => {
   const tabItems = [
     { key: "home", label: "Home", icon: <HomeOutlined /> },

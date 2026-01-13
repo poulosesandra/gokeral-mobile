@@ -258,7 +258,6 @@ export const UserProfile = () => {
           handleLogout={handleLogout}
           sidebarOpen={sidebarOpen}
           windowWidth={windowWidth}
-          toggleSidebar={toggleSidebar}
           onClose={() => setSidebarOpen(false)}
           onProfileUpdate={refreshUserProfile}
         />
