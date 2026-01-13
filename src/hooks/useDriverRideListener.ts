@@ -37,8 +37,8 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    const rideRequestPollingRef = useRef<NodeJS.Timeout | null>(null);
-    const customerLocationPollingRef = useRef<NodeJS.Timeout | null>(null);
+    const rideRequestPollingRef = useRef<number | null>(null);
+    const customerLocationPollingRef = useRef<number | null>(null);
 
     // Poll pending ride requests every 5 seconds
     const pollPendingRides = useCallback(async () => {
