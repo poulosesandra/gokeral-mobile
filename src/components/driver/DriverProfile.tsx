@@ -47,7 +47,7 @@ export const DriverProfile = () => {
       },
     },
   });
-  const [vehicleToEdit, setVehicleToEdit] = useState<any | null>(null);
+  const [vehicleToEdit, setVehicleToEdit] = useState<{ id?: string; make?: string; model?: string; year?: number; licensePlate?: string; color?: string; [key: string]: any } | null>(null);
 
   // Ride request popup state (auto-open when a pending ride arrives)
   const [rideModalOpen, setRideModalOpen] = useState(false);

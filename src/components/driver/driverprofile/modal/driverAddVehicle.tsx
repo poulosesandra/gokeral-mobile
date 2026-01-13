@@ -155,24 +155,22 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
           const full = await vehicleService.getVehicleById(id);
           if (cancelled) return;
 
-          setMake(full?.companyName || full?.make || passed.companyName || passed.make || "");
-          setModel(full?.model || full?.vehicleModel || passed.model || passed.vehicleModel || "");
+          setMake(full?.make || passed.companyName || passed.make || "");
+          setModel(full?.vehicleModel || passed.vehicleModel || passed.model || "");
           setYear(String(full?.year || passed.year || passed.vehicleYear || ""));
           setSeats(
             String(
-              full?.seats ||
               full?.seatsNo ||
-              passed.seats ||
               passed.seatsNo ||
+              passed.seats ||
               passed.seatingCapacity ||
               ""
             )
           );
           setLicensePlate(
-            full?.licensePlateNumber ||
             full?.licensePlate ||
-            passed.licensePlateNumber ||
             passed.licensePlate ||
+            passed.licensePlateNumber ||
             passed.vehicleNumber ||
             ""
           );
@@ -311,7 +309,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
 
       // CREATE FLOW
       const createdVehicle = await vehicleService.addVehicle(vehiclePayload as any);
-      const createdId = createdVehicle?._id || createdVehicle?.id || null;
+      const createdId = createdVehicle?._id || (createdVehicle as any)?.id || null;
 
       if (!createdId) {
         setError("Vehicle created but ID not returned by API.");

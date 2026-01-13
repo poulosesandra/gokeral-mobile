@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Modal, Row, Col, Tag, Spin, message } from 'antd';
-import {
-    MapPinOutlined,
-    CheckCircleOutlined,
-    CloseCircleOutlined,
-} from 'lucide-react';
-import { useDriverRideListener, NewRideRequest } from '../../hooks/useDriverRideListener';
+import { Card, Button, Modal, Row, Col, Spin, message } from 'antd';
+import { MapPin, CheckCircle, X } from 'lucide-react';
+import { useDriverRideListener } from '../../hooks/useDriverRideListener';
 
 interface DriverRideRequestProps {
     driverId: string;
@@ -35,7 +31,7 @@ const DriverRideRequestModal: React.FC<DriverRideRequestProps> = ({
 
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
-    const [updateInterval, setUpdateInterval] = useState<NodeJS.Timeout | null>(
+    const [updateInterval, setUpdateInterval] = useState<number | null>(
         null
     );
 
@@ -55,7 +51,7 @@ const DriverRideRequestModal: React.FC<DriverRideRequestProps> = ({
             onRideAccepted?.(newRideRequest?.rideId || '');
 
             // Start sending location updates
-            const interval = setInterval(() => {
+            const interval = window.setInterval(() => {
                 updateLocation(
                     newRideRequest?.rideId || '',
                     currentLocation.lat,
@@ -95,7 +91,7 @@ const DriverRideRequestModal: React.FC<DriverRideRequestProps> = ({
         <Modal
             title={
                 <div className="flex items-center gap-2">
-                    <MapPinOutlined className="text-green-600" />
+                    <MapPin className="text-green-600" />
                     <span>New Ride Request</span>
                 </div>
             }
@@ -119,7 +115,7 @@ const DriverRideRequestModal: React.FC<DriverRideRequestProps> = ({
                         <div className="bg-green-50 p-4 rounded-lg">
                             <div className="flex gap-3">
                                 <div className="flex-shrink-0">
-                                    <MapPinOutlined className="text-green-600 mt-1" size={20} />
+                                    <MapPin className="text-green-600 mt-1" size={20} />
                                 </div>
                                 <div className="flex-1">
                                     <p className="text-xs text-gray-500 font-semibold uppercase">
@@ -140,7 +136,7 @@ const DriverRideRequestModal: React.FC<DriverRideRequestProps> = ({
                         <div className="bg-red-50 p-4 rounded-lg">
                             <div className="flex gap-3">
                                 <div className="flex-shrink-0">
-                                    <MapPinOutlined className="text-red-600 mt-1" size={20} />
+                                    <MapPin className="text-red-600 mt-1" size={20} />
                                 </div>
                                 <div className="flex-1">
                                     <p className="text-xs text-gray-500 font-semibold uppercase">
@@ -194,7 +190,7 @@ const DriverRideRequestModal: React.FC<DriverRideRequestProps> = ({
                             danger
                             onClick={handleReject}
                             disabled={isAccepting}
-                            icon={<CloseCircleOutlined />}
+                            icon={<X />}
                         >
                             Reject
                         </Button>
@@ -205,7 +201,7 @@ const DriverRideRequestModal: React.FC<DriverRideRequestProps> = ({
                             className="bg-green-600 hover:bg-green-700"
                             onClick={handleAccept}
                             loading={isAccepting}
-                            icon={<CheckCircleOutlined />}
+                            icon={<CheckCircle />}
                         >
                             Accept Ride
                         </Button>

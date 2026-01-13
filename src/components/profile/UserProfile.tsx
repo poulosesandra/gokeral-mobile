@@ -102,8 +102,9 @@ export const UserProfile = () => {
     }
   }, []);
 
-  const handleTabChange = (key: UserTabKey) => {
-    setActiveTab(key);
+  const handleTabChange = (key: TabKey) => {
+    // TabKey includes site-wide tabs for drivers; coerce to UserTabKey for this component
+    setActiveTab(key as UserTabKey);
   };
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
@@ -209,9 +210,9 @@ export const UserProfile = () => {
         <div className="mt-12 text-center text-gray-500">No vehicles registered.</div>
       </div>
     ),
-    security: <SecurityTab loading={loading} />,
-    privacy: <PrivacyTab loading={loading} />,
-    data: <DataTab loading={loading} />,
+    security: <SecurityTab />,
+    privacy: <PrivacyTab />,
+    data: <DataTab />,
   };
 
   return (
