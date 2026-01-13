@@ -123,7 +123,7 @@ export const DriverSidebar = ({
       {/* Overlay for mobile */}
       {isOpen && windowWidth <= 768 && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-40 z-20 transition-opacity duration-300"
+          className="fixed inset-0 bg-transparent z-20 backdrop-blur-sm transition-opacity duration-300"
           onClick={onClose}
         />
       )}
