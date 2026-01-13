@@ -6,6 +6,7 @@ import {
   UserOutlined,
   LogoutOutlined,
   DownOutlined,
+  MenuOutlined,
 } from "@ant-design/icons";
 import { Link } from "react-router-dom";
 import type { MenuProps } from "antd";
@@ -15,12 +16,16 @@ interface UserHeaderProps {
   navigate: (path: string) => void;
   handleLogout: () => void;
   username: string;
+  onMenuToggle?: () => void;
+  showMenuIcon?: boolean;
 }
 
 export const UserHeader = ({
   navigate,
   handleLogout,
   username,
+  onMenuToggle,
+  showMenuIcon = false,
 }: UserHeaderProps) => {
   const items: MenuProps["items"] = [
     {
@@ -46,14 +51,34 @@ export const UserHeader = ({
   return (
     <header className="bg-white shadow-sm h-16">
       <div className="w-full h-full px-4 flex items-center justify-between">
-        <Link to={"/"} className="flex items-center gap-2">
-          {/* <div className="relative w-12 h-12">
-            <img src={Logo} alt="Logo" className="object-contain" />
-          </div> */}
-          <span className="font-bold text-xl hidden sm:inline-block">
-          Kerides
-          </span>
-        </Link>
+        <div className="flex items-center gap-3">
+          {/* Menu icon for mobile - Only show on mobile */}
+          {showMenuIcon && (
+            <Button
+              type="text"
+              icon={<MenuOutlined style={{ fontSize: "20px" }} />}
+              className="md:hidden bg-white hover:bg-green-50 transition-colors"
+              onClick={onMenuToggle}
+              size="large"
+              style={{
+                width: "40px",
+                height: "40px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            />
+          )}
+
+          <Link to={"/"} className="flex items-center gap-2">
+            {/* <div className="relative w-12 h-12">
+              <img src={Logo} alt="Logo" className="object-contain" />
+            </div> */}
+            <span className="font-bold text-xl hidden sm:inline-block">
+            Kerides
+            </span>
+          </Link>
+        </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
           <Button
