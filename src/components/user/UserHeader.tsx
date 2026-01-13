@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, Button, Dropdown } from "antd";
+import { Button, Dropdown } from "antd";
 import {
   BellOutlined,
   UserOutlined,
@@ -11,13 +11,13 @@ import {
 import { Link } from "react-router-dom";
 import type { MenuProps } from "antd";
 
-
 interface UserHeaderProps {
   navigate: (path: string) => void;
   handleLogout: () => void;
   username: string;
   onMenuToggle?: () => void;
   showMenuIcon?: boolean;
+  profileImage?: string | null; // no longer used for navbar avatar
 }
 
 export const UserHeader = ({
@@ -52,13 +52,12 @@ export const UserHeader = ({
     <header className="bg-white shadow-sm h-16">
       <div className="w-full h-full px-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Menu icon for mobile - Only show on mobile */}
           {showMenuIcon && (
             <Button
               type="text"
               icon={<MenuOutlined style={{ fontSize: "20px" }} />}
-              className="md:hidden bg-white hover:bg-green-50 transition-colors"
-              onClick={onMenuToggle}
+              className="md:hidden bg-white hover:bg-blue-50 transition-colors"
+              onClick={() => onMenuToggle?.()}
               size="large"
               style={{
                 width: "40px",
@@ -71,12 +70,7 @@ export const UserHeader = ({
           )}
 
           <Link to={"/"} className="flex items-center gap-2">
-            {/* <div className="relative w-12 h-12">
-              <img src={Logo} alt="Logo" className="object-contain" />
-            </div> */}
-            <span className="font-bold text-xl hidden sm:inline-block">
-            Kerides
-            </span>
+            <span className="font-bold text-xl hidden sm:inline-block">Kerides</span>
           </Link>
         </div>
 
@@ -90,15 +84,20 @@ export const UserHeader = ({
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </Button>
 
+          {/* Sidebar toggle - icon only (no profile image) */}
+          <Button
+            type="text"
+            onClick={() => onMenuToggle?.()}
+            size="middle"
+            title="Open profile sidebar"
+            className="flex items-center justify-center"
+          >
+            <UserOutlined style={{ fontSize: 18 }} />
+          </Button>
+
           <Dropdown menu={{ items }} placement="bottomRight">
-            <Button
-              type="text"
-              className="flex items-center gap-1 px-1 sm:px-3"
-            >
-              <Avatar icon={<UserOutlined />} size="small" />
-              <span className="hidden sm:inline-block font-medium ml-2">
-                {username}
-              </span>
+            <Button type="text" className="flex items-center gap-1 px-1 sm:px-3">
+              <span className="hidden sm:inline-block font-medium ml-2">{username}</span>
               <DownOutlined className="text-xs ml-1" />
             </Button>
           </Dropdown>
