@@ -4,6 +4,27 @@ import VehicleListModal from './modal/VehicleListModal';
 import SelectDriverModal from './modal/SelectDriverModal';
 import type { VehicleData } from './modal/VehicleListModal';
 
+interface DriverData {
+  _id: string;
+  fullName: string;
+  phoneNumber: string;
+  distance?: number;
+  vehicle?: {
+    _id?: string;
+    id?: string;
+    make?: string;
+    vehicleModel?: string;
+    year?: number;
+    seatsNo?: number;
+    licensePlate?: string;
+    vehicleImages?: string[];
+    vehicleType?: string;
+  };
+  drivingExperience?: {
+    averageRating?: number;
+  };
+}
+
 interface BookingPanelProps {
   visible: boolean;
   route?: google.maps.DirectionsRoute | null;
@@ -44,13 +65,14 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
     setIsSelectDriverModalOpen(true);
   };
 
-  const handleDriverSelected = async (driver: any) => {
+  const handleDriverSelected = async (driver: DriverData) => {
     try {
       setIsLoadingVehicles(true);
 
       // ✅ Convert driver data to VehicleData format
       const vehicleData: VehicleData = {
         id: driver._id,
+        vehicleId: driver.vehicle?._id || driver.vehicle?.id || 'Unknown_Vehicle_ID',
         driverName: driver.fullName,
         make: driver.vehicle?.make || 'Unknown',
         vehicleModel: driver.vehicle?.vehicleModel || 'Unknown',
@@ -68,7 +90,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
       setAvailableVehicles([vehicleData]);
       setIsSelectDriverModalOpen(false);
       setIsConfirmModalOpen(true);
-    } catch (err) {
+    } catch {
       message.error('Failed to select driver');
     } finally {
       setIsLoadingVehicles(false);

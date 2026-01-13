@@ -1,6 +1,16 @@
 import api from './api';
 
+interface CreateBookingData {
+  [key: string]: unknown;
+}
+
 const bookingService = {
+
+  async createBooking(createBookingData: CreateBookingData) {
+    const res = await api.post('/bookings/create', createBookingData);
+    return res.data;
+  },
+
   async findNearestDrivers(pickupLatitude: number, pickupLongitude: number, vehicleType: string) {
     const body = {
       pickupLatitude,

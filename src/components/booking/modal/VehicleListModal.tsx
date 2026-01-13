@@ -2,6 +2,7 @@ import React from 'react';
 
 // Interface matching your DTO + the required driverName
 export interface VehicleData {
+  vehicleId: string;
   id: string;
   driverName: string; // Added as per requirement
   make: string;
@@ -90,7 +91,7 @@ const VehicleListModal: React.FC<VehicleListModalProps> = ({
                   {vehicle.vehicleImage ? (
                     <img
                       src={vehicle.vehicleImage}
-                      alt={vehicle.model}
+                      alt={vehicle.vehicleModel}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
                   ) : (
