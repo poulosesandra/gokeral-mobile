@@ -16,6 +16,7 @@ import { PrivacyTab } from "../user/tabs/PrivacyTab";
 import { DataTab } from "../user/tabs/DataTab";
 import DriverAddDetails from "./driverprofile/modal/driverAddDetails";
 import AddVehicleModal from "./driverprofile/modal/driverAddVehicle";
+import RideRequestModal from "./driverprofile/modal/RideRequestModal";
 import { authService } from "../../services/authServices";
 
 export const DriverProfile = () => {
@@ -48,6 +49,108 @@ export const DriverProfile = () => {
     },
   });
   const [vehicleToEdit, setVehicleToEdit] = useState<any | null>(null);
+
+  // Ride request popup state (auto-open when a pending ride arrives)
+  const [rideModalOpen, setRideModalOpen] = useState(false);
+  const [pendingRide, setPendingRide] = useState<{
+    bookingId: string;
+    pickupLocation: string;
+    phoneNumber?: string;
+    estimatedFare: number;
+    distance?: string;
+  } | null>(null);
+  const [acceptLoading, setAcceptLoading] = useState(false);
+  const [rejectLoading, setRejectLoading] = useState(false);
+
+  // Poll backend for pending rides
+  useEffect(() => {
+    let mounted = true;
+    let intervalId: number | undefined;
+
+    const pollPending = async () => {
+      try {
+        const currentUser = authService.getCurrentUser();
+        if (!currentUser) return;
+
+        const res = await fetch("/api/rides/pending", {
+          headers: {
+            Authorization: `Bearer ${currentUser.token}`,
+          },
+        });
+
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!mounted) return;
+
+        if (Array.isArray(data) && data.length > 0) {
+          const ride = data[0];
+          setPendingRide({
+            bookingId: ride.bookingId || ride._id || ride.id,
+            pickupLocation: ride.pickupLocation || ride.pickupAddress || "",
+            phoneNumber: ride.customerPhone || ride.phoneNumber || ride.customer?.phone,
+            estimatedFare: ride.estimatedFare || ride.fare || 0,
+            distance:
+              ride.distanceText || (ride.distanceKm ? `${ride.distanceKm} km` : ride.distance) || "N/A",
+          });
+          setRideModalOpen(true);
+        }
+      } catch (err) {
+        // silent fail; continue polling
+      }
+    };
+
+    pollPending();
+    intervalId = window.setInterval(pollPending, 8000);
+
+    return () => {
+      mounted = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
+
+  const handleAcceptRide = async () => {
+    if (!pendingRide) return;
+    setAcceptLoading(true);
+    try {
+      const currentUser = authService.getCurrentUser();
+      await fetch(`/api/rides/${pendingRide.bookingId}/accept`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
+      });
+      message.success("Ride accepted");
+      setRideModalOpen(false);
+      setPendingRide(null);
+    } catch (err) {
+      message.error("Failed to accept ride");
+    } finally {
+      setAcceptLoading(false);
+    }
+  };
+
+  const handleRejectRide = async () => {
+    if (!pendingRide) return;
+    setRejectLoading(true);
+    try {
+      const currentUser = authService.getCurrentUser();
+      await fetch(`/api/rides/${pendingRide.bookingId}/reject`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
+      });
+      message.info("Ride rejected");
+      setRideModalOpen(false);
+      setPendingRide(null);
+    } catch (err) {
+      message.error("Failed to reject ride");
+    } finally {
+      setRejectLoading(false);
+    }
+  };
 
   const navigate = useNavigate();
 
@@ -372,6 +475,7 @@ export const DriverProfile = () => {
         {/* Main Content */}
         <div className="flex-1 p-2 md:p-4 min-h-screen w-full transition-all duration-300 ease-in-out">
           <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">
+
             {renderTabContent()}
           </div>
 
@@ -381,6 +485,19 @@ export const DriverProfile = () => {
           </div>
         </div>
       </div>
+
+      <RideRequestModal
+        open={rideModalOpen}
+        pickupLocation={pendingRide?.pickupLocation || ""}
+        phoneNumber={pendingRide?.phoneNumber}
+        fare={pendingRide?.estimatedFare || 0}
+        distance={pendingRide?.distance || "N/A"}
+        onAccept={handleAcceptRide}
+        onReject={handleRejectRide}
+        onCancel={() => { setRideModalOpen(false); setPendingRide(null); }}
+        acceptLoading={acceptLoading}
+        rejectLoading={rejectLoading}
+      />
 
       {/* Personal Info Modal */}
       <DriverAddDetails
