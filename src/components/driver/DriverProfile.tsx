@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Spin, message, Button } from "antd";
 import { useNavigate } from "react-router-dom";
-import { MenuOutlined } from "@ant-design/icons";
 import { UserHeader } from "../user/UserHeader";
 import { DriverSidebar, type DriverTabKey } from "./driverprofile/DriverSidebar";
 import { DriverHomeTab, type DriverData } from "../user/tabs/DriverHomeTab";
@@ -408,23 +407,11 @@ export const DriverProfile = () => {
         navigate={handleNavigate}
         handleLogout={handleLogout}
         username={driverData.fullName}
+        onMenuToggle={toggleSidebar}
+        showMenuIcon={windowWidth <= 768}
       />
 
-      <div className="flex relative w-full pl-0 pr-4 pt-6">
-        {/* Mobile menu button */}
-        {windowWidth <= 768 && (
-          <Button
-            type="default"
-            icon={<MenuOutlined />}
-            className={`fixed top-20 left-4 z-30 bg-white shadow-md
-              hover:bg-green-50 transition-all duration-300 ${
-                sidebarOpen ? "rotate-90" : ""
-              }`}
-            onClick={toggleSidebar}
-            size="middle"
-          />
-        )}
-
+      <div className="flex relative w-full">
         {/* Sidebar */}
         <DriverSidebar
           activeTab={activeTab}
@@ -473,7 +460,7 @@ export const DriverProfile = () => {
         />
 
         {/* Main Content */}
-        <div className="flex-1 p-2 md:p-4 min-h-screen w-full transition-all duration-300 ease-in-out">
+        <div className="flex-1 p-2 md:p-4 w-full transition-all duration-300 ease-in-out">
           <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">
 
             {renderTabContent()}
