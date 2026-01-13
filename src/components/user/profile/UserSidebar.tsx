@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, Button, Tabs, Upload, message } from "antd";
 import {
   HomeOutlined,
@@ -23,7 +23,6 @@ interface SidebarProps {
   handleLogout: () => void;
   sidebarOpen: boolean;
   windowWidth: number;
-  toggleSidebar: () => void;
   onClose: () => void;
   onProfileUpdate?: (user: UserData) => void;
 }
@@ -35,7 +34,6 @@ export const UserSidebar = ({
   handleLogout,
   sidebarOpen,
   windowWidth,
-  toggleSidebar,
   onClose,
   onProfileUpdate,
 }: SidebarProps) => {
@@ -73,7 +71,7 @@ export const UserSidebar = ({
                 type="text"
                 icon={<CloseOutlined style={{ fontSize: "20px" }} />}
                 className="hover:bg-gray-100 transition-colors"
-                onClick={onClose}
+                onClick={() => { if (onClose) onClose(); }}
                 style={{
                   width: "40px",
                   height: "40px",

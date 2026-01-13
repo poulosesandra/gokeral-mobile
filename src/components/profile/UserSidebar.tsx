@@ -21,6 +21,8 @@ interface SidebarProps {
   sidebarOpen: boolean;
   windowWidth: number;
   toggleSidebar: () => void;
+  onClose?: () => void;
+  onProfileUpdate?: () => void;
 }
 
 export const UserSidebar = ({
@@ -31,6 +33,7 @@ export const UserSidebar = ({
   sidebarOpen,
   windowWidth,
   toggleSidebar,
+  onClose,
 }: SidebarProps) => {
   const tabItems = [
     { key: "home", label: "Home", icon: <HomeOutlined /> },
@@ -60,7 +63,9 @@ export const UserSidebar = ({
               type="text"
               icon={<CloseOutlined />}
               className="absolute top-4 right-4 md:hidden"
-              onClick={toggleSidebar}
+              onClick={() => {
+                if (onClose) onClose(); else toggleSidebar();
+              }}
             />
           )}
 
@@ -88,7 +93,7 @@ export const UserSidebar = ({
               )}
             </div>
 
-            <h3 className="font-semibold text-lg">{userData.name}</h3>
+            <h3 className="font-semibold text-lg">{userData.fullName}</h3>
             <p className="text-sm text-gray-500">User Account</p>
           </div>
 
@@ -128,7 +133,9 @@ export const UserSidebar = ({
       {sidebarOpen && windowWidth <= 768 && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-10"
-          onClick={toggleSidebar}
+          onClick={() => {
+            if (onClose) onClose(); else toggleSidebar();
+          }}
         />
       )}
     </>

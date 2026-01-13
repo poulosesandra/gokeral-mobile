@@ -208,7 +208,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
 
                 if (!response.ok) throw new Error('Failed to accept ride');
 
-                const data = await response.json();
+                await response.json();
                 setAcceptSuccess(true);
                 setCurrentRideId(rideId);
                 setNewRideRequest(null);

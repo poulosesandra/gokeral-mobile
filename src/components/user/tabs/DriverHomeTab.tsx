@@ -1,8 +1,8 @@
 "use client";
 
-import { Card, Skeleton, message, Button } from "antd";
+import { Card, Skeleton, message } from "antd";
 
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
 import MapArea from '../../map/MapArea';
 
@@ -86,6 +86,8 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
 
   return (
     <div className="w-full space-y-6">
+
+     
 
       {/* DRIVER LOCATION MAP */}
       <Card className="shadow-md rounded-2xl">
