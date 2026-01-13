@@ -1,6 +1,7 @@
 "use client";
 
-import { Avatar, Button, Tabs } from "antd";
+import React, { useEffect, useState } from "react";
+import { Avatar, Button, Tabs, Upload, message } from "antd";
 import {
   HomeOutlined,
   UserOutlined,
@@ -10,7 +11,9 @@ import {
   DatabaseOutlined,
   LogoutOutlined,
   CloseOutlined,
+  CameraOutlined,
 } from "@ant-design/icons";
+import api from "../../../services/api";
 import type { TabKey, UserData } from "./UserProfile";
 
 interface SidebarProps {
@@ -21,6 +24,8 @@ interface SidebarProps {
   sidebarOpen: boolean;
   windowWidth: number;
   toggleSidebar: () => void;
+  onClose: () => void;
+  onProfileUpdate?: (user: UserData) => void;
 }
 
 export const UserSidebar = ({
@@ -31,7 +36,16 @@ export const UserSidebar = ({
   sidebarOpen,
   windowWidth,
   toggleSidebar,
+  onClose,
+  onProfileUpdate,
 }: SidebarProps) => {
+  const [localUser, setLocalUser] = useState<UserData>(userData);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    setLocalUser(userData);
+  }, [userData]);
+
   const tabItems = [
     { key: "home", label: "Home", icon: <HomeOutlined /> },
     { key: "personal", label: "Personal Info", icon: <UserOutlined /> },
@@ -45,66 +59,160 @@ export const UserSidebar = ({
     <>
       <div
         className={`
-          fixed inset-y-0 left-0 z-20 w-64 bg-white shadow-sm rounded-r-xl
-          md:w-72 md:ml-4
-          md:sticky md:top-0 md:h-[calc(100vh-6rem)] md:mb-6 md:rounded-xl
+          fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-lg border-r border-gray-200
+          md:w-64 md:ml-0
+          md:sticky md:top-0 md:h-screen md:rounded-none md:border-r
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >
-
-        <div className="p-4 md:p-6 h-full flex flex-col overflow-hidden">
-          {/* Close button for mobile */}
-          {windowWidth <= 768 && (
-            <Button
-              type="text"
-              icon={<CloseOutlined />}
-              className="absolute top-4 right-4 md:hidden"
-              onClick={toggleSidebar}
-            />
+        <div className="p-0 h-full flex flex-col overflow-y-auto">
+          {windowWidth <= 768 && sidebarOpen && (
+            <div className="absolute top-4 right-4 z-50">
+              <Button
+                type="text"
+                icon={<CloseOutlined style={{ fontSize: "20px" }} />}
+                className="hover:bg-gray-100 transition-colors"
+                onClick={onClose}
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              />
+            </div>
           )}
 
-          <div className="flex flex-col items-center space-y-2 mb-3 pt-2">
-            <div
-              className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center"
-              style={{
-                width: "85px",
-                height: "85px",
-                boxShadow: "0 4px 14px 0 rgba(0, 0, 0, 0.15)",
-              }}
-            >
-              {userData.profileImage ? (
-                <img
-                  src={userData.profileImage}
-                  alt="User avatar"
-                  className="w-full h-full object-cover rounded-full"
+          <div className="flex flex-col items-center space-y-3 p-4 border-b border-gray-200">
+            <div className="relative">
+              <div
+                className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center border-4 border-white"
+                style={{
+                  width: "85px",
+                  height: "85px",
+                  boxShadow: "0 4px 14px 0 rgba(0, 0, 0, 0.15)",
+                }}
+              >
+                {localUser?.profileImage ? (
+                  <img
+                    src={localUser.profileImage}
+                    alt="User avatar"
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <Avatar
+                    size={75}
+                    icon={<UserOutlined />}
+                    className="bg-gradient-to-r from-cyan-500 to-blue-500"
+                  />
+                )}
+              </div>
+              <Upload
+                accept="image/*"
+                showUploadList={false}
+                disabled={uploading}
+                beforeUpload={async (file: any) => {
+                  const isImage = file.type?.startsWith("image/");
+                  if (!isImage) {
+                    message.error("You can only upload image files!");
+                    return Upload.LIST_IGNORE;
+                  }
+                  const isLt2M = file.size / 1024 / 1024 < 2;
+                  if (!isLt2M) {
+                    message.error("Image must be smaller than 2MB!");
+                    return Upload.LIST_IGNORE;
+                  }
+
+                  setUploading(true);
+                  try {
+                    const form = new FormData();
+                    form.append("file", file);
+                    const resp = await api.post("/users/upload-document", form, {
+                      headers: { "Content-Type": "multipart/form-data" },
+                    });
+
+                    const url =
+                      resp?.data?.url || resp?.data?.user?.documents?.slice(-1)[0]?.url;
+
+                    if (url) {
+                      try {
+                        const currentUser = localStorage.getItem("userData");
+                        if (currentUser) {
+                          const parsed = JSON.parse(currentUser);
+                          const updatedUser = {
+                            ...parsed,
+                            profileImage: url,
+                          };
+
+                          await api.patch("/users/update", {
+                            fullName: parsed.fullName,
+                            email: parsed.email,
+                            phoneNumber: parsed.phoneNumber,
+                            profileImage: url,
+                          });
+
+                          localStorage.setItem("userData", JSON.stringify(updatedUser));
+                          setLocalUser(updatedUser);
+                          onProfileUpdate?.(updatedUser);
+
+                          message.success("Profile picture uploaded and saved");
+                        } else {
+                          message.warning("Uploaded but could not find local user data to update");
+                        }
+                      } catch (updateError: any) {
+                        console.error("Failed to save profile image to backend", updateError);
+                        message.error("Uploaded but failed to save. Please try again.");
+                      }
+                    } else {
+                      message.warning("Uploaded but could not find file URL");
+                    }
+                  } catch (err: any) {
+                    console.error("Profile upload failed", err);
+                    message.error(err?.response?.data?.message || "Upload failed");
+                  } finally {
+                    setUploading(false);
+                  }
+
+                  return Upload.LIST_IGNORE;
+                }}
+              >
+                <Button
+                  type="primary"
+                  shape="circle"
+                  icon={<CameraOutlined style={{ fontSize: "14px" }} />}
+                  size="small"
+                  loading={uploading}
+                  disabled={uploading}
+                  className="absolute bottom-0 right-0 shadow-lg hover:scale-110 transition-transform"
+                  style={{ width: "32px", height: "32px" }}
                 />
-              ) : (
-                <Avatar
-                  size={75}
-                  icon={<UserOutlined />}
-                  className="bg-gradient-to-r from-emerald-500 to-green-500"
-                />
-              )}
+              </Upload>
             </div>
 
-            <h3 className="font-bold text-base text-center">{userData.fullName}</h3>
-            <p className="text-xs text-gray-500">User Account</p>
+            <div className="text-center w-full">
+              <h3 className="font-bold text-base text-gray-800 truncate">{localUser?.fullName}</h3>
+              <p className="text-xs text-gray-500 mt-1">User Account</p>
+            </div>
           </div>
 
-          <div className="border-t border-gray-200 my-2"></div>
-
-          <div className="flex-1 overflow-hidden min-h-0">
+          <div className="flex-1 overflow-hidden min-h-0 pt-4">
             <Tabs
               activeKey={activeTab}
-              onChange={(key) => handleTabChange(key as TabKey)}
-              tabPlacement={'left' as any}
-              className="user-profile-tabs"
+              onChange={(key) => {
+                handleTabChange(key as TabKey);
+                if (windowWidth <= 768) {
+                  onClose();
+                }
+              }}
+              tabPlacement={"left" as any}
+              className="user-profile-tabs clean-sidebar-tabs"
               items={tabItems.map((tab) => ({
                 key: tab.key,
                 label: (
-                  <span className="flex items-center gap-2 py-1 text-sm">
-                    {tab.icon}
+                  <span className="flex items-center gap-4 py-3 px-4 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                    <span style={{ fontSize: "18px", display: "flex", alignItems: "center" }}>{tab.icon}</span>
                     <span>{tab.label}</span>
                   </span>
                 ),
@@ -112,26 +220,26 @@ export const UserSidebar = ({
             />
           </div>
 
-          <div className="border-t border-gray-200 my-2"></div>
-
-          <Button
-            type="primary"
-            danger
-            className="w-full flex items-center justify-center gap-2 mt-auto"
-            onClick={handleLogout}
-            icon={<LogoutOutlined />}
-            size="middle"
-          >
-            Logout
-          </Button>
+          <div className="p-4 border-t border-gray-200">
+            <Button
+              type="primary"
+              danger
+              className="w-full flex items-center justify-center gap-2 font-medium hover:opacity-90 transition-opacity"
+              onClick={handleLogout}
+              icon={<LogoutOutlined />}
+              size="large"
+              style={{ height: "40px" }}
+            >
+              Logout
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Overlay for mobile */}
       {sidebarOpen && windowWidth <= 768 && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-10"
-          onClick={toggleSidebar}
+          className="fixed inset-0 bg-transparent z-20 backdrop-blur-sm transition-opacity duration-300"
+          onClick={onClose}
         />
       )}
     </>
