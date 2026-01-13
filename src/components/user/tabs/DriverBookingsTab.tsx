@@ -145,24 +145,24 @@ export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
 
   return (
     <div className="w-full space-y-4">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Stats Cards - Single Row */}
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
         <Card className="shadow-md rounded-lg">
           <div className="text-center">
-            <p className="text-gray-600 mb-2">Total Bookings</p>
-            <p className="text-3xl font-bold text-blue-600">{bookings.length}</p>
+            <p className="text-gray-600 text-xs md:text-sm mb-2">Total Bookings</p>
+            <p className="text-2xl md:text-3xl font-bold text-blue-600">{bookings.length}</p>
           </div>
         </Card>
         <Card className="shadow-md rounded-lg">
           <div className="text-center">
-            <p className="text-gray-600 mb-2">Completed</p>
-            <p className="text-3xl font-bold text-green-600">{completedBookings}</p>
+            <p className="text-gray-600 text-xs md:text-sm mb-2">Completed</p>
+            <p className="text-2xl md:text-3xl font-bold text-green-600">{completedBookings}</p>
           </div>
         </Card>
         <Card className="shadow-md rounded-lg">
           <div className="text-center">
-            <p className="text-gray-600 mb-2">Cancelled</p>
-            <p className="text-3xl font-bold text-red-600">{cancelledBookings}</p>
+            <p className="text-gray-600 text-xs md:text-sm mb-2">Cancelled</p>
+            <p className="text-2xl md:text-3xl font-bold text-red-600">{cancelledBookings}</p>
           </div>
         </Card>
       </div>
