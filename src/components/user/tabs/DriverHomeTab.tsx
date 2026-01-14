@@ -37,7 +37,7 @@ interface DriverHomeTabProps {
   onEditPersonalInfo: () => void;
 }
 
-export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: DriverHomeTabProps) => {
+export const DriverHomeTab = (_props: DriverHomeTabProps) => {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE",
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -86,8 +86,6 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
 
   return (
     <div className="w-full space-y-6">
-
-     
 
       {/* DRIVER LOCATION MAP */}
       <Card className="shadow-md rounded-2xl">
