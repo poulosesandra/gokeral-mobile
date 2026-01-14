@@ -3,6 +3,7 @@ import { message } from 'antd';
 import VehicleListModal from './modal/VehicleListModal';
 import SelectDriverModal from './modal/SelectDriverModal';
 import type { VehicleData } from './modal/VehicleListModal';
+import { calculateFare } from '../../utils/fareCalculation';
 
 interface BookingPanelProps {
   visible: boolean;
@@ -48,6 +49,27 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
     try {
       setIsLoadingVehicles(true);
 
+      // Calculate fare based on route distance/duration and vehicle's fare structure
+      let calculatedPrice = '₹150'; // Default fallback
+
+      if (route?.legs?.[0]) {
+        const leg = route.legs[0];
+        const distanceInMeters = leg.distance?.value || 0;
+        const durationInSeconds = leg.duration?.value || 0;
+        const distanceInKm = distanceInMeters / 1000;
+
+        // Get vehicle's fare structure if available
+        const fareStructure = driver.vehicle?.fareStructure || {
+          minimumFare: 50,
+          perKilometerRate: 15,
+          waitingChargePerMinute: 1,
+        };
+
+        // Calculate fare using the utility function
+        const fare = calculateFare(distanceInKm, durationInSeconds, fareStructure);
+        calculatedPrice = `₹${Math.round(fare)}`;
+      }
+
       // ✅ Convert driver data to VehicleData format
       const vehicleData: VehicleData = {
         id: driver._id,
@@ -59,7 +81,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         licensePlate: driver.vehicle?.licensePlate || 'N/A',
         vehicleImage: driver.vehicle?.vehicleImages?.[0] || undefined,
         rating: driver.drivingExperience?.averageRating || 4.5,
-        price: `₹150`, // Base fare
+        price: calculatedPrice, // Use calculated price
         vehicleType: driver.vehicle?.vehicleType || vehicleType,
         distance: driver.distance,
         phoneNumber: driver.phoneNumber,
