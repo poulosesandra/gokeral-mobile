@@ -5,6 +5,7 @@ import { Card, Skeleton, message, Button } from "antd";
 import React, { useEffect, useState, useRef } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
 import MapArea from '../../map/MapArea';
+import { authService } from '../../../services/authServices';
 
 // Define libraries outside component to prevent recreation on each render
 const GOOGLE_MAPS_LIBRARIES: ("places")[] = ["places"];
@@ -45,43 +46,53 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
 
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [sharingLocation, setSharingLocation] = useState(false);
   const locationRequestRef = useRef(false);
   const locationFetchedRef = useRef(false);
 
-  useEffect(() => {
-    // ✅ Prevent duplicate geolocation requests using a ref flag
-    if (locationRequestRef.current) {
-      return;
-    }
-
+  const handleShareLocation = async () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      message.info('Geolocation is not supported by your browser.');
+      message.error('Geolocation is not supported by your browser.');
       return;
     }
 
-    locationRequestRef.current = true;
+    setSharingLocation(true);
+    try {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setDriverLocation({ lat, lng });
 
-    const allow = window.confirm('Allow Kerides to access your location to show it on your profile?');
-    if (!allow) {
-      message.info('Location access was not granted. You can enable it in browser settings.');
-      return;
+          try {
+            await authService.requestAndUpdateDriverLocation();
+            message.success('Location updated successfully! You are now visible to customers.');
+          } catch (error) {
+            console.error('Failed to update location on backend:', error);
+            message.error('Failed to sync location with server');
+          }
+          setSharingLocation(false);
+        },
+        (err) => {
+          setSharingLocation(false);
+          if (err.code === 1) {
+            message.error('Location permission denied. Please enable it in browser settings.');
+          } else {
+            message.error('Unable to get location: ' + err.message);
+          }
+        },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
+      );
+    } catch (error) {
+      setSharingLocation(false);
+      message.error('Failed to get location');
     }
+  };
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setDriverLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        locationFetchedRef.current = true;
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          message.error('Location permission denied. Enable location in browser settings to show it here.');
-        } else {
-          message.error('Unable to get location: ' + err.message);
-        }
-        locationFetchedRef.current = true;
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+  useEffect(() => {
+    // Don't request geolocation on profile load
+    // Driver will share location only when going online to accept rides
+    locationFetchedRef.current = true;
   }, []);
 
   return (
@@ -89,6 +100,17 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
 
       {/* DRIVER LOCATION MAP */}
       <Card className="shadow-md rounded-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Your Location</h3>
+          <Button
+            type="primary"
+            loading={sharingLocation}
+            onClick={handleShareLocation}
+            disabled={sharingLocation}
+          >
+            {driverLocation ? '🔄 Update Location' : '📍 Share Location'}
+          </Button>
+        </div>
         {isLoaded ? (
           driverLocation ? (
             <div style={{ width: '100%', height: 320 }}>
@@ -109,7 +131,7 @@ export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: Drive
             </div>
           ) : (
             <div className="h-40 flex items-center justify-center text-sm text-gray-500">
-              Location not available
+              Click "Share Location" to show your location on the map and start receiving ride requests
             </div>
           )
         ) : (
