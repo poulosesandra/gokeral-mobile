@@ -22,6 +22,12 @@ const bookingService = {
     return res.data;
   },
 
+  // Create a new booking
+  async createBooking(bookingData: any) {
+    const res = await api.post('/bookings/create', bookingData);
+    return res.data;
+  },
+
   // User booking endpoints
   async getUserBookings() {
     const res = await api.get('/bookings/my-bookings');
