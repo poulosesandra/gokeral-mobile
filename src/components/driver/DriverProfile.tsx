@@ -71,9 +71,12 @@ export const DriverProfile = () => {
         const currentUser = authService.getCurrentUser();
         if (!currentUser) return;
 
+        const token = authService.getToken();
+        if (!token) return;
+
         const res = await fetch("/api/rides/pending", {
           headers: {
-            Authorization: `Bearer ${currentUser.token}`,
+            Authorization: `Bearer ${token}`,
           },
         });
 
@@ -277,15 +280,15 @@ export const DriverProfile = () => {
 
       const emergencyContact = updatedData.emergencyContact
         ? {
-            name: updatedData.emergencyContact.name || "",
-            phone: updatedData.emergencyContact.phone || "",
-            relationship: updatedData.emergencyContact.relation || "",
-          }
+          name: updatedData.emergencyContact.name || "",
+          phone: updatedData.emergencyContact.phone || "",
+          relationship: updatedData.emergencyContact.relation || "",
+        }
         : {
-            name: "",
-            phone: "",
-            relationship: "",
-          };
+          name: "",
+          phone: "",
+          relationship: "",
+        };
 
       // Call backend API to update driver profile
       await authService.updateDriverProfile({
@@ -499,10 +502,10 @@ export const DriverProfile = () => {
           certificates: driverData.personalInfo?.certificates || [],
           emergencyContact: driverData.personalInfo?.emergencyContact
             ? {
-                name: driverData.personalInfo.emergencyContact.name || "",
-                phone: driverData.personalInfo.emergencyContact.phone || "",
-                relation: driverData.personalInfo.emergencyContact.relationship || "",
-              }
+              name: driverData.personalInfo.emergencyContact.name || "",
+              phone: driverData.personalInfo.emergencyContact.phone || "",
+              relation: driverData.personalInfo.emergencyContact.relationship || "",
+            }
             : undefined,
         }}
       />
