@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
+import { AdvancedImage } from "@cloudinary/react";
+import type { CloudinaryImage } from "@cloudinary/url-gen";
 
 type Destination = {
   name: string;
-  image: string;
+  image: string | CloudinaryImage;
 };
 
 type Props = {
@@ -72,7 +74,11 @@ const Destinations: React.FC<Props> = ({ destinations, isLargeScreen }) => {
                       isCenter ? "h-[350px]" : "h-[280px]"
                     }`}
                   >
-                    <img src={destination.image} alt={destination.name} className="w-full h-full object-cover group-hover:scale-110 transition-none lg:transition-transform lg:duration-700" />
+                    {typeof destination.image === 'string' ? (
+                      <img src={destination.image} alt={destination.name} className="w-full h-full object-cover group-hover:scale-110 transition-none lg:transition-transform lg:duration-700" />
+                    ) : (
+                      <AdvancedImage cldImg={destination.image} className="w-full h-full object-cover group-hover:scale-110 transition-none lg:transition-transform lg:duration-700" />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
                     <div className="absolute bottom-6 left-6 right-6">
                       <h3 className={`text-white font-bold tracking-tight ${isCenter ? "text-3xl" : "text-xl"}`}>{destination.name}</h3>

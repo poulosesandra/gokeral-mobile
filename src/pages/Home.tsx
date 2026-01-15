@@ -3,18 +3,19 @@ import { Car, Truck, MapPin, Star, Users, Ambulance, CheckCircle } from "lucide-
 import { Hero, Vehicles, Features, Destinations, Testimonials, CTA } from "../components/homepage";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import stack1 from "../assets/photostack/stack1.webp";
-import stack2 from "../assets/photostack/stack2.webp"
-import stack3 from "../assets/photostack/stack3.webp";
-import stack4 from "../assets/photostack/stack4.webp";
-import stack5 from "../assets/photostack/stack5.webp";
-import stack6 from "../assets/photostack/stack6.webp";
-import kochi from "../assets/destinations/kochi.jpg";
-import munnar from "../assets/destinations/munnar.jpg";
-import thekkady from "../assets/destinations/thekkady.jpg";
-import palakkad from "../assets/destinations/palakkad.jpg";
-import alappuzha from "../assets/destinations/Alappuha.webp";
-import wayanad from "../assets/destinations/wayanad.jpg";
+// Using raw Cloudinary URLs for images; no helper is required
+
+
+// Stack images (Cloudinary public IDs)
+const stackImageIds = [
+  "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387405/stack6_dynxea.webp",
+  "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387403/stack3_ornps8.webp",
+  "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387403/stack2_sbvbbn.webp",
+  "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387403/stack1_phaqa5.webp",
+  "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387404/stack4_lvm5od.webp",
+  "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387646/Alappuha_tbnqfa.webp",
+];
+
 
 
 
@@ -57,22 +58,16 @@ const HomePage = () => {
     { name: "Rahul Krishnan", location: "Kozhikode", rating: 5, text: "Quick booking, fair prices, and reliable service. Will definitely use again for my business trips." }
   ];
 
-  const stackImages = [
-    stack1,
-    stack2,
-    stack3,
-    stack4,
-    stack5,
-    stack6,
-  ];
+  // Stack images: use the provided raw URLs directly
+  const stackImages = stackImageIds;
 
   const destinations = [
-    { name: "Munnar", image: munnar },
-    { name: "Alleppey", image: alappuzha },
-    { name: "Palakkad", image: palakkad },
-    { name: "Wayanad", image: wayanad },
-    { name: "Kochi", image: kochi },
-    { name: "Thekkady", image: thekkady }
+    { name: "Munnar", image: "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387648/munnar_ffd7cn.jpg" },
+    { name: "Alleppey", image: "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387646/Alappuha_tbnqfa.webp" },
+    { name: "Palakkad", image: "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387648/palakkad_wbppvc.jpg" },
+    { name: "Wayanad", image: "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387405/stack6_dynxea.webp" },
+    { name: "Kochi", image: "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387647/kochi_uqt75l.jpg" },
+    { name: "Thekkady", image: "https://res.cloudinary.com/duv9ijtrw/image/upload/v1768387649/thekkady_klv9hd.jpg" }
   ];
 
   useEffect(() => {
