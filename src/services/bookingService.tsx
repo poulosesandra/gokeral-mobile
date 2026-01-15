@@ -6,11 +6,6 @@ interface CreateBookingData {
 
 const bookingService = {
 
-  async createBooking(createBookingData: CreateBookingData) {
-    const res = await api.post('/bookings/create', createBookingData);
-    return res.data;
-  },
-
   async findNearestDrivers(pickupLatitude: number, pickupLongitude: number, vehicleType: string) {
     const body = {
       pickupLatitude,
@@ -22,9 +17,8 @@ const bookingService = {
     return res.data;
   },
 
-  // Create a new booking
-  async createBooking(bookingData: any) {
-    const res = await api.post('/bookings/create', bookingData);
+  async createBooking(createBookingData: CreateBookingData) {
+    const res = await api.post('/bookings/create', createBookingData);
     return res.data;
   },
 

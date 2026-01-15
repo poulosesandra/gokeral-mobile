@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { AdvancedImage } from '@cloudinary/react';
+import type { CloudinaryImage } from '@cloudinary/url-gen';
 
 interface PhotoStackProps {
-  images: string[];
+  images: (string | CloudinaryImage)[];
   interval?: number;
   className?: string;
 }
 
 type Card = {
   id: number;
-  image: string;
+  image: string | CloudinaryImage;
   zIndex: number;
   rotation: number;
   offsetX: number;
@@ -174,12 +176,16 @@ const PhotoStack: React.FC<PhotoStackProps> = ({
             }}
           >
             <div className="w-full h-full rounded-xl overflow-hidden shadow-lg bg-white">
-              <img
-                src={card.image}
-                alt={`Photo ${card.id}`}
-                className="w-full h-full object-cover"
-                draggable={false}
-              />
+                {typeof card.image === 'string' ? (
+                  <img
+                    src={card.image}
+                    alt={`Photo ${card.id}`}
+                    className="w-full h-full object-cover"
+                    draggable={false}
+                  />
+                ) : (
+                  <AdvancedImage cldImg={card.image} className="w-full h-full object-cover" />
+                )}
             </div>
           </div>
         ))}
