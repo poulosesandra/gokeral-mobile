@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { message } from 'antd';
 import VehicleListModal from './modal/VehicleListModal';
+import ConfirmBookingModal from './modal/ConfirmBookingModal';
 import SelectDriverModal from './modal/SelectDriverModal';
 import type { VehicleData } from './modal/VehicleListModal';
 import { calculateFare } from '../../utils/fareCalculation';
@@ -44,15 +45,23 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
   // State for driver selection modal
   const [isSelectDriverModalOpen, setIsSelectDriverModalOpen] = useState(false);
 
-  // State for the confirm booking modal
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  // State for vehicle list modal (to show available drivers)
+  const [isVehicleListModalOpen, setIsVehicleListModalOpen] = useState(false);
+
+  // State for the confirm booking modal (actual booking creation)
+  const [isConfirmBookingModalOpen, setIsConfirmBookingModalOpen] = useState(false);
+
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
   const [availableVehicles, setAvailableVehicles] = useState<VehicleData[]>([]);
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
 
   useEffect(() => {
     if (!visible) return;
     setVehicleType(vehicleTypes[0]);
     setIsSelectDriverModalOpen(false);
+    setIsVehicleListModalOpen(false);
+    setIsConfirmBookingModalOpen(false);
+    setSelectedVehicle(null);
   }, [visible]);
 
   const leg = route?.legs?.[0];
@@ -111,7 +120,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
 
       setAvailableVehicles([vehicleData]);
       setIsSelectDriverModalOpen(false);
-      setIsConfirmModalOpen(true);
+      setIsVehicleListModalOpen(true);
     } catch {
       message.error('Failed to select driver');
     } finally {
@@ -119,11 +128,19 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
     }
   };
 
-  const handleFinalSelection = (selectedVehicle: VehicleData) => {
-    // ✅ Close modal and proceed with booking
-    setIsConfirmModalOpen(false);
-    if (onConfirm) onConfirm(selectedVehicle);
-    message.success(`Booked ${selectedVehicle.make} ${selectedVehicle.vehicleModel} with ${selectedVehicle.driverName}`);
+  const handleVehicleSelected = (vehicle: VehicleData) => {
+    // ✅ User selected a vehicle from the list - now open ConfirmBookingModal
+    setSelectedVehicle(vehicle);
+    setIsVehicleListModalOpen(false);
+    setIsConfirmBookingModalOpen(true);
+  };
+
+  const handleBookingSuccess = () => {
+    // ✅ Booking successfully created in database
+    setIsConfirmBookingModalOpen(false);
+    setSelectedVehicle(null);
+    message.success('Booking confirmed! Driver will arrive shortly.');
+    if (onConfirm) onConfirm(selectedVehicle!);
     if (onClose) onClose();
   };
 
@@ -209,14 +226,44 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         maxDrivers={10}
       />
 
-      {/* Render the confirm booking modal */}
+      {/* Render the vehicle list modal (shows available vehicles from selected driver) */}
       <VehicleListModal
-        isOpen={isConfirmModalOpen}
-        onClose={() => setIsConfirmModalOpen(false)}
+        isOpen={isVehicleListModalOpen}
+        onClose={() => setIsVehicleListModalOpen(false)}
         loading={isLoadingVehicles}
         vehicles={availableVehicles}
-        onSelectVehicle={handleFinalSelection}
+        onSelectVehicle={handleVehicleSelected}
       />
+
+      {/* Render the confirm booking modal (actual booking creation with payment & details) */}
+      {selectedVehicle && route?.legs?.[0] && (
+        <ConfirmBookingModal
+          isOpen={isConfirmBookingModalOpen}
+          onClose={() => {
+            setIsConfirmBookingModalOpen(false);
+            setSelectedVehicle(null);
+          }}
+          onSuccess={handleBookingSuccess}
+          selectedVehicle={selectedVehicle}
+          tripDetails={{
+            pickup: route.legs[0].start_address || 'Pickup Location',
+            destination: route.legs[0].end_address || 'Destination Location',
+            distance: route.legs[0].distance?.text || '0 km',
+            duration: route.legs[0].duration?.text || '0 mins',
+            passengers: 1,
+            pickupLocation: {
+              lat: route.legs[0].start_location.lat(),
+              lng: route.legs[0].start_location.lng(),
+            },
+            dropLocation: {
+              lat: route.legs[0].end_location.lat(),
+              lng: route.legs[0].end_location.lng(),
+            },
+            routeSummary: route.summary || 'Direct Route',
+            polyline: typeof route.overview_polyline === 'string' ? route.overview_polyline : '',
+          }}
+        />
+      )}
     </>
   );
 };
