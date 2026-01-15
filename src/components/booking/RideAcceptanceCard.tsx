@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Card, Button, Spin, message, Tag, Row, Col, Avatar } from 'antd';
-import { EnvironmentOutlined, PhoneOutlined, StarOutlined } from 'lucide-react';
+import { MapPin, Phone, Star } from 'lucide-react';
 import { useCustomerRideListener } from '../../hooks/useCustomerRideListener';
 
 const mapVehicleType = (t?: string) => {
@@ -37,22 +37,16 @@ const RideAcceptanceCard: React.FC<RideAcceptanceCardProps> = ({
         error,
         updateLocation,
         cancelRide,
-    } = useCustomerRideListener(userId, true);
-
-    const [updateInterval, setUpdateInterval] = useState<NodeJS.Timeout | null>(
-        null
-    );
+    } = useCustomerRideListener(userId, rideId, true);
 
     // Start sending location updates
     useEffect(() => {
         if (!rideAccepted || !rideId) return;
 
-        const interval = setInterval(() => {
+        const interval = window.setInterval(() => {
             // In real app, get actual location from geolocation API
             updateLocation(rideId, currentLocation.lat, currentLocation.lng);
         }, 5000); // Every 5 seconds
-
-        setUpdateInterval(interval);
 
         return () => {
             if (interval) clearInterval(interval);
@@ -89,7 +83,7 @@ const RideAcceptanceCard: React.FC<RideAcceptanceCardProps> = ({
                         <Avatar
                             size={64}
                             src={rideAccepted.driverPhoto}
-                            icon={<PhoneOutlined />}
+                            icon={<Phone />}
                             className="bg-green-500"
                         />
                     </Col>
@@ -99,7 +93,7 @@ const RideAcceptanceCard: React.FC<RideAcceptanceCardProps> = ({
                                 {rideAccepted.driverName}
                             </h3>
                             <div className="flex items-center gap-2">
-                                <StarOutlined size={16} className="text-yellow-500" />
+                                <Star size={16} className="text-yellow-500" />
                                 <span className="text-sm font-semibold text-gray-700">
                                     {rideAccepted.driverRating?.toFixed(1) || '4.5'} Rating
                                 </span>
@@ -136,7 +130,7 @@ const RideAcceptanceCard: React.FC<RideAcceptanceCardProps> = ({
             {driverLocation && (
                 <div className="bg-blue-50 p-4 rounded-xl mb-6">
                     <div className="flex items-center gap-2 mb-2">
-                        <EnvironmentOutlined size={16} className="text-blue-600" />
+                        <MapPin size={16} className="text-blue-600" />
                         <span className="text-sm font-semibold text-blue-800">
                             Driver Location
                         </span>
@@ -185,7 +179,7 @@ const RideAcceptanceCard: React.FC<RideAcceptanceCardProps> = ({
                         // Implement actual calling logic
                     }}
                 >
-                    <PhoneOutlined />
+                    <Phone />
                     Call Driver
                 </Button>
             )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Spin, Empty, Card, Avatar, Rate, Tag, Divider, Button, message } from 'antd';
 import { PhoneOutlined, EnvironmentOutlined, CarOutlined } from '@ant-design/icons';
-import { api } from '../../services/api';
+import api from '../../services/api';
 
 // Hardcoded mapping for vehicle types
 const mapVehicleType = (t?: string) => {

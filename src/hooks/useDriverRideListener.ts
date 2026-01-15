@@ -41,9 +41,14 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
     const [loading, setLoading] = useState(false);
     const [sseConnected, setSseConnected] = useState(false);
 
+<<<<<<< HEAD
     const rideRequestPollingRef = useRef<NodeJS.Timeout | null>(null);
     const customerLocationPollingRef = useRef<NodeJS.Timeout | null>(null);
     const sseEventSourceRef = useRef<EventSource | null>(null);
+=======
+    const rideRequestPollingRef = useRef<number | null>(null);
+    const customerLocationPollingRef = useRef<number | null>(null);
+>>>>>>> 2d87d45ba5e80b3377d833599bc50265ff5ab029
 
     // Subscribe to SSE notifications for new ride requests
     const subscribeToBokingNotifications = useCallback(() => {
@@ -299,7 +304,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
 
                 if (!response.ok) throw new Error('Failed to accept ride');
 
-                const data = await response.json();
+                await response.json();
                 setAcceptSuccess(true);
                 setCurrentRideId(rideId);
                 setNewRideRequest(null);

@@ -8,6 +8,7 @@ interface RideAcceptedData {
     driverRating?: number;
     vehicleNumber?: string;
     vehiclePhoto?: string;
+    vehicleType?: string;
     status: string;
 }
 
@@ -33,8 +34,8 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const locationPollingRef = useRef<NodeJS.Timeout | null>(null);
+    const pollingIntervalRef = useRef<number | null>(null);
+    const locationPollingRef = useRef<number | null>(null);
 
     // Poll ride status every 3 seconds
     const pollRideStatus = useCallback(async () => {

@@ -119,8 +119,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       : bookings.filter((b) => b.status === filterStatus);
 
   const completedBookings = bookings.filter((b) => b.status === "COMPLETED").length;
-  const cancelledBookings = bookings.filter((b) => b.status === "CANCELLED").length;
-  const totalBookings = bookings.length;
+  const cancelledBookings = bookings.filter((b) => b.status === "CANCELLED").length;  
 
   const handleViewDetails = (booking: Booking) => {
     setSelectedBooking(booking);
@@ -179,24 +178,24 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
 
   return (
     <div className="w-full space-y-4">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Stats Cards - Single Row */}
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
         <Card className="shadow-md rounded-lg">
           <div className="text-center">
-            <p className="text-gray-600 mb-2">Total Bookings</p>
-            <p className="text-3xl font-bold text-blue-600">{totalBookings}</p>
+            <p className="text-gray-600 text-xs md:text-sm mb-2">Total Bookings</p>
+            <p className="text-2xl md:text-3xl font-bold text-blue-600">{bookings.length}</p>
           </div>
         </Card>
         <Card className="shadow-md rounded-lg">
           <div className="text-center">
-            <p className="text-gray-600 mb-2">Completed</p>
-            <p className="text-3xl font-bold text-green-600">{completedBookings}</p>
+            <p className="text-gray-600 text-xs md:text-sm mb-2">Completed</p>
+            <p className="text-2xl md:text-3xl font-bold text-green-600">{completedBookings}</p>
           </div>
         </Card>
         <Card className="shadow-md rounded-lg">
           <div className="text-center">
-            <p className="text-gray-600 mb-2">Cancelled</p>
-            <p className="text-3xl font-bold text-red-600">{cancelledBookings}</p>
+            <p className="text-gray-600 text-xs md:text-sm mb-2">Cancelled</p>
+            <p className="text-2xl md:text-3xl font-bold text-red-600">{cancelledBookings}</p>
           </div>
         </Card>
       </div>
@@ -448,7 +447,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
               <div>
                 <p className="text-gray-600 text-sm mb-2">Your Rating</p>
                 <div className="bg-gray-50 p-3 rounded space-y-2">
-                  <Rate value={selectedBooking.driverRating} readOnly />
+                  <Rate value={selectedBooking.driverRating} disabled />
                   {selectedBooking.driverReview && (
                     <p className="text-gray-600 mt-2">{selectedBooking.driverReview}</p>
                   )}

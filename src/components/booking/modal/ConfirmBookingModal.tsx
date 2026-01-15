@@ -3,6 +3,23 @@ import { message } from 'antd';
 import bookingService from '../../../services/bookingService';
 import type { VehicleData } from './VehicleListModal';
 
+interface Booking {
+    selectedVehicle: VehicleData;
+    tripDetails: {
+        pickup: string;
+        destination: string;
+        distance: string;
+        duration: string;
+        passengers: number;
+        pickupLocation?: { lat: number; lng: number };
+        dropLocation?: { lat: number; lng: number };
+        routeSummary?: string;
+        polyline?: string;
+    };
+    paymentMethod: 'CASH' | 'UPI' | 'CARD';
+    [key: string]: unknown;
+}
+
 const mapVehicleType = (t?: string) => {
     if (!t) return 'Auto';
     const s = String(t).toLowerCase();
@@ -15,7 +32,7 @@ const mapVehicleType = (t?: string) => {
 interface ConfirmBookingModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: (booking: any) => void;
+    onSuccess: (booking: Booking) => void;
     selectedVehicle: VehicleData | null;
     tripDetails: {
         pickup: string;
@@ -137,9 +154,9 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
             });
 
             onClose();
-        } catch (err: any) {
+        } catch (err) {
             console.error('❌ [CONFIRM BOOKING] Error:', err);
-            const errorMessage = err.response?.data?.message || 'Failed to create booking. Please try again.';
+            const errorMessage = (err as Error & { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to create booking. Please try again.';
             setError(errorMessage);
             message.error(errorMessage);
         } finally {

@@ -10,7 +10,6 @@ import { SecurityTab } from "../tabs/SecurityTab";
 import { PrivacyTab } from "../tabs/PrivacyTab";
 import { DataTab } from "../tabs/DataTab";
 import { Button, Spin } from "antd";
-import { MenuOutlined } from "@ant-design/icons";
 import type { JSX } from "react/jsx-runtime";
 import "../../styles/UserProfile.css";
 import { authService } from "../../../services/authServices";
@@ -200,7 +199,7 @@ export const UserProfile = () => {
   loading={loading}
   handleTabChange={handleTabChange}
   onProfileImageUpdate={refreshUserProfile}
-/>
+  />
     ),
     personal: (
       <PersonalInfoTab
@@ -242,23 +241,16 @@ export const UserProfile = () => {
         navigate={navigate}
         handleLogout={handleLogout}
         username={userData.fullName}
+        onMenuToggle={toggleSidebar}
+        showMenuIcon={windowWidth <= 768}
+        profileImage={userData.profileImage}
       />
 
       <div className="flex relative w-full pl-0 pr-4 pt-6">
 
-        {/* Mobile menu button with animation */}
-        {windowWidth <= 768 && (
-          <Button
-            type="default"
-            icon={<MenuOutlined />}
-            className={`fixed top-20 left-4 z-30 bg-white shadow-md
-              hover:bg-green-50 transition-all duration-300 ${sidebarOpen ? 'rotate-90' : ''}`}
-            onClick={toggleSidebar}
-            size="middle"
-          />
-        )}
+        {/* NOTE: Removed the old mobile hamburger sidebar button here. Use the header profile button to toggle the sidebar. */}
 
-        {/* Sidebar with animation */}
+        {/* Sidebar with animation — now wired with onClose & onProfileUpdate */}
         <UserSidebar
           userData={userData}
           activeTab={activeTab}
@@ -266,7 +258,8 @@ export const UserProfile = () => {
           handleLogout={handleLogout}
           sidebarOpen={sidebarOpen}
           windowWidth={windowWidth}
-          toggleSidebar={toggleSidebar}
+          onClose={() => setSidebarOpen(false)}
+          onProfileUpdate={refreshUserProfile}
         />
 
         {/* Main Content with transition effects */}

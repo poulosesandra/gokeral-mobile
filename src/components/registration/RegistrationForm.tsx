@@ -42,13 +42,13 @@ const RegistrationForm = ({
     // agreement is required for UI only (not sent to server)
     agreement: false,
   });
-  const [errors, setErrors] = useState<Partial<FormData>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const validateForm = () => {
-    const newErrors: Partial<FormData> = {};
+    const newErrors: Record<string, string> = {};
     let isValid = true;
 
     // Name validation
@@ -136,6 +136,7 @@ const RegistrationForm = ({
           password,
           // backend key
           driverLicenseNumber: driverLicenseNumber || '',
+          agreement: formData.agreement || false,
         } as any;
         await authService.driverRegister(driverData);
         setSuccess(true);
@@ -147,6 +148,7 @@ const RegistrationForm = ({
           email,
           password,
           phoneNumber,
+          agreement: formData.agreement || false,
         };
         await authService.userRegister(userData);
         setSuccess(true);

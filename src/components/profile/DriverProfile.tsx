@@ -21,8 +21,9 @@ export const DriverProfile = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [personalInfoModalOpen, setPersonalInfoModalOpen] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 0);
   const [driverData, setDriverData] = useState<DriverData>({
-    name: "",
+    fullName: "",
     email: "",
     phoneNumber: "",
     driverLicenseNumber: "",
@@ -43,6 +44,11 @@ export const DriverProfile = () => {
 
   const navigate = useNavigate();
 
+  const handleEditVehicle = () => {
+    // Navigate to the vehicle editor or a dedicated edit route
+    navigate('/driver/add-vehicle');
+  };
+
   // LOAD DRIVER DATA FROM LOCALSTORAGE
   useEffect(() => {
     let mounted = true;
@@ -61,7 +67,7 @@ export const DriverProfile = () => {
 
         if (!mounted) return;
         setDriverData({
-          name: driver.fullName || "",
+          fullName: driver.fullName || "",
           email: driver.email || "",
           phoneNumber: driver.phoneNumber || "",
           driverLicenseNumber: driver.driverLicenseNumber || "",
@@ -90,10 +96,11 @@ export const DriverProfile = () => {
     return () => { mounted = false; };
   }, [navigate]);
 
-  // Handle window resize for responsive sidebar
+  // Handle window resize for responsive sidebar and track width
   useEffect(() => {
     const handleResize = () => {
       setSidebarOpen(window.innerWidth >= 1024);
+      setWindowWidth(window.innerWidth);
     };
 
     handleResize();
@@ -128,7 +135,7 @@ export const DriverProfile = () => {
     bloodGroup?: string;
     address?: string;
     languages?: string[];
-    certifications?: string[];
+    certificates?: string[];
     emergencyContact?: {
       name: string;
       phone: string;
@@ -153,7 +160,7 @@ export const DriverProfile = () => {
         bloodGroup: updatedData.bloodGroup || prev.personalInfo?.bloodGroup || "",
         dob: updatedData.dateOfBirth || prev.personalInfo?.dob || "",
         languages: updatedData.languages || prev.personalInfo?.languages || [],
-        certificates: updatedData.certifications || prev.personalInfo?.certificates || [],
+        certificates: updatedData.certificates || prev.personalInfo?.certificates || [],
         emergencyContact,
       },
     }));
@@ -168,7 +175,7 @@ export const DriverProfile = () => {
           bloodGroup: updatedData.bloodGroup || currentUser.personalInfo?.bloodGroup,
           dob: updatedData.dateOfBirth || currentUser.personalInfo?.dob,
           languages: updatedData.languages || currentUser.personalInfo?.languages,
-          certificates: updatedData.certifications || currentUser.personalInfo?.certificates,
+          certificates: updatedData.certificates || currentUser.personalInfo?.certificates,
           emergencyContact,
         },
       };
@@ -213,7 +220,7 @@ export const DriverProfile = () => {
           />
         );
       case "vehicles":
-        return <VehiclesTab onAddVehicle={handleAddVehicle} />;
+        return <VehiclesTab onAddVehicle={handleAddVehicle} onEditVehicle={handleEditVehicle} />;
       case "bookings":
         return <BookingsTabUser loading={loading} />;
       case "settings":
@@ -240,7 +247,7 @@ export const DriverProfile = () => {
       <UserHeader
         navigate={handleNavigate}
         handleLogout={handleLogout}
-        username={driverData.name}
+        username={driverData.fullName}
       />
 
       <div className="flex relative w-full">
@@ -261,10 +268,12 @@ export const DriverProfile = () => {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           driverData={{
-            name: driverData.name,
+            fullName: driverData.fullName,
             email: driverData.email,
             profileImage: driverData.profileImage,
           }}
+          windowWidth={windowWidth}
+          handleLogout={handleLogout}
         />
 
         {/* Main Content */}
@@ -290,7 +299,7 @@ export const DriverProfile = () => {
           bloodGroup: driverData.personalInfo?.bloodGroup || "",
           address: driverData.address || "",
           languages: driverData.personalInfo?.languages || [],
-          certifications: driverData.personalInfo?.certificates || [],
+          certificates: driverData.personalInfo?.certificates || [],
           emergencyContact: driverData.personalInfo?.emergencyContact ? {
             name: driverData.personalInfo.emergencyContact.name || "",
             phone: driverData.personalInfo.emergencyContact.phone || "",

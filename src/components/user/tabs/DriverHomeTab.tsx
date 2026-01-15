@@ -2,7 +2,7 @@
 
 import { Card, Skeleton, message, Button } from "antd";
 
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
 import MapArea from '../../map/MapArea';
 import { authService } from '../../../services/authServices';
@@ -38,7 +38,7 @@ interface DriverHomeTabProps {
   onEditPersonalInfo: () => void;
 }
 
-export const DriverHomeTab = ({ driverData, loading, onEditPersonalInfo }: DriverHomeTabProps) => {
+export const DriverHomeTab = (_props: DriverHomeTabProps) => {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE",
     libraries: GOOGLE_MAPS_LIBRARIES,

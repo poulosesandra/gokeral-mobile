@@ -26,8 +26,6 @@ const MapControls: React.FC<MapControlsProps> = ({
   const originRef = useRef<HTMLInputElement>(null);
   const destinationRef = useRef<HTMLInputElement>(null);
 
-  const [distance, setDistance] = useState('');
-  const [duration, setDuration] = useState('');
   const [originLoading, setOriginLoading] = useState(false);
   const [originIsCurrentLocation, setOriginIsCurrentLocation] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -109,10 +107,13 @@ const MapControls: React.FC<MapControlsProps> = ({
       setHighlightedIndex(0);
       if (onHighlightRoute) onHighlightRoute(0);
 
-      if (results.routes[0]?.legs[0]?.distance && results.routes[0]?.legs[0]?.duration) {
-        setDistance(results.routes[0].legs[0].distance.text);
-        setDuration(results.routes[0].legs[0].duration.text);
-      }
+      // distance/duration available on legs but not displayed here; kept for future use
+      // const leg = results.routes[0]?.legs[0];
+      // if (leg) {
+      //   const distText = leg.distance?.text;
+      //   const durText = leg.duration?.text;
+      // }
+      
     } catch (error) {
       console.error("Error calculating route:", error);
       alert("Could not calculate route. Please check the addresses.");
@@ -125,8 +126,7 @@ const MapControls: React.FC<MapControlsProps> = ({
     setHighlightedIndex(-1);
     if (onHighlightRoute) onHighlightRoute(-1);
     if (onRouteSelected) onRouteSelected(-1);
-    setDistance('');
-    setDuration('');
+    // cleared route metadata (distance/duration) -- not used in UI currently
     setOriginIsCurrentLocation(false);
     setCurrentLocation(null);
     if (originRef.current) originRef.current.value = '';
@@ -218,9 +218,10 @@ const MapControls: React.FC<MapControlsProps> = ({
             if (onRouteSelected) onRouteSelected(i);
 
             // update displayed metrics to match the confirmed route
-            const leg = routes[i]?.legs?.[0];
-            if (leg?.distance?.text) setDistance(leg.distance.text);
-            if (leg?.duration?.text) setDuration(leg.duration.text);
+            // distance and duration are available on the leg, but not used in the UI currently
+            // const leg = routes[i]?.legs?.[0];
+            // if (leg?.distance?.text) { /* const dist = leg.distance.text; */ }
+            // if (leg?.duration?.text) { /* const dur = leg.duration.text; */ }
           }}
         />
       </div>
