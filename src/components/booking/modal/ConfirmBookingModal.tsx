@@ -4,12 +4,12 @@ import bookingService from '../../../services/bookingService';
 import type { VehicleData } from './VehicleListModal';
 
 const mapVehicleType = (t?: string) => {
-  if (!t) return 'Auto';
-  const s = String(t).toLowerCase();
-  if (s.includes('auto')) return 'Auto';
-  if (s.includes('suv')) return 'Seven Seater';
-  if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
-  return t;
+    if (!t) return 'Auto';
+    const s = String(t).toLowerCase();
+    if (s.includes('auto')) return 'Auto';
+    if (s.includes('suv')) return 'Seven Seater';
+    if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
+    return t;
 };
 
 interface ConfirmBookingModalProps {
@@ -100,6 +100,7 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                     },
                 },
                 price: {
+                    baseFare: 0,
                     minimumFare: 50,
                     bookingFee: 10,
                     total: estimatedFare,
@@ -234,7 +235,7 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                         )}
                     </div>
 
-                    {/* Payment Method */}
+                    {/* Payment Method
                     <div>
                         <p className="text-sm font-medium text-gray-700 mb-2">Payment Method</p>
                         <div className="flex gap-2">
@@ -254,7 +255,7 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                                 </button>
                             ))}
                         </div>
-                    </div>
+                    </div> */}
 
                     {/* Notes */}
                     <div>
