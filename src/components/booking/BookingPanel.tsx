@@ -75,11 +75,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
     setIsSelectDriverModalOpen(true);
   };
 
-<<<<<<< HEAD
-  const handleDriverSelected = async (driver: Record<string, any>) => {
-=======
   const handleDriverSelected = async (driver: DriverData) => {
->>>>>>> 2d87d45ba5e80b3377d833599bc50265ff5ab029
     try {
       setIsLoadingVehicles(true);
 
@@ -124,11 +120,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
 
       setAvailableVehicles([vehicleData]);
       setIsSelectDriverModalOpen(false);
-<<<<<<< HEAD
       setIsVehicleListModalOpen(true);
-=======
-      setIsConfirmModalOpen(true);
->>>>>>> 2d87d45ba5e80b3377d833599bc50265ff5ab029
     } catch {
       message.error('Failed to select driver');
     } finally {
