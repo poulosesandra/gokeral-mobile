@@ -43,15 +43,26 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
 
     const rideRequestPollingRef = useRef<number | null>(null);
     const customerLocationPollingRef = useRef<number | null>(null);
+    const sseEventSourceRef = useRef<EventSource | null>(null);
+    const originalFetchRef = useRef<typeof window.fetch | null>(null);
 
     // Subscribe to SSE notifications for new ride requests
     const subscribeToBokingNotifications = useCallback(() => {
         if (!enabled || !driverId) return;
 
         try {
-            // Close any existing connection
+            // Close any existing connection and restore fetch if needed
             if (sseEventSourceRef.current) {
-                sseEventSourceRef.current.close();
+                try {
+                    sseEventSourceRef.current.close();
+                } catch (e) {
+                    /* ignore */
+                }
+                sseEventSourceRef.current = null;
+            }
+            if (originalFetchRef.current) {
+                window.fetch = originalFetchRef.current;
+                originalFetchRef.current = null;
             }
 
             const token = localStorage.getItem('token');
@@ -60,7 +71,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
             });
 
             // Add authorization header (requires custom setup)
-            const originalFetch = window.fetch;
+            originalFetchRef.current = window.fetch;
             window.fetch = function (...args: any[]) {
                 if (typeof args[0] === 'string' && args[0].includes('subscribe-to-bookings')) {
                     if (!args[1]) args[1] = {};
@@ -69,8 +80,8 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
                         'Authorization': `Bearer ${token}`,
                     };
                 }
-                return originalFetch.apply(this, args);
-            };
+                return (originalFetchRef.current as any).apply(this, args);
+            }; 
 
             sseEventSourceRef.current.onopen = () => {
                 console.log('✅ Connected to real-time ride notifications');
@@ -111,12 +122,20 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
             sseEventSourceRef.current.onerror = (error) => {
                 console.error('SSE Connection Error:', error);
                 setSseConnected(false);
-                sseEventSourceRef.current?.close();
+                try {
+                    sseEventSourceRef.current?.close();
+                } finally {
+                    sseEventSourceRef.current = null;
+                    if (originalFetchRef.current) {
+                        window.fetch = originalFetchRef.current;
+                        originalFetchRef.current = null;
+                    }
+                }
 
                 // Fallback to polling if SSE fails
                 console.log('⚠️ SSE connection failed. Falling back to polling...');
                 startFallbackPolling();
-            };
+            }; 
         } catch (err) {
             console.error('Error setting up SSE subscription:', err);
             setSseConnected(false);
@@ -131,7 +150,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
             if (!enabled || !driverId) return;
 
             try {
-                const response = await fetch('/api/bookings/pending-for-driver', {
+                const response = await fetch('/api/rides/pending', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     },
@@ -139,24 +158,26 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
 
                 if (!response.ok) throw new Error('Failed to fetch pending rides');
 
-                const rides = await response.json();
+                const payload = await response.json();
+                const rides = Array.isArray(payload?.rides) ? payload.rides : Array.isArray(payload) ? payload : [];
 
-                if (rides && rides.length > 0) {
+                // Only pick the latest/first ride in the list
+                if (rides.length > 0) {
                     const ride = rides[0];
                     setNewRideRequest({
                         rideId: ride.bookingId || ride._id,
                         bookingId: ride.bookingId,
-                        customerId: ride.userId,
-                        userId: ride.userId,
-                        customerName: ride.userInfo?.name || 'Customer',
-                        pickupLocation: ride.origin?.address || ride.pickupLocation || '',
-                        dropLocation: ride.destination?.address || ride.dropoffLocation || '',
-                        pickupLatitude: ride.origin?.location?.lat || ride.pickupLatitude || 0,
-                        pickupLongitude: ride.origin?.location?.lng || ride.pickupLongitude || 0,
-                        dropoffLatitude: ride.destination?.location?.lat || ride.dropoffLatitude || 0,
-                        dropoffLongitude: ride.destination?.location?.lng || ride.dropoffLongitude || 0,
-                        estimatedFare: ride.price?.total || ride.estimatedFare,
-                        estimatedDistance: (ride.distance?.value || ride.estimatedDistance * 1000) / 1000,
+                        customerId: ride.customerId || ride.userId,
+                        userId: ride.customerId || ride.userId,
+                        customerName: ride.customerName || ride.userInfo?.name || 'Customer',
+                        pickupLocation: ride.pickupLocation || ride.pickupAddress || '',
+                        dropLocation: ride.dropoffLocation || ride.dropoffAddress || '',
+                        pickupLatitude: ride.pickupLatitude || 0,
+                        pickupLongitude: ride.pickupLongitude || 0,
+                        dropoffLatitude: ride.dropoffLatitude || 0,
+                        dropoffLongitude: ride.dropoffLongitude || 0,
+                        estimatedFare: ride.estimatedFare || 0,
+                        estimatedDistance: ride.estimatedDistance || ride.distance || undefined,
                         rideOtp: ride.rideOtp,
                     });
                     setError(null);
@@ -177,9 +198,57 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         if (!currentRideId) return;
 
         try {
+            const token = localStorage.getItem('token');
+
+            // If this hook was initialized with a driverId, use the driver booking endpoint
+            if (driverId) {
+                const response = await fetch(`/api/bookings/driver/booking/${currentRideId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    console.error('Driver booking status fetch failed:', response.status, text);
+                    throw new Error('Failed to fetch booking status for driver');
+                }
+
+                // Guard against non-JSON responses (e.g., HTML served by dev server)
+                const text = await response.text();
+                let booking: any;
+                try {
+                    booking = JSON.parse(text);
+                } catch (parseErr) {
+                    console.error('Unexpected non-JSON response when fetching booking status for driver:', text?.slice?.(0,200));
+                    throw new Error('Unexpected non-JSON response when fetching booking status');
+                }
+
+                const status = booking?.status || booking?.booking?.status;
+
+                if (status === 'ACCEPTED') {
+                    setAcceptSuccess(true);
+                } else if (status === 'IN_PROGRESS' || status === 'STARTED') {
+                    setRideStarted(true);
+                    setArrivedSuccess(false);
+                } else if (status === 'COMPLETED') {
+                    setRideCompleted(true);
+                    setAcceptSuccess(false);
+                    setRideStarted(false);
+                    setCurrentRideId(null);
+                } else if (status === 'CANCELLED') {
+                    setAcceptSuccess(false);
+                    setRideStarted(false);
+                    setCurrentRideId(null);
+                }
+
+                return;
+            }
+
+            // Default: customer-side ride status endpoint
             const response = await fetch(`/api/rides/${currentRideId}/status`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${token}`,
                 },
             });
 
@@ -205,7 +274,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         } catch (err) {
             console.error('Error polling ride status:', err);
         }
-    }, [currentRideId]);
+    }, [currentRideId, driverId]);
 
     // Poll customer location every 2 seconds
     const pollCustomerLocation = useCallback(async () => {
@@ -241,10 +310,18 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
 
         return () => {
             if (sseEventSourceRef.current) {
-                sseEventSourceRef.current.close();
+                try { sseEventSourceRef.current.close(); } catch (e) { /* ignore */ }
+                sseEventSourceRef.current = null;
+            }
+            if (originalFetchRef.current) {
+                window.fetch = originalFetchRef.current;
+                originalFetchRef.current = null;
             }
             if (rideRequestPollingRef.current) {
                 clearInterval(rideRequestPollingRef.current);
+            }
+            if (customerLocationPollingRef.current) {
+                clearInterval(customerLocationPollingRef.current);
             }
         };
     }, [driverId, enabled, subscribeToBokingNotifications]);

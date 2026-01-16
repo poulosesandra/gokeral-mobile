@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useDriverRideListener } from "../../hooks/useDriverRideListener";
 import { Spin, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import { UserHeader } from "../user/UserHeader";
@@ -61,6 +62,27 @@ export const DriverProfile = () => {
   const [acceptLoading, setAcceptLoading] = useState(false);
   const [rejectLoading, setRejectLoading] = useState(false);
 
+  // Real-time ride listener (SSE with polling fallback)
+  const currentUserForHook = authService.getCurrentUser();
+  const driverIdForHook = currentUserForHook?._id || currentUserForHook?.id || "";
+  const { newRideRequest, acceptRide: hookAcceptRide, rejectRide: hookRejectRide } = useDriverRideListener(driverIdForHook, !!driverIdForHook);
+
+  useEffect(() => {
+    if (newRideRequest) {
+      setPendingRide({
+        bookingId: newRideRequest.bookingId || newRideRequest.rideId,
+        pickupLocation: newRideRequest.pickupLocation || "",
+        phoneNumber: undefined,
+        estimatedFare: newRideRequest.estimatedFare || 0,
+        distance:
+          typeof newRideRequest.estimatedDistance === "number"
+            ? `${newRideRequest.estimatedDistance} km`
+            : newRideRequest.estimatedDistance || "N/A",
+      });
+      setRideModalOpen(true);
+    }
+  }, [newRideRequest]);
+
   // Poll backend for pending rides
   useEffect(() => {
     let mounted = true;
@@ -114,14 +136,19 @@ export const DriverProfile = () => {
     if (!pendingRide) return;
     setAcceptLoading(true);
     try {
-      const currentUser = authService.getCurrentUser();
-      await fetch(`/api/rides/${pendingRide.bookingId}/accept`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${currentUser?.token}`,
-        },
-      });
+      if (hookAcceptRide) {
+        await hookAcceptRide(pendingRide.bookingId);
+      } else {
+        const currentUser = authService.getCurrentUser();
+        await fetch(`/api/rides/${pendingRide.bookingId}/accept`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${currentUser?.token}`,
+          },
+        });
+      }
+
       message.success("Ride accepted");
       setRideModalOpen(false);
       setPendingRide(null);
@@ -130,20 +157,25 @@ export const DriverProfile = () => {
     } finally {
       setAcceptLoading(false);
     }
-  };
+  }; 
 
   const handleRejectRide = async () => {
     if (!pendingRide) return;
     setRejectLoading(true);
     try {
-      const currentUser = authService.getCurrentUser();
-      await fetch(`/api/rides/${pendingRide.bookingId}/reject`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${currentUser?.token}`,
-        },
-      });
+      if (hookRejectRide) {
+        await hookRejectRide(pendingRide.bookingId);
+      } else {
+        const currentUser = authService.getCurrentUser();
+        await fetch(`/api/rides/${pendingRide.bookingId}/reject`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${currentUser?.token}`,
+          },
+        });
+      }
+
       message.info("Ride rejected");
       setRideModalOpen(false);
       setPendingRide(null);
