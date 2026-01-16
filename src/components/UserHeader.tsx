@@ -49,17 +49,14 @@ export const UserHeader = ({
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </Button>
 
-<Dropdown menu={{ items, onClick: handleMenuClick }} placement="bottomRight">
-  <Button
-    type="text"
-    onClick={() => { if (onProfileClick) onProfileClick(); else navigate("/user/profile"); }}
-    className="flex items-center gap-1 px-1 sm:px-3"
-  >
-    <Avatar icon={<UserOutlined />} size="small" />
-    <span className="hidden sm:inline-block font-medium ml-2">{username}</span>
-    <DownOutlined className="text-xs ml-1" />
-  </Button>
-</Dropdown>        </div>
+          <Dropdown menu={{ items, onClick: handleMenuClick }} placement="bottomRight">
+            <Button type="text" className="flex items-center gap-1 px-1 sm:px-3">
+              <Avatar icon={<UserOutlined />} size="small" />
+              <span className="hidden sm:inline-block font-medium ml-2">{username}</span>
+              <DownOutlined className="text-xs ml-1" />
+            </Button>
+          </Dropdown>
+        </div>
       </div>
     </header>
   );
