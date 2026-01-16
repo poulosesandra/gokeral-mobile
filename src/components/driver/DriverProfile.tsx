@@ -438,12 +438,14 @@ export const DriverProfile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-gray-100">
+
       <UserHeader
         navigate={handleNavigate}
         handleLogout={handleLogout}
         username={driverData.fullName}
         onMenuToggle={toggleSidebar}
         showMenuIcon={windowWidth <= 768}
+        onProfileClick={() => setActiveTab("personalInfo")}
       />
 
       <div className="flex relative w-full">
