@@ -17,7 +17,8 @@ interface UserHeaderProps {
   username: string;
   onMenuToggle?: () => void;
   showMenuIcon?: boolean;
-  profileImage?: string | null; // no longer used for navbar avatar
+  profileImage?: string | null;
+  onProfileClick?: () => void;
 }
 
 export const UserHeader = ({
@@ -26,27 +27,21 @@ export const UserHeader = ({
   username,
   onMenuToggle,
   showMenuIcon = false,
+  onProfileClick,
 }: UserHeaderProps) => {
   const items: MenuProps["items"] = [
-    {
-      key: "profile",
-      label: (
-        <div className="flex items-center" onClick={() => navigate("/user/profile")}>
-          <UserOutlined className="mr-2" />
-          <span>Profile</span>
-        </div>
-      ),
-    },
-    {
-      key: "logout",
-      label: (
-        <div className="flex items-center" onClick={handleLogout}>
-          <LogoutOutlined className="mr-2" />
-          <span>Logout</span>
-        </div>
-      ),
-    },
+    { key: "profile", label: <div className="flex items-center"><UserOutlined className="mr-2" /><span>Profile</span></div> },
+    { key: "logout", label: <div className="flex items-center"><LogoutOutlined className="mr-2" /><span>Logout</span></div> },
   ];
+
+  const handleMenuClick: MenuProps["onClick"] = (info) => {
+    if (info.key === "profile") {
+      if (onProfileClick) onProfileClick();
+      else navigate("/user/profile");
+    } else if (info.key === "logout") {
+      handleLogout();
+    }
+  };
 
   return (
     <header className="bg-white shadow-sm h-16">
@@ -59,13 +54,7 @@ export const UserHeader = ({
               className="md:hidden bg-white hover:bg-blue-50 transition-colors"
               onClick={() => onMenuToggle?.()}
               size="large"
-              style={{
-                width: "40px",
-                height: "40px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+              style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
             />
           )}
 
@@ -84,18 +73,11 @@ export const UserHeader = ({
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </Button>
 
-          {/* Sidebar toggle - icon only (no profile image) */}
-          <Button
-            type="text"
-            onClick={() => onMenuToggle?.()}
-            size="middle"
-            title="Open profile sidebar"
-            className="flex items-center justify-center"
-          >
+          <Button type="text" onClick={() => onMenuToggle?.()} size="middle" title="Open profile sidebar" className="flex items-center justify-center">
             <UserOutlined style={{ fontSize: 18 }} />
           </Button>
 
-          <Dropdown menu={{ items }} placement="bottomRight">
+          <Dropdown menu={{ items, onClick: handleMenuClick }} placement="bottomRight">
             <Button type="text" className="flex items-center gap-1 px-1 sm:px-3">
               <span className="hidden sm:inline-block font-medium ml-2">{username}</span>
               <DownOutlined className="text-xs ml-1" />
