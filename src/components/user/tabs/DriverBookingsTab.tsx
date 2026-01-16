@@ -69,17 +69,20 @@ export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
     fetchBookings();
   }, []);
 
-    const fetchBookings = async () => {
+  const [acceptLoadingMap, setAcceptLoadingMap] = useState<Record<string, boolean>>({});
+  const [rejectLoadingMap, setRejectLoadingMap] = useState<Record<string, boolean>>({});
+
+  const fetchBookings = async () => {
     try {
       setLoading(true);
-      
+
       // Get current driver's ID
       const currentUser = authService.getCurrentUser();
       const currentDriverId = currentUser?._id || currentUser?.id;
-      
+
       console.log("Current Driver ID:", currentDriverId);
       console.log("Current User:", currentUser);
-      
+
       if (!currentDriverId) {
         console.warn("No driver ID found");
         setBookings([]);
@@ -101,12 +104,36 @@ export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
       }
 
       console.log("Total bookings fetched:", allBookings.length);
-      
-      // Show ALL bookings for now (to see what we're getting)
-      // We'll filter later once we see the data structure
-      setBookings(allBookings);
+
+      // Merge fetched pending bookings with existing non-pending bookings so
+      // accepted/completed/cancelled bookings are not removed when backend
+      // endpoint returns only pending rides.
+      setBookings((prev) => {
+        const existingMap: Record<string, Booking> = {};
+        prev.forEach((b) => {
+          const key = b._id || b.id;
+          if (b.status && b.status !== 'PENDING') {
+            existingMap[key] = b;
+          }
+        });
+
+        // Overwrite or add pending bookings from server
+        allBookings.forEach((b: Booking) => {
+          const key = b._id || b.id;
+          existingMap[key] = b;
+        });
+
+        const merged = Object.values(existingMap);
+        // Keep order: pending first (from server), then existing non-pending
+        const pending = allBookings;
+        const nonPending = merged.filter((m) => !(pending.some((p: Booking) => (p._id || p.id) === (m._id || m.id))));
+
+        const result = [...pending, ...nonPending];
+        console.log('Merged bookings:', result);
+        return result;
+      });
       console.log("Bookings set to state:", allBookings);
-      
+
     } catch (error: any) {
       console.error("Error fetching bookings:", error);
       console.error("Error response:", error.response);
@@ -120,6 +147,148 @@ export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
       setLoading(false);
     }
   };
+
+  const handleAccept = async (booking: Booking) => {
+    const id = booking._id || booking.id;
+    setAcceptLoadingMap((m) => ({ ...m, [id]: true }));
+    try {
+      const currentUser = authService.getCurrentUser();
+      const token = currentUser?.token;
+
+      const res = await api.post(
+        `/api/rides/${id}/accept`,
+        { driverId: currentUser?._id || currentUser?.id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      message.success(res.data?.message || "Ride accepted");
+
+      // Update local booking state
+      setBookings((prev) => prev.map((b) => (b._id === booking._id ? { ...b, status: "ACCEPTED" } : b)));
+    } catch (err: any) {
+      console.error("Error accepting ride:", err);
+      message.error(err.response?.data?.message || err.message || "Failed to accept ride");
+    } finally {
+      setAcceptLoadingMap((m) => ({ ...m, [id]: false }));
+    }
+  };
+
+  const handleRejectConfirm = (booking: Booking) => {
+    Modal.confirm({
+      title: "Reject Ride",
+      content: "Are you sure you want to reject this ride?",
+      okText: "Reject",
+      okType: "danger",
+      onOk: () => handleReject(booking),
+    });
+  };
+
+  const handleReject = async (booking: Booking) => {
+    const id = booking._id || booking.id;
+    setRejectLoadingMap((m) => ({ ...m, [id]: true }));
+
+    const currentUser = authService.getCurrentUser();
+    const token = currentUser?.token;
+
+    try {
+      const res = await api.post(
+        `/api/rides/${id}/reject`,
+        { driverId: currentUser?._id || currentUser?.id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      message.success(res.data?.message || "Ride rejected");
+
+      // Remove this booking from the list for this driver
+      setBookings((prev) => prev.filter((b) => b._id !== booking._id));
+
+      // Try flushing queue in case there are queued rejects
+      flushQueuedRejections();
+    } catch (err: any) {
+      console.error("Error rejecting ride:", err);
+
+      // If server returned 500 or other server error, queue the rejection and remove locally
+      const status = err?.response?.status;
+      if (status >= 500 || !status) {
+        // Queue for retry later
+        queueRejection(id);
+
+        // Remove locally so driver doesn't see it again
+        setBookings((prev) => prev.filter((b) => b._id !== booking._id));
+
+        message.warning(
+          "Server error while rejecting ride. Booking removed locally and rejection queued to retry.")
+      } else if (status === 401) {
+        message.error("Unauthorized. Please login again.");
+      } else {
+        message.error(err.response?.data?.message || err.message || "Failed to reject ride");
+      }
+    } finally {
+      setRejectLoadingMap((m) => ({ ...m, [id]: false }));
+    }
+  };
+  // Queue storage key for rejections
+  const QUEUE_KEY = 'queuedRideRejections';
+
+  const queueRejection = (rideId: string) => {
+    try {
+      const currentUser = authService.getCurrentUser();
+      const driverId = currentUser?._id || currentUser?.id;
+
+      const raw = localStorage.getItem(QUEUE_KEY);
+      const queue = raw ? JSON.parse(raw) as Array<any> : [];
+      queue.push({ rideId, driverId, queuedAt: Date.now(), attempts: 0 });
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+      console.log('Queued rejection for ride:', rideId);
+    } catch (err) {
+      console.error('Failed to queue rejection:', err);
+    }
+  };
+
+  const flushQueuedRejections = async () => {
+    try {
+      const raw = localStorage.getItem(QUEUE_KEY);
+      if (!raw) return;
+      let queue = JSON.parse(raw) as Array<any>;
+      if (!Array.isArray(queue) || queue.length === 0) return;
+
+      const currentUser = authService.getCurrentUser();
+      const token = currentUser?.token;
+
+      // Attempt each queued reject; remove successful ones
+      const remaining: Array<any> = [];
+
+      for (const item of queue) {
+        try {
+              const res = await api.post(
+            `/api/rides/${item.rideId}/reject`,
+            { driverId: item.driverId },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+
+          console.log('Flushed queued rejection for', item.rideId, res.data);
+        } catch (err: any) {
+          console.warn('Retry reject failed for', item.rideId, err?.response?.status);
+          item.attempts = (item.attempts || 0) + 1;
+          // Keep it in queue if attempts < 5
+          if ((item.attempts || 0) < 5) {
+            remaining.push(item);
+          } else {
+            console.warn('Dropping queued rejection after too many attempts:', item);
+          }
+        }
+      }
+
+      if (remaining.length > 0) {
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining));
+      } else {
+        localStorage.removeItem(QUEUE_KEY);
+      }
+    } catch (err) {
+      console.error('Error flushing queued rejections:', err);
+    }
+  };
+
   const filteredBookings = 
     filterStatus === "all"
       ? bookings
@@ -240,10 +409,6 @@ export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
                           <p className="font-semibold text-gray-800">{formatDate(booking.bookingTime)}</p>
                         </div>
                       </div>
-                      <p className="text-sm mt-2">
-                        <span className="text-gray-600">Passenger: </span>
-                        <span className="font-semibold">{booking.passenger?.details?.name || "Unknown"}</span>
-                      </p>
                     </div>
 
                     {/* Right Side - Fare & Status */}
@@ -251,6 +416,35 @@ export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
                       <Tag color={getStatusColor(booking.status)}>
                         {getStatusLabel(booking.status)}
                       </Tag>
+
+                      {booking.status === "PENDING" && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="primary"
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAccept(booking);
+                            }}
+                            loading={!!acceptLoadingMap[booking._id || booking.id]}
+                          >
+                            Accept
+                          </Button>
+
+                          <Button
+                            danger
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRejectConfirm(booking);
+                            }}
+                            loading={!!rejectLoadingMap[booking._id || booking.id]}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+
                       {booking.status === "COMPLETED" && (
                         <div className="flex items-center gap-1">
                           <DollarOutlined />

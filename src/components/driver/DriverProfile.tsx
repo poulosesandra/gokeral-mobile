@@ -83,53 +83,10 @@ export const DriverProfile = () => {
     }
   }, [newRideRequest]);
 
-  // Poll backend for pending rides
+  // Pending rides are now handled via `useDriverRideListener` and `newRideRequest`.
+  // Polling removed — if you need an on-demand check, call the hook's `fetchPendingRides`.
   useEffect(() => {
-    let mounted = true;
-    let intervalId: number | undefined;
-
-    const pollPending = async () => {
-      try {
-        const currentUser = authService.getCurrentUser();
-        if (!currentUser) return;
-
-        const token = authService.getToken();
-        if (!token) return;
-
-        const res = await fetch("/api/rides/pending", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!mounted) return;
-
-        if (Array.isArray(data) && data.length > 0) {
-          const ride = data[0];
-          setPendingRide({
-            bookingId: ride.bookingId || ride._id || ride.id,
-            pickupLocation: ride.pickupLocation || ride.pickupAddress || "",
-            phoneNumber: ride.customerPhone || ride.phoneNumber || ride.customer?.phone,
-            estimatedFare: ride.estimatedFare || ride.fare || 0,
-            distance:
-              ride.distanceText || (ride.distanceKm ? `${ride.distanceKm} km` : ride.distance) || "N/A",
-          });
-          setRideModalOpen(true);
-        }
-      } catch (err) {
-        // silent fail; continue polling
-      }
-    };
-
-    pollPending();
-    intervalId = window.setInterval(pollPending, 8000);
-
-    return () => {
-      mounted = false;
-      if (intervalId) clearInterval(intervalId);
-    };
+    // noop: polling removed
   }, []);
 
   const handleAcceptRide = async () => {
