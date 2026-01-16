@@ -382,23 +382,17 @@ export const authService = {
     }
   },
 
-  // Update Driver Location Periodically (Background tracking)
-  startLocationTracking: (intervalMs: number = 30000) => {
-    return setInterval(async () => {
-      try {
-        await authService.requestAndUpdateDriverLocation();
-      } catch (error) {
-        console.error('❌ [LOCATION TRACKING] Error:', error);
-      }
-    }, intervalMs);
+  // Update Driver Location Periodically (Background tracking) — REMOVED
+  // To avoid implicit polling the background interval-based tracker was removed.
+  // If needed, use explicit calls to `requestAndUpdateDriverLocation()` or re-enable with an explicit utility.
+  startLocationTracking: (_intervalMs: number = 30000) => {
+    console.warn('startLocationTracking is disabled to avoid implicit polling. Use explicit update calls instead.');
+    return null;
   },
 
-  // Stop Location Tracking
-  stopLocationTracking: (intervalId: any) => {
-    if (intervalId) {
-      clearInterval(intervalId);
-      console.log('⏹️ [LOCATION TRACKING] Stopped');
-    }
+  // Stop Location Tracking — now a no-op (keeps backward compatibility)
+  stopLocationTracking: (_intervalId: any) => {
+    // no-op
   },
 };
 

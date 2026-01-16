@@ -39,18 +39,12 @@ const RideAcceptanceCard: React.FC<RideAcceptanceCardProps> = ({
         cancelRide,
     } = useCustomerRideListener(userId, rideId, true);
 
-    // Start sending location updates
+    // Send one immediate location update when driver is accepted (periodic updates removed)
     useEffect(() => {
         if (!rideAccepted || !rideId) return;
 
-        const interval = window.setInterval(() => {
-            // In real app, get actual location from geolocation API
-            updateLocation(rideId, currentLocation.lat, currentLocation.lng);
-        }, 5000); // Every 5 seconds
-
-        return () => {
-            if (interval) clearInterval(interval);
-        };
+        // One-off location push; components/services that need periodic tracking should be explicit
+        updateLocation(rideId, currentLocation.lat, currentLocation.lng);
     }, [rideAccepted, rideId, currentLocation, updateLocation]);
 
     if (!rideAccepted) {

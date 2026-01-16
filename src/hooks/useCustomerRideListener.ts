@@ -34,8 +34,7 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    const pollingIntervalRef = useRef<number | null>(null);
-    const locationPollingRef = useRef<number | null>(null);
+    // Periodic polling removed — one-off status/location checks only; consider SSE for real-time updates.
 
     // Poll ride status every 3 seconds
     const pollRideStatus = useCallback(async () => {
@@ -113,38 +112,20 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
         }
     }, [rideId, rideAccepted]);
 
-    // Start polling ride status
+    // Start ride status checks (periodic polling removed — single fetch only)
     useEffect(() => {
         if (!enabled || !rideId) return;
 
-        // Poll immediately
+        // Single status fetch; caller components can call pollRideStatus again on demand
         pollRideStatus();
-
-        // Poll every 3 seconds
-        pollingIntervalRef.current = setInterval(pollRideStatus, 3000);
-
-        return () => {
-            if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-            }
-        };
     }, [rideId, enabled, pollRideStatus]);
 
-    // Start polling driver location after ride is accepted
+    // Start driver location check after ride is accepted (periodic polling removed — single fetch only)
     useEffect(() => {
         if (!enabled || !rideAccepted || !rideId) return;
 
-        // Poll immediately
+        // Single location fetch; components may call pollDriverLocation on demand
         pollDriverLocation();
-
-        // Poll every 2 seconds
-        locationPollingRef.current = setInterval(pollDriverLocation, 2000);
-
-        return () => {
-            if (locationPollingRef.current) {
-                clearInterval(locationPollingRef.current);
-            }
-        };
     }, [rideId, rideAccepted, enabled, pollDriverLocation]);
 
     const requestRide = useCallback(
@@ -253,12 +234,7 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
         setDriverArrived(false);
         setError(null);
 
-        if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-        }
-        if (locationPollingRef.current) {
-            clearInterval(locationPollingRef.current);
-        }
+        // No periodic timers to clear (polling removed)
     }, []);
 
     return {

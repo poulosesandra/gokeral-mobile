@@ -39,159 +39,58 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
     const [currentRideId, setCurrentRideId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const [sseConnected, setSseConnected] = useState(false);
+    // SSE & polling removed — use explicit one-off fetches (fetchPendingRides, pollRideStatus, pollCustomerLocation) instead.
 
-    const rideRequestPollingRef = useRef<number | null>(null);
-    const customerLocationPollingRef = useRef<number | null>(null);
-    const sseEventSourceRef = useRef<EventSource | null>(null);
-    const originalFetchRef = useRef<typeof window.fetch | null>(null);
+    // No interval refs or EventSource refs — polling and SSE removed.
 
-    // Subscribe to SSE notifications for new ride requests
-    const subscribeToBokingNotifications = useCallback(() => {
+    // One-off fetch to get pending ride requests (SSE removed)
+    const fetchPendingRidesOnce = useCallback(async () => {
         if (!enabled || !driverId) return;
-
         try {
-            // Close any existing connection and restore fetch if needed
-            if (sseEventSourceRef.current) {
-                try {
-                    sseEventSourceRef.current.close();
-                } catch (e) {
-                    /* ignore */
-                }
-                sseEventSourceRef.current = null;
-            }
-            if (originalFetchRef.current) {
-                window.fetch = originalFetchRef.current;
-                originalFetchRef.current = null;
-            }
-
-            const token = localStorage.getItem('token');
-            sseEventSourceRef.current = new EventSource(`/api/drivers/subscribe-to-bookings`, {
-                withCredentials: false,
+            const response = await fetch('/api/rides/pending', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
             });
 
-            // Add authorization header (requires custom setup)
-            originalFetchRef.current = window.fetch;
-            window.fetch = function (...args: any[]) {
-                if (typeof args[0] === 'string' && args[0].includes('subscribe-to-bookings')) {
-                    if (!args[1]) args[1] = {};
-                    args[1].headers = {
-                        ...args[1].headers,
-                        'Authorization': `Bearer ${token}`,
-                    };
-                }
-                return (originalFetchRef.current as any).apply(this, args);
-            }; 
-
-            sseEventSourceRef.current.onopen = () => {
-                console.log('✅ Connected to real-time ride notifications');
-                setSseConnected(true);
-                setError(null);
-            };
-
-            sseEventSourceRef.current.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('📬 Received SSE notification:', data);
-
-                    if (data.event === 'new_ride_request' && data.booking) {
-                        const booking = data.booking;
-                        setNewRideRequest({
-                            rideId: booking.bookingId || booking._id,
-                            bookingId: booking.bookingId,
-                            customerId: booking.userId,
-                            userId: booking.userId,
-                            customerName: booking.userInfo?.name || 'Customer',
-                            pickupLocation: booking.origin?.address || '',
-                            dropLocation: booking.destination?.address || '',
-                            pickupLatitude: booking.origin?.location?.lat || 0,
-                            pickupLongitude: booking.origin?.location?.lng || 0,
-                            dropoffLatitude: booking.destination?.location?.lat || 0,
-                            dropoffLongitude: booking.destination?.location?.lng || 0,
-                            estimatedFare: booking.price?.total || 0,
-                            estimatedDistance: (booking.distance?.value || 0) / 1000,
-                            rideOtp: booking.rideOtp,
-                        });
-                        setError(null);
-                    }
-                } catch (err) {
-                    console.error('Error parsing SSE message:', err);
-                }
-            };
-
-            sseEventSourceRef.current.onerror = (error) => {
-                console.error('SSE Connection Error:', error);
-                setSseConnected(false);
-                try {
-                    sseEventSourceRef.current?.close();
-                } finally {
-                    sseEventSourceRef.current = null;
-                    if (originalFetchRef.current) {
-                        window.fetch = originalFetchRef.current;
-                        originalFetchRef.current = null;
-                    }
-                }
-
-                // Fallback to polling if SSE fails
-                console.log('⚠️ SSE connection failed. Falling back to polling...');
-                startFallbackPolling();
-            }; 
-        } catch (err) {
-            console.error('Error setting up SSE subscription:', err);
-            setSseConnected(false);
-            // Fallback to polling
-            startFallbackPolling();
-        }
-    }, [enabled, driverId]);
-
-    // Poll pending ride requests every 5 seconds (fallback mechanism)
-    const startFallbackPolling = useCallback(() => {
-        const pollPendingRides = async () => {
-            if (!enabled || !driverId) return;
-
-            try {
-                const response = await fetch('/api/rides/pending', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                });
-
-                if (!response.ok) throw new Error('Failed to fetch pending rides');
-
-                const payload = await response.json();
-                const rides = Array.isArray(payload?.rides) ? payload.rides : Array.isArray(payload) ? payload : [];
-
-                // Only pick the latest/first ride in the list
-                if (rides.length > 0) {
-                    const ride = rides[0];
-                    setNewRideRequest({
-                        rideId: ride.bookingId || ride._id,
-                        bookingId: ride.bookingId,
-                        customerId: ride.customerId || ride.userId,
-                        userId: ride.customerId || ride.userId,
-                        customerName: ride.customerName || ride.userInfo?.name || 'Customer',
-                        pickupLocation: ride.pickupLocation || ride.pickupAddress || '',
-                        dropLocation: ride.dropoffLocation || ride.dropoffAddress || '',
-                        pickupLatitude: ride.pickupLatitude || 0,
-                        pickupLongitude: ride.pickupLongitude || 0,
-                        dropoffLatitude: ride.dropoffLatitude || 0,
-                        dropoffLongitude: ride.dropoffLongitude || 0,
-                        estimatedFare: ride.estimatedFare || 0,
-                        estimatedDistance: ride.estimatedDistance || ride.distance || undefined,
-                        rideOtp: ride.rideOtp,
-                    });
-                    setError(null);
-                } else {
-                    setNewRideRequest(null);
-                }
-            } catch (err) {
-                console.error('Error polling pending rides:', err);
+            if (!response.ok) {
+                const text = await response.text().catch(() => '');
+                setError(`Failed to fetch pending rides (${response.status}) ${text}`);
+                return;
             }
-        };
 
-        pollPendingRides();
-        rideRequestPollingRef.current = setInterval(pollPendingRides, 5000);
+            const payload = await response.json();
+            const rides = Array.isArray(payload?.rides) ? payload.rides : Array.isArray(payload) ? payload : [];
+
+            if (rides.length > 0) {
+                const ride = rides[0];
+                setNewRideRequest({
+                    rideId: ride.bookingId || ride._id,
+                    bookingId: ride.bookingId,
+                    customerId: ride.customerId || ride.userId,
+                    userId: ride.customerId || ride.userId,
+                    customerName: ride.customerName || ride.userInfo?.name || 'Customer',
+                    pickupLocation: ride.pickupLocation || ride.pickupAddress || '',
+                    dropLocation: ride.dropoffLocation || ride.dropoffAddress || '',
+                    pickupLatitude: ride.pickupLatitude || 0,
+                    pickupLongitude: ride.pickupLongitude || 0,
+                    dropoffLatitude: ride.dropoffLatitude || 0,
+                    dropoffLongitude: ride.dropoffLongitude || 0,
+                    estimatedFare: ride.estimatedFare || 0,
+                    estimatedDistance: ride.estimatedDistance || ride.distance || undefined,
+                    rideOtp: ride.rideOtp,
+                });
+                setError(null);
+            } else {
+                setNewRideRequest(null);
+            }
+        } catch (err) {
+            console.error('Error fetching pending rides:', err);
+            setError(err instanceof Error ? err.message : 'Error fetching pending rides');
+        }
     }, [driverId, enabled]);
+
+    // Polling fallback removed — use fetchPendingRidesOnce() for on-demand checks.
 
     // Poll current ride status every 3 seconds
     const pollRideStatus = useCallback(async () => {
@@ -302,60 +201,31 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         }
     }, [currentRideId]);
 
-    // Start SSE subscription and fallback polling
+    // On init fetch pending rides once (SSE and polling removed)
     useEffect(() => {
         if (!enabled || !driverId) return;
 
-        subscribeToBokingNotifications();
+        fetchPendingRidesOnce();
 
         return () => {
-            if (sseEventSourceRef.current) {
-                try { sseEventSourceRef.current.close(); } catch (e) { /* ignore */ }
-                sseEventSourceRef.current = null;
-            }
-            if (originalFetchRef.current) {
-                window.fetch = originalFetchRef.current;
-                originalFetchRef.current = null;
-            }
-            if (rideRequestPollingRef.current) {
-                clearInterval(rideRequestPollingRef.current);
-            }
-            if (customerLocationPollingRef.current) {
-                clearInterval(customerLocationPollingRef.current);
-            }
+            // no SSE connection or polling to clean up
         };
-    }, [driverId, enabled, subscribeToBokingNotifications]);
+    }, [driverId, enabled, fetchPendingRidesOnce]);
 
-    // Start polling ride status
+    // Start ride status check (periodic polling removed — single fetch only)
     useEffect(() => {
         if (!enabled || !currentRideId) return;
 
-        // Poll immediately
+        // Single status fetch
         pollRideStatus();
-
-        // Poll every 3 seconds
-        const statusPollingRef = setInterval(pollRideStatus, 3000);
-
-        return () => {
-            clearInterval(statusPollingRef);
-        };
     }, [currentRideId, enabled, pollRideStatus]);
 
-    // Start polling customer location
+    // Start customer location check (periodic polling removed — single fetch only)
     useEffect(() => {
         if (!enabled || !currentRideId) return;
 
-        // Poll immediately
+        // Single location fetch
         pollCustomerLocation();
-
-        // Poll every 2 seconds
-        customerLocationPollingRef.current = setInterval(pollCustomerLocation, 2000);
-
-        return () => {
-            if (customerLocationPollingRef.current) {
-                clearInterval(customerLocationPollingRef.current);
-            }
-        };
     }, [currentRideId, enabled, pollCustomerLocation]);
 
     const acceptRide = useCallback(
@@ -579,12 +449,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         setCurrentRideId(null);
         setError(null);
 
-        if (rideRequestPollingRef.current) {
-            clearInterval(rideRequestPollingRef.current);
-        }
-        if (customerLocationPollingRef.current) {
-            clearInterval(customerLocationPollingRef.current);
-        }
+        // No periodic timers to clear (polling removed)
     }, []);
 
     return {
@@ -597,7 +462,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         currentRideId,
         error,
         loading,
-        sseConnected,
+        fetchPendingRides: fetchPendingRidesOnce,
         acceptRide,
         rejectRide,
         updateLocation,

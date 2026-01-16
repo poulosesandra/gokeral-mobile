@@ -50,20 +50,16 @@ const DriverRideRequestModal: React.FC<DriverRideRequestProps> = ({
             setIsAccepting(false);
             onRideAccepted?.(newRideRequest?.rideId || '');
 
-            // Start sending location updates
-            const interval = window.setInterval(() => {
-                updateLocation(
-                    newRideRequest?.rideId || '',
-                    currentLocation.lat,
-                    currentLocation.lng
-                );
-            }, 5000); // Every 5 seconds
-
-            setUpdateInterval(interval);
+            // Send one immediate location update (periodic updates removed)
+            updateLocation(
+                newRideRequest?.rideId || '',
+                currentLocation.lat,
+                currentLocation.lng
+            );
         }
 
         return () => {
-            if (updateInterval) clearInterval(updateInterval);
+            // no interval to clear (polling removed)
         };
     }, [acceptSuccess, newRideRequest, updateLocation, currentLocation, onRideAccepted]);
 
