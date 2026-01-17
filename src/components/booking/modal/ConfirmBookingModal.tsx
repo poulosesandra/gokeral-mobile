@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { message } from 'antd';
 import bookingService from '../../../services/bookingService';
-import type { VehicleData } from './VehicleListModal';
+import type { VehicleData } from './types';
 
 interface Booking {
     selectedVehicle: VehicleData;

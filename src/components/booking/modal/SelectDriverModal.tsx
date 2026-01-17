@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Spin, Empty, Card, Avatar, Rate, Tag, Button, message, Modal, Input } from 'antd';
 import { PhoneOutlined, EnvironmentOutlined, CarOutlined, CloseOutlined } from '@ant-design/icons';
 import api from '../../../services/api';
+import { calculateFare } from '../../../utils/fareCalculation';
 
 const mapVehicleType = (t?: string) => {
   if (!t) return 'Auto';
@@ -33,6 +34,13 @@ interface Driver {
         vehicleType: string;
         seatsNo: number;
         vehicleImages?: string[];
+        fareStructure?: {
+            minimumFare: number;
+            perKilometerRate: number;
+            waitingChargePerMinute: number;
+            baseFare?: number;
+            cancellationFee?: number;
+        };
     };
 }
 
@@ -43,6 +51,7 @@ interface SelectDriverModalProps {
     pickupLatitude: number;
     pickupLongitude: number;
     maxDrivers?: number;
+    route?: google.maps.DirectionsRoute | null;
 }
 
 const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
@@ -52,6 +61,7 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
     pickupLatitude,
     pickupLongitude,
     maxDrivers = 10,
+    route,
 }) => {
     const [drivers, setDrivers] = useState<Driver[]>([]);
     const [loading, setLoading] = useState(false);
@@ -120,11 +130,36 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
         }
     };
 
-    const filteredDrivers = drivers.filter(driver =>
-        driver.fullName.toLowerCase().includes(searchText.toLowerCase()) ||
-        driver.vehicle?.make.toLowerCase().includes(searchText.toLowerCase()) ||
-        driver.vehicle?.vehicleModel.toLowerCase().includes(searchText.toLowerCase())
-    );
+    const getEstimatedPrice = (driver: Driver): string | undefined => {
+        const leg = route?.legs?.[0];
+        if (!leg) return undefined;
+
+        const distanceInMeters = leg.distance?.value || 0;
+        const durationInSeconds = leg.duration?.value || 0;
+        const distanceInKm = distanceInMeters / 1000;
+
+        const fareStructure = driver.vehicle?.fareStructure || {
+            minimumFare: 50,
+            perKilometerRate: 15,
+            waitingChargePerMinute: 1,
+        };
+
+        const fare = calculateFare(distanceInKm, durationInSeconds, fareStructure);
+        return `₹${Math.round(fare)}`;
+    };
+
+    const getVehicleImage = (driver: Driver): string | undefined => {
+        const first = driver.vehicle?.vehicleImages?.[0];
+        return typeof first === 'string' ? first : undefined;
+    };
+
+    const filteredDrivers = drivers.filter((driver) => {
+        const q = searchText.toLowerCase();
+        const name = driver.fullName?.toLowerCase() || '';
+        const make = driver.vehicle?.make?.toLowerCase() || '';
+        const model = driver.vehicle?.vehicleModel?.toLowerCase() || '';
+        return name.includes(q) || make.includes(q) || model.includes(q);
+    });
 
     return (
         <Modal
@@ -177,6 +212,19 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                                     <div className="flex justify-between items-start gap-3">
                                         {/* Driver Info */}
                                         <div className="flex gap-3 flex-1">
+                                            {/* Vehicle Image (from old VehicleListModal) */}
+                                            <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border border-gray-200">
+                                                {getVehicleImage(driver) ? (
+                                                    <img
+                                                        src={getVehicleImage(driver)}
+                                                        alt={driver.vehicle?.vehicleModel || 'Vehicle'}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <span className="text-xs text-gray-400">No Img</span>
+                                                )}
+                                            </div>
+
                                             <Avatar
                                                 size={48}
                                                 src={driver.profileImage}
@@ -192,9 +240,17 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                                                     <h4 className="font-semibold text-gray-800">
                                                         {index + 1}. {driver.fullName}
                                                     </h4>
-                                                    <Tag color={driver.isOnline ? 'green' : 'red'} className="text-xs">
-                                                        {driver.isOnline ? '🟢 Online' : '🔴 Offline'}
-                                                    </Tag>
+                                                    <div className="flex items-center gap-2">
+                                                        {/* Price (from old VehicleListModal) */}
+                                                        {getEstimatedPrice(driver) && (
+                                                            <Tag color="green" className="text-xs font-bold">
+                                                                {getEstimatedPrice(driver)}
+                                                            </Tag>
+                                                        )}
+                                                        <Tag color={driver.isOnline ? 'green' : 'red'} className="text-xs">
+                                                            {driver.isOnline ? '🟢 Online' : '🔴 Offline'}
+                                                        </Tag>
+                                                    </div>
                                                 </div>
 
                                                 {/* Rating */}
