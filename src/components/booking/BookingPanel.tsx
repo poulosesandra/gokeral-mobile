@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { message } from 'antd';
-import VehicleListModal from './modal/VehicleListModal';
 import ConfirmBookingModal from './modal/ConfirmBookingModal';
 import SelectDriverModal from './modal/SelectDriverModal';
-import type { VehicleData } from './modal/VehicleListModal';
+import type { VehicleData } from './modal/types';
 import { calculateFare } from '../../utils/fareCalculation';
 
 interface DriverData {
@@ -21,6 +20,13 @@ interface DriverData {
     licensePlate?: string;
     vehicleImages?: string[];
     vehicleType?: string;
+    fareStructure?: {
+      minimumFare: number;
+      perKilometerRate: number;
+      waitingChargePerMinute: number;
+      baseFare?: number;
+      cancellationFee?: number;
+    };
   };
   drivingExperience?: {
     averageRating?: number;
@@ -45,24 +51,20 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
   // State for driver selection modal
   const [isSelectDriverModalOpen, setIsSelectDriverModalOpen] = useState(false);
 
-  // State for vehicle list modal (to show available drivers)
-  const [isVehicleListModalOpen, setIsVehicleListModalOpen] = useState(false);
-
   // State for the confirm booking modal (actual booking creation)
   const [isConfirmBookingModalOpen, setIsConfirmBookingModalOpen] = useState(false);
-
-  const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
-  const [availableVehicles, setAvailableVehicles] = useState<VehicleData[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
 
-  useEffect(() => {
-    if (!visible) return;
-    setVehicleType(vehicleTypes[0]);
+  const resetPanelState = () => {
     setIsSelectDriverModalOpen(false);
-    setIsVehicleListModalOpen(false);
     setIsConfirmBookingModalOpen(false);
     setSelectedVehicle(null);
-  }, [visible]);
+  };
+
+  const handleClosePanel = () => {
+    resetPanelState();
+    if (onClose) onClose();
+  };
 
   const leg = route?.legs?.[0];
 
@@ -77,8 +79,6 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
 
   const handleDriverSelected = async (driver: DriverData) => {
     try {
-      setIsLoadingVehicles(true);
-
       // Calculate fare based on route distance/duration and vehicle's fare structure
       let calculatedPrice = '₹150'; // Default fallback
 
@@ -118,21 +118,13 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         phoneNumber: driver.phoneNumber,
       };
 
-      setAvailableVehicles([vehicleData]);
+      // ✅ Directly open confirm booking modal after selecting a driver
+      setSelectedVehicle(vehicleData);
       setIsSelectDriverModalOpen(false);
-      setIsVehicleListModalOpen(true);
+      setIsConfirmBookingModalOpen(true);
     } catch {
       message.error('Failed to select driver');
-    } finally {
-      setIsLoadingVehicles(false);
     }
-  };
-
-  const handleVehicleSelected = (vehicle: VehicleData) => {
-    // ✅ User selected a vehicle from the list - now open ConfirmBookingModal
-    setSelectedVehicle(vehicle);
-    setIsVehicleListModalOpen(false);
-    setIsConfirmBookingModalOpen(true);
   };
 
   const handleBookingSuccess = () => {
@@ -141,7 +133,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
     setSelectedVehicle(null);
     message.success('Booking confirmed! Driver will arrive shortly.');
     if (onConfirm) onConfirm(selectedVehicle!);
-    if (onClose) onClose();
+    handleClosePanel();
   };
 
   return (
@@ -151,7 +143,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
           <h3 className="text-lg font-semibold text-gray-700">Trip Options</h3>
           <div className="flex gap-2 items-center">
             <button
-              onClick={onClose}
+              onClick={handleClosePanel}
               className="text-gray-500 hover:text-gray-700 p-1 rounded focus:outline-none"
               aria-label="Close panel"
             >
@@ -208,7 +200,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
             Proceed
           </button>
           <button
-            onClick={onClose}
+            onClick={handleClosePanel}
             className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition font-medium"
           >
             Cancel
@@ -224,15 +216,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         pickupLatitude={pickupLocation?.lat || 0}
         pickupLongitude={pickupLocation?.lng || 0}
         maxDrivers={10}
-      />
-
-      {/* Render the vehicle list modal (shows available vehicles from selected driver) */}
-      <VehicleListModal
-        isOpen={isVehicleListModalOpen}
-        onClose={() => setIsVehicleListModalOpen(false)}
-        loading={isLoadingVehicles}
-        vehicles={availableVehicles}
-        onSelectVehicle={handleVehicleSelected}
+        route={route}
       />
 
       {/* Render the confirm booking modal (actual booking creation with payment & details) */}
