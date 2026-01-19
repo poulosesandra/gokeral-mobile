@@ -272,7 +272,7 @@ const openCamera = async () => {
                 )}
               </div>
 
-              <Button
+              {/* <Button
                 type="primary"
                 shape="circle"
                 icon={<CameraOutlined style={{ fontSize: "14px" }} />}
@@ -283,7 +283,7 @@ const openCamera = async () => {
                 style={{ width: "32px", height: "32px" }}
                 onClick={() => setOptionsVisible(true)}
                 title="Change profile picture"
-              />
+              /> */}
             </div>
 
             <div className="text-center w-full">

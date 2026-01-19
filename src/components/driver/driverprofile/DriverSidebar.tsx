@@ -264,7 +264,7 @@ const openCamera = async () => {
                   />
                 )}
               </div>
-
+{/* 
               <Button
                 type="primary"
                 shape="circle"
@@ -273,7 +273,7 @@ const openCamera = async () => {
                 className="absolute bottom-0 right-0 shadow-lg hover:scale-110 transition-transform"
                 style={{ width: "32px", height: "32px" }}
                 onClick={() => setOptionsVisible(true)}
-              />
+              /> */}
             </div>
 
             <div className="text-center w-full">
