@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { UserHeader } from "../UserHeader"
+import { UserHeader } from "../UserHeader";
 import { UserSidebar } from "./UserSidebar";
 import { HomeTab } from "../tabs/HomeTab";
 import { PersonalInfoTab } from "../tabs/PersonalInfoTab";
-import {  BookingsTabUser } from "../tabs/BookingTab";
+import { BookingsTabUser } from "../tabs/BookingTab";
 import { SecurityTab } from "../tabs/SecurityTab";
 import { PrivacyTab } from "../tabs/PrivacyTab";
 import { DataTab } from "../tabs/DataTab";
 import { Button, Spin } from "antd";
+import { useNavigate } from "react-router-dom"; // added
 import type { JSX } from "react/jsx-runtime";
 import "../../styles/UserProfile.css";
 import { authService } from "../../../services/authServices";
@@ -48,10 +49,10 @@ export const UserProfile = () => {
         const backendData = response.user || response;
 
         const userData: UserData = {
-          fullName: backendData.fullName || backendData.name || 'User',
-          email: backendData.email || '',
-          phoneNumber: backendData.phoneNumber || '',
-          address: backendData.address || '',
+          fullName: backendData.fullName || backendData.name || "User",
+          email: backendData.email || "",
+          phoneNumber: backendData.phoneNumber || "",
+          address: backendData.address || "",
           profileImage: backendData.profileImage || null,
           location: backendData.address || null,
         };
@@ -60,15 +61,14 @@ export const UserProfile = () => {
         setLoading(false);
         setTimeout(() => setFadeIn(true), 100);
       } catch (backendError: any) {
-        // Don't fall back to localStorage; force logout and redirect
-        console.error('Failed to fetch user profile:', backendError);
+        console.error("Failed to fetch user profile:", backendError);
 
         if (backendError.response?.status === 401) {
           authService.logout();
-          window.location.href = '/user/login';
+          window.location.href = "/user/login";
         } else {
-          console.error('Error fetching user data:', backendError);
-          window.location.href = '/user/login';
+          console.error("Error fetching user data:", backendError);
+          window.location.href = "/user/login";
         }
 
         setLoading(false);
@@ -86,9 +86,8 @@ export const UserProfile = () => {
     })();
   }, [getUserDetails]);
 
-  const navigate = (path: string) => {
-    console.log(`Navigating to: ${path}`);
-  };
+  const routerNavigate = useNavigate(); // added
+  const navigate = (path: string) => routerNavigate(path);
 
   const handleLogout = () => {
     authService.logout();
@@ -112,9 +111,8 @@ export const UserProfile = () => {
   }, []);
 
   const handleTabChange = (key: TabKey) => {
-    if (key === 'vehicles') {
-      // Keep 'vehicles' behavior handled inside tabContent; set active to 'home' to avoid invalid UserTabKey
-      setActiveTab('home');
+    if (key === "vehicles") {
+      setActiveTab("home");
     } else {
       setActiveTab(key as UserTabKey);
     }
@@ -125,26 +123,38 @@ export const UserProfile = () => {
   const updateUserData = async (values: Partial<UserData>) => {
     try {
       setLoading(true);
-
-      // Call backend with correct field mapping
-      await authService.updateUserProfile({
+      const payload: any = {
         fullName: values.fullName,
         email: values.email,
         phoneNumber: values.phoneNumber,
-        address: values.address,
-      });
+      };
+      if (values.address !== undefined) payload.address = values.address;
+      if (values.profileImage !== undefined) payload.profileImage = values.profileImage;
 
-      // Fetch fresh data from backend to ensure consistency
-      await getUserDetails();
+      const res = await authService.updateUserProfile(payload);
+
+      if (res) {
+        const fresh = {
+          fullName: res.fullName || res.name || "User",
+          email: res.email || "",
+          phoneNumber: res.phoneNumber || "",
+          address: res.address || "",
+          profileImage: res.profileImage || null,
+          location: res.address || null,
+        };
+        setUserData(fresh);
+      } else {
+        await getUserDetails();
+      }
 
       setLoading(false);
-      console.log('✅ Profile updated successfully');
     } catch (error) {
       setLoading(false);
       console.error("Error updating user data:", error);
       throw error;
     }
   };
+
   const refreshUserProfile = useCallback(async () => {
     try {
       setLoading(true);
@@ -152,10 +162,10 @@ export const UserProfile = () => {
       const backendData = response.user || response;
 
       const userData: UserData = {
-        fullName: backendData.fullName || backendData.name || 'User',
-        email: backendData.email || '',
-        phoneNumber: backendData.phoneNumber || '',
-        address: backendData.address || '',
+        fullName: backendData.fullName || backendData.name || "User",
+        email: backendData.email || "",
+        phoneNumber: backendData.phoneNumber || "",
+        address: backendData.address || "",
         profileImage: backendData.profileImage || null,
         location: backendData.address || null,
       };
@@ -167,6 +177,7 @@ export const UserProfile = () => {
       console.error("Error refreshing user data:", error);
     }
   }, []);
+
   if (loading && !userData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -193,21 +204,8 @@ export const UserProfile = () => {
   }
 
   const tabContent: Record<TabKey, JSX.Element> = {
-    home: (
-      <HomeTab
-  userData={userData}
-  loading={loading}
-  handleTabChange={handleTabChange}
-  onProfileImageUpdate={refreshUserProfile}
-  />
-    ),
-    personal: (
-      <PersonalInfoTab
-        userData={userData}
-        loading={loading}
-        updateUserData={updateUserData}
-      />
-    ),
+    home: <HomeTab userData={userData} loading={loading} handleTabChange={handleTabChange} onProfileImageUpdate={refreshUserProfile} />,
+    personal: <PersonalInfoTab userData={userData} loading={loading} updateUserData={updateUserData} />,
     bookings: <BookingsTabUser loading={loading} />,
     vehicles: (
       <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
@@ -217,11 +215,7 @@ export const UserProfile = () => {
             <p className="text-gray-500">Manage your registered vehicles</p>
           </div>
           <div>
-            <button
-              type="button"
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-              onClick={() => alert('Open Add Vehicle')}
-            >
+            <button type="button" className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700" onClick={() => alert("Open Add Vehicle")}>
               + Add Vehicle
             </button>
           </div>
@@ -244,39 +238,15 @@ export const UserProfile = () => {
         onMenuToggle={toggleSidebar}
         showMenuIcon={windowWidth <= 768}
         profileImage={userData.profileImage}
+        onBack={() => routerNavigate("/map")} // added
       />
 
       <div className="flex relative w-full pl-0 pr-4 pt-6">
+        <UserSidebar userData={userData} activeTab={activeTab} handleTabChange={handleTabChange} handleLogout={handleLogout} sidebarOpen={sidebarOpen} windowWidth={windowWidth} onClose={() => setSidebarOpen(false)} onProfileUpdate={refreshUserProfile} />
 
-        {/* NOTE: Removed the old mobile hamburger sidebar button here. Use the header profile button to toggle the sidebar. */}
-
-        {/* Sidebar with animation — now wired with onClose & onProfileUpdate */}
-        <UserSidebar
-          userData={userData}
-          activeTab={activeTab}
-          handleTabChange={handleTabChange}
-          handleLogout={handleLogout}
-          sidebarOpen={sidebarOpen}
-          windowWidth={windowWidth}
-          onClose={() => setSidebarOpen(false)}
-          onProfileUpdate={refreshUserProfile}
-        />
-
-        {/* Main Content with transition effects */}
         <div className="flex-1 p-2 md:pl-4 min-h-screen w-full transition-all duration-300 ease-in-out">
+          <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">{loading ? <div className="flex justify-center items-center min-h-64"><Spin size="large" /></div> : tabContent[activeTab]}</div>
 
-          <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">
-
-            {loading ? (
-              <div className="flex justify-center items-center min-h-64">
-                <Spin size="large" />
-              </div>
-            ) : (
-              tabContent[activeTab]
-            )}
-          </div>
-          
-          {/* Footer */}
           <div className="mt-4 text-center text-gray-500 text-sm py-2">
             <p>&copy; {new Date().getFullYear()} Your Company. All rights reserved.</p>
           </div>

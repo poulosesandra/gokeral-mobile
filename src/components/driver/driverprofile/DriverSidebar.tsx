@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, Button, Tabs, Upload, message } from "antd";
+import { Avatar, Button, Tabs, message, Modal, Spin } from "antd";
 import api from '../../../services/api';
 import {
   UserOutlined,
@@ -11,7 +11,9 @@ import {
   CloseOutlined,
   LogoutOutlined,
   CameraOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
+import { useRef, useState, useEffect } from "react";
 
 export type DriverTabKey = "home" | "personalInfo" | "bookings" | "vehicles" | "settings";
 
@@ -25,9 +27,10 @@ interface DriverSidebarProps {
     fullName: string;
     email: string;
     profileImage: string | null;
+    phoneNumber?: string;
   };
   handleLogout: () => void;
-  onProfileImageUpdate?: (url: string) => void;
+  onProfileImageUpdate?: (url: string | null) => void;
 }
 
 export const DriverSidebar = ({
@@ -40,6 +43,22 @@ export const DriverSidebar = ({
   handleLogout,
   onProfileImageUpdate,
 }: DriverSidebarProps) => {
+  const [optionsVisible, setOptionsVisible] = useState(false);
+  const [cameraModalVisible, setCameraModalVisible] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, [stream]);
+
   const tabItems = [
     { key: "home", label: "Home", icon: <HomeOutlined /> },
     { key: "personalInfo", label: "Personal Info", icon: <FileTextOutlined /> },
@@ -47,6 +66,149 @@ export const DriverSidebar = ({
     { key: "vehicles", label: "Vehicles", icon: <CarOutlined /> },
     { key: "settings", label: "Settings", icon: <SettingOutlined /> },
   ];
+
+  const uploadDriverFile = async (file: File) => {
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) {
+      message.error('You can only upload image files!');
+      return;
+    }
+    const isLt2M = file.size / 1024 / 1024 < 2;
+    if (!isLt2M) {
+      message.error('Image must be smaller than 2MB!');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const resp = await api.post('/drivers/upload-document', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const url = resp?.data?.url || resp?.data?.driver?.documents?.slice(-1)[0]?.url;
+      if (url) {
+        // Save to backend driver update
+        const currentUserRaw = localStorage.getItem('userData');
+        const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
+        await api.patch('/drivers/update', {
+          fullName: parsed.fullName,
+          email: parsed.email,
+          phoneNumber: parsed.phoneNumber,
+          profileImage: url,
+        });
+
+        message.success('Profile picture uploaded and saved');
+        onProfileImageUpdate?.(url);
+      } else {
+        message.warning('Uploaded but could not find file URL');
+      }
+    } catch (err: any) {
+      console.error('Profile upload failed', err);
+      message.error(err?.response?.data?.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemovePicture = async () => {
+    Modal.confirm({
+      title: "Remove profile picture?",
+      icon: <ExclamationCircleOutlined />,
+      content: "This will remove your current profile picture and set it to the default avatar.",
+      okText: "Remove",
+      okType: "danger",
+      onOk: async () => {
+        try {
+          const currentUserRaw = localStorage.getItem('userData');
+          const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
+          await api.patch('/drivers/update', {
+            fullName: parsed.fullName,
+            email: parsed.email,
+            phoneNumber: parsed.phoneNumber,
+            profileImage: null,
+          });
+          onProfileImageUpdate?.(null);
+          message.success('Profile picture removed');
+        } catch (err: any) {
+          console.error('Failed to remove profile picture', err);
+          message.error('Failed to remove profile picture');
+        }
+      },
+    });
+  };
+
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  const onFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await uploadDriverFile(file);
+      e.target.value = "";
+      setOptionsVisible(false);
+    }
+  };
+
+const openCamera = async () => {
+  console.log("Requesting camera permission...");
+  message.info("Requesting camera permission...");
+  setOptionsVisible(false);
+  setCameraModalVisible(true);
+  setCameraLoading(true);
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ video: true });
+    setStream(s);
+    if (videoRef.current) {
+      videoRef.current.srcObject = s;
+      await videoRef.current.play().catch(() => {});
+    }
+    message.success("Camera access granted");
+  } catch (err: any) {
+    console.error("Camera access failed", err);
+    // Better explanations for common errors
+    if (err?.name === "NotAllowedError" || err?.name === "SecurityError") {
+      message.error("Camera access blocked. Please allow camera permission in your browser.");
+    } else if (err?.name === "NotFoundError") {
+      message.error("No camera found on this device.");
+    } else {
+      message.error("Failed to access camera. See console for details.");
+    }
+    setCameraModalVisible(false);
+  } finally {
+    setCameraLoading(false);
+  }
+};
+
+  const closeCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      setStream(null);
+    }
+    setCameraModalVisible(false);
+  };
+
+  const captureAndUpload = async () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        message.error("Failed to capture image");
+        return;
+      }
+      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: "image/jpeg" });
+      await uploadDriverFile(file);
+      closeCamera();
+    }, "image/jpeg", 0.92);
+  };
 
   return (
     <>
@@ -60,7 +222,6 @@ export const DriverSidebar = ({
         `}
       >
         <div className="p-0 h-full flex flex-col overflow-y-auto">
-                    {/* Close button - Only visible on mobile when sidebar is open */}
           {windowWidth <= 768 && isOpen && (
             <div className="absolute top-4 right-4 z-50">
               <Button
@@ -79,7 +240,6 @@ export const DriverSidebar = ({
             </div>
           )}
 
-          {/* User Profile Section */}
           <div className="flex flex-col items-center space-y-3 p-4 border-b border-gray-200">
             <div className="relative">
               <div
@@ -104,73 +264,16 @@ export const DriverSidebar = ({
                   />
                 )}
               </div>
-              <Upload
-                accept="image/*"
-                showUploadList={false}
-                beforeUpload={async (file) => {
-                  const isImage = file.type.startsWith('image/');
-                  if (!isImage) {
-                    message.error('You can only upload image files!');
-                    return Upload.LIST_IGNORE;
-                  }
-                  const isLt2M = file.size / 1024 / 1024 < 2;
-                  if (!isLt2M) {
-                    message.error('Image must be smaller than 2MB!');
-                    return Upload.LIST_IGNORE;
-                  }
 
-                  try {
-                    const form = new FormData();
-                    form.append('file', file);
-                    const resp = await api.post('/drivers/upload-document', form, {
-                      headers: { 'Content-Type': 'multipart/form-data' },
-                    });
-
-                    const url = resp?.data?.url || resp?.data?.driver?.documents?.slice(-1)[0]?.url;
-
-                    if (url) {
-                      try {
-                        const currentUser = localStorage.getItem('userData');
-                        if (currentUser) {
-                          const parsed = JSON.parse(currentUser);
-
-                          await api.patch('/drivers/update', {
-                            fullName: parsed.fullName,
-                            email: parsed.email,
-                            phoneNumber: parsed.phoneNumber,
-                            profileImage: url,
-                          });
-
-                          message.success('Profile picture uploaded and saved');
-
-                          if (typeof onProfileImageUpdate === 'function') {
-                            onProfileImageUpdate(url);
-                          }
-                        }
-                      } catch (updateError: any) {
-                        console.error('Failed to save profile image to backend', updateError);
-                        message.error('Uploaded but failed to save. Please try again.');
-                      }
-                    } else {
-                      message.warning('Uploaded but could not find file URL');
-                    }
-                  } catch (err: any) {
-                    console.error('Profile upload failed', err);
-                    message.error(err?.response?.data?.message || 'Upload failed');
-                  }
-
-                  return Upload.LIST_IGNORE;
-                }}
-              >
-                <Button
-                  type="primary"
-                  shape="circle"
-                  icon={<CameraOutlined style={{ fontSize: "14px" }} />}
-                  size="small"
-                  className="absolute bottom-0 right-0 shadow-lg hover:scale-110 transition-transform"
-                  style={{ width: "32px", height: "32px" }}
-                />
-              </Upload>
+              <Button
+                type="primary"
+                shape="circle"
+                icon={<CameraOutlined style={{ fontSize: "14px" }} />}
+                size="small"
+                className="absolute bottom-0 right-0 shadow-lg hover:scale-110 transition-transform"
+                style={{ width: "32px", height: "32px" }}
+                onClick={() => setOptionsVisible(true)}
+              />
             </div>
 
             <div className="text-center w-full">
@@ -179,13 +282,11 @@ export const DriverSidebar = ({
             </div>
           </div>
 
-          {/* Navigation Tabs - Clean vertical menu */}
           <div className="flex-1 overflow-hidden min-h-0 pt-4">
             <Tabs
               activeKey={activeTab}
               onChange={(key) => {
                 onTabChange(key as DriverTabKey);
-                // Close sidebar on mobile after selecting
                 if (windowWidth <= 768) {
                   onClose();
                 }
@@ -206,7 +307,6 @@ export const DriverSidebar = ({
             />
           </div>
 
-          {/* Logout Button - Sticky at bottom */}
           <div className="p-4 border-t border-gray-200">
             <Button
               type="primary"
@@ -223,13 +323,56 @@ export const DriverSidebar = ({
         </div>
       </div>
 
-      {/* Overlay for mobile - transparent */}
       {isOpen && windowWidth <= 768 && (
         <div
           className="fixed inset-0 bg-transparent z-20 backdrop-blur-sm transition-opacity duration-300"
           onClick={onClose}
         />
       )}
+
+      {/* Hidden file input */}
+      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFilePicked} />
+
+      <Modal
+        title="Change Profile Picture"
+        centered
+        visible={optionsVisible}
+        onCancel={() => setOptionsVisible(false)}
+        footer={null}
+      >
+        <div className="flex flex-col gap-3">
+          <Button block type="default" onClick={openCamera} icon={<CameraOutlined />}>
+            Open Camera
+          </Button>
+          <Button block type="default" onClick={openFilePicker}>
+            Upload from device
+          </Button>
+          <Button block danger type="default" onClick={handleRemovePicture}>
+            Remove profile picture
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        title="Camera"
+        centered
+        visible={cameraModalVisible}
+        onCancel={closeCamera}
+        footer={(
+          <div className="flex items-center gap-2">
+            <Button onClick={closeCamera}>Cancel</Button>
+            <Button type="primary" onClick={captureAndUpload} loading={cameraLoading}>Capture</Button>
+          </div>
+        )}
+      >
+        {cameraLoading ? (
+          <div className="flex items-center justify-center py-10"><Spin /></div>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <video ref={videoRef} style={{ width: "100%", maxHeight: 360 }} autoPlay playsInline muted />
+          </div>
+        )}
+      </Modal>
     </>
   );
 };

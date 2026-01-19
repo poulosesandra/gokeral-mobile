@@ -6,6 +6,7 @@ import {
   UserOutlined,
   LogoutOutlined,
   DownOutlined,
+  LeftOutlined,
   MenuOutlined,
 } from "@ant-design/icons";
 import { Link } from "react-router-dom";
@@ -19,6 +20,7 @@ interface UserHeaderProps {
   showMenuIcon?: boolean;
   profileImage?: string | null;
   onProfileClick?: () => void;
+  onBack?: () => void;
 }
 
 export const UserHeader = ({
@@ -28,6 +30,7 @@ export const UserHeader = ({
   onMenuToggle,
   showMenuIcon = false,
   onProfileClick,
+  onBack,
 }: UserHeaderProps) => {
   const items: MenuProps["items"] = [
     { key: "profile", label: <div className="flex items-center"><UserOutlined className="mr-2" /><span>Profile</span></div> },
@@ -47,6 +50,23 @@ export const UserHeader = ({
     <header className="bg-white shadow-sm h-16">
       <div className="w-full h-full px-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
+      {onBack && !showMenuIcon && (
+        <Button
+          type="text"
+          icon={<LeftOutlined style={{ fontSize: "18px" }} />}
+          onClick={onBack}
+          className="hidden md:flex items-center justify-center mr-2"
+          size="large"
+          title="Back to map"
+          aria-label="Back to map"
+          style={{ width: "40px", height: "40px" }}
+        />
+      )}
+
+          <Link to={"/"} className="flex items-center gap-2 pl-1">
+            <span className="font-bold text-xl hidden sm:inline-block">Kerides</span>
+          </Link>
+
           {showMenuIcon && (
             <Button
               type="text"
@@ -57,10 +77,6 @@ export const UserHeader = ({
               style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
             />
           )}
-
-          <Link to={"/"} className="flex items-center gap-2">
-            <span className="font-bold text-xl hidden sm:inline-block">Kerides</span>
-          </Link>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
@@ -73,7 +89,13 @@ export const UserHeader = ({
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </Button>
 
-          <Button type="text" onClick={() => onMenuToggle?.()} size="middle" title="Open profile sidebar" className="flex items-center justify-center">
+          <Button
+            type="text"
+            onClick={() => onMenuToggle?.()}
+            size="middle"
+            title="Open profile sidebar"
+            className="flex items-center justify-center"
+          >
             <UserOutlined style={{ fontSize: 18 }} />
           </Button>
 
