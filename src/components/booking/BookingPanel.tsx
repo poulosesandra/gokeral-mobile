@@ -48,7 +48,7 @@ const vehicleTypes: VehicleType[] = ['Auto', 'Five Seater', 'Seven Seater'];
 
 const VehicleTypeSelector: React.FC<{ value: VehicleType; onChange: (v: VehicleType) => void }> = React.memo(({ value, onChange }) => {
   return (
-    <div role="radiogroup" aria-label="Vehicle types" className="grid grid-cols-3 gap-3">
+    <div role="radiogroup" aria-label="Vehicle types" className="flex flex-col w-full gap-2">
       {vehicleTypes.map((t) => (
         <label
           key={t}
@@ -57,7 +57,7 @@ const VehicleTypeSelector: React.FC<{ value: VehicleType; onChange: (v: VehicleT
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') onChange(t);
           }}
-          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg border cursor-pointer transition-colors text-center ${value === t ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-200 hover:bg-gray-50 text-gray-600'}`}
+          className={`w-full flex items-center justify-center gap-3 h- min-h-[56px] px-4 rounded-lg border cursor-pointer transition-colors ${value === t ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-200 hover:bg-gray-50 text-gray-600'}`}
         >
           <input
             type="radio"
@@ -68,7 +68,7 @@ const VehicleTypeSelector: React.FC<{ value: VehicleType; onChange: (v: VehicleT
             className="hidden"
             aria-hidden="true"
           />
-          <span className="text-sm sm:text-lg">{t}</span>
+          <span className="text-sm sm:text-base text-center flex-1">{t}</span>
         </label>
       ))}
     </div>
@@ -189,7 +189,10 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
 
           <div className="mb-4">
             <div className="text-sm font-medium text-gray-700 mb-2">Vehicle type</div>
-            <VehicleTypeSelector value={vehicleType} onChange={setVehicleType} />
+            <div className="flex flex-col w-full gap-2">
+              <VehicleTypeSelector value={vehicleType} onChange={setVehicleType} />
+            </div>
+            
           </div>
         </div>
 
