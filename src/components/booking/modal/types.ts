@@ -13,8 +13,9 @@ export interface VehicleData {
   licensePlate: string;
   vehicleImage?: string;
   rating?: number;
-  price?: string;
+  // Use numeric price to avoid string parsing in multiple places
+  price?: number;
   vehicleType?: string;
   distance?: number;
   phoneNumber?: string;
-}
+} 

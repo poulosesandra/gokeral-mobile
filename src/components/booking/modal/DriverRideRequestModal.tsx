@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Button, Modal, Row, Col, Spin, message } from 'antd';
 import { MapPin, CheckCircle, X } from 'lucide-react';
-import { useDriverRideListener } from '../../hooks/useDriverRideListener';
+import { useDriverRideListener } from '../../../hooks/useDriverRideListener';
 
 interface DriverRideRequestProps {
     driverId: string;
