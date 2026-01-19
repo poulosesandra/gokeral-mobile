@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, Card, Skeleton, Button, Tag, Upload, message } from "antd";
+import { Avatar, Card, Skeleton, Button, Tag } from "antd";
 import {
   UserOutlined,
   MailOutlined,
@@ -9,12 +9,8 @@ import {
   EditOutlined,
   CarOutlined,
   IdcardOutlined,
-  CameraOutlined,
 } from "@ant-design/icons";
-import { useState } from "react";
 import type { UserData } from "../profile/UserProfile";
-import api from "../../../services/api";
-import { authService } from "../../../services/authServices";
 
 // Define base TabKey type
 export type UserTabKey = "home" | "personal" | "bookings" | "security" | "privacy" | "data";
@@ -27,12 +23,10 @@ interface HomeTabProps {
   userData: UserData;
   loading: boolean;
   handleTabChange: (key: TabKey) => void;
-  onProfileImageUpdate?: () => void; // Callback to refresh user data after upload
+  onProfileImageUpdate?: () => void; // kept optional for sidebar updates
 }
 
-export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpdate }: HomeTabProps) => {
-  const [uploading, setUploading] = useState(false);
-  
+export const HomeTab = ({ userData, loading, handleTabChange }: HomeTabProps) => {
   const recentBookings: Array<{
     id: string;
     vehicle: string;
@@ -71,58 +65,9 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
     return <Tag color={colors[status]}>{status}</Tag>;
   };
 
-  const handleProfileImageUpload = async (file: File) => {
-    // Client-side validation
-    const isImage = file.type.startsWith("image/");
-    if (!isImage) {
-      message.error("You can only upload image files!");
-      return false;
-    }
-
-    const isLt2M = file.size / 1024 / 1024 < 2;
-    if (!isLt2M) {
-      message.error("Image must be smaller than 2MB!");
-      return false;
-    }
-
-    setUploading(true);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      
-      const res = await api.post("/users/upload-document", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      message.success(res.data?.message || "Profile picture updated");
-      
-      // Update localStorage with new user data
-      if (res.data?.user) {
-        authService.setCurrentUser(res.data.user);
-      } else if (res.data) {
-        authService.setCurrentUser(res.data);
-      }
-      
-      // Trigger refresh callback to update parent component
-      // Trigger refresh callback to update parent component and wait for it
-      if (onProfileImageUpdate) {
-        await onProfileImageUpdate();
-      }
-    } catch (err: any) {
-      console.error("Profile upload failed:", err);
-      message.error(err.response?.data?.message || "Upload failed");
-    } finally {
-      setUploading(false);
-    }
-    
-    return false; // Prevent default Upload behavior
-  };
-
   return (
     <div className="w-full space-y-6">
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* LEFT SIDE - Profile Card */}
         <Card className="shadow-lg rounded-2xl lg:col-span-1 bg-gradient-to-br from-gray-800 to-gray-900 text-white border-0">
           <Skeleton loading={loading} active avatar>
@@ -143,20 +88,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
                     <Avatar size={130} icon={<UserOutlined />} className="bg-gradient-to-br from-green-500 to-emerald-600" />
                   )}
                 </div>
-                <Upload
-                  accept="image/*"
-                  showUploadList={false}
-                  beforeUpload={handleProfileImageUpload}
-                >
-                  <Button
-                    type="primary"
-                    shape="circle"
-                    icon={<CameraOutlined />}
-                    className="absolute bottom-2 right-2 shadow-lg"
-                    style={{ width: '40px', height: '40px' }}
-                    loading={uploading}
-                  />
-                </Upload>
+                {/* Profile picture change removed from Home card — use Sidebar to update DP */}
               </div>
 
               {/* USER INFO */}
@@ -164,8 +96,6 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
                 <h2 className="text-2xl font-bold">{userData.fullName}</h2>
                 <p className="text-gray-400 text-sm">Premium User</p>
               </div>
-
-              
             </div>
           </Skeleton>
         </Card>
@@ -187,7 +117,6 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
 
           <Skeleton loading={loading} active>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
               {/* Registered Email */}
               <div>
                 <p className="text-xs text-gray-500 uppercase mb-2">Registered Email</p>
@@ -223,7 +152,6 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
                   <Tag color="success" className="text-sm font-medium">Active</Tag>
                 </div>
               </div>
-
             </div>
           </Skeleton>
         </Card>
@@ -231,7 +159,6 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
 
       {/* CONTENT GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
         {/* RECENT BOOKINGS */}
         <Card className="shadow-md rounded-2xl">
           <div className="flex items-center justify-between mb-4">
@@ -245,7 +172,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
             </Button>
           </div>
 
-                    <div className="space-y-4">
+          <div className="space-y-4">
             {recentBookings.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No bookings yet</p>
             ) : (
@@ -299,9 +226,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
             ))}
           </div>
         </Card>
-
       </div>
-
     </div>
   );
 };
