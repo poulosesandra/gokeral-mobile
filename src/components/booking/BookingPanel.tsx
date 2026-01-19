@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { message } from 'antd';
 import ConfirmBookingModal from './modal/ConfirmBookingModal';
 import SelectDriverModal from './modal/SelectDriverModal';
@@ -43,10 +43,40 @@ interface BookingPanelProps {
   pickupLocation?: { lat: number; lng: number } | null;
 }
 
-const vehicleTypes = ['Auto', 'Five Seater', 'Seven Seater'];
+type VehicleType = 'Auto' | 'Five Seater' | 'Seven Seater';
+const vehicleTypes: VehicleType[] = ['Auto', 'Five Seater', 'Seven Seater'];
+
+const VehicleTypeSelector: React.FC<{ value: VehicleType; onChange: (v: VehicleType) => void }> = React.memo(({ value, onChange }) => {
+  return (
+    <div role="radiogroup" aria-label="Vehicle types" className="grid grid-cols-3 gap-3">
+      {vehicleTypes.map((t) => (
+        <label
+          key={t}
+          role="radio"
+          aria-checked={value === t}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') onChange(t);
+          }}
+          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg border cursor-pointer transition-colors text-center ${value === t ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-200 hover:bg-gray-50 text-gray-600'}`}
+        >
+          <input
+            type="radio"
+            name="vehicle"
+            value={t}
+            checked={value === t}
+            onChange={() => onChange(t)}
+            className="hidden"
+            aria-hidden="true"
+          />
+          <span className="text-sm sm:text-lg">{t}</span>
+        </label>
+      ))}
+    </div>
+  );
+});
 
 const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, onConfirm, pickupLocation }) => {
-  const [vehicleType, setVehicleType] = useState<string>(vehicleTypes[0]);
+  const [vehicleType, setVehicleType] = useState<VehicleType>(vehicleTypes[0]);
 
   // State for driver selection modal
   const [isSelectDriverModalOpen, setIsSelectDriverModalOpen] = useState(false);
@@ -55,52 +85,46 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
   const [isConfirmBookingModalOpen, setIsConfirmBookingModalOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
 
-  const resetPanelState = () => {
+  const resetPanelState = useCallback(() => {
     setIsSelectDriverModalOpen(false);
     setIsConfirmBookingModalOpen(false);
     setSelectedVehicle(null);
-  };
+  }, []);
 
-  const handleClosePanel = () => {
+  const handleClosePanel = useCallback(() => {
     resetPanelState();
-    if (onClose) onClose();
-  };
+    onClose?.();
+  }, [onClose, resetPanelState]);
 
-  const leg = route?.legs?.[0];
+  const leg = useMemo(() => route?.legs?.[0], [route]);
 
-  const handleProceed = () => {
-    // ✅ Open driver selection modal
+  const handleProceed = useCallback(() => {
     if (!pickupLocation) {
       message.error('Please select a pickup location first');
       return;
     }
     setIsSelectDriverModalOpen(true);
-  };
+  }, [pickupLocation]);
 
-  const handleDriverSelected = async (driver: DriverData) => {
+  const handleDriverSelected = useCallback(async (driver: DriverData) => {
     try {
-      // Calculate fare based on route distance/duration and vehicle's fare structure
-      let calculatedPrice = '₹150'; // Default fallback
+      let fareValue = 150;
 
       if (route?.legs?.[0]) {
-        const leg = route.legs[0];
-        const distanceInMeters = leg.distance?.value || 0;
-        const durationInSeconds = leg.duration?.value || 0;
+        const rLeg = route.legs[0];
+        const distanceInMeters = rLeg.distance?.value || 0;
+        const durationInSeconds = rLeg.duration?.value || 0;
         const distanceInKm = distanceInMeters / 1000;
 
-        // Get vehicle's fare structure if available
         const fareStructure = driver.vehicle?.fareStructure || {
           minimumFare: 50,
           perKilometerRate: 15,
           waitingChargePerMinute: 1,
         };
 
-        // Calculate fare using the utility function
-        const fare = calculateFare(distanceInKm, durationInSeconds, fareStructure);
-        calculatedPrice = `₹${Math.round(fare)}`;
+        fareValue = calculateFare(distanceInKm, durationInSeconds, fareStructure);
       }
 
-      // ✅ Convert driver data to VehicleData format
       const vehicleData: VehicleData = {
         id: driver._id,
         vehicleId: driver.vehicle?._id || driver.vehicle?.id || 'Unknown_Vehicle_ID',
@@ -112,29 +136,28 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         licensePlate: driver.vehicle?.licensePlate || 'N/A',
         vehicleImage: driver.vehicle?.vehicleImages?.[0] || undefined,
         rating: driver.drivingExperience?.averageRating || 4.5,
-        price: calculatedPrice, // Use calculated price
+        price: Math.round(fareValue),
         vehicleType: driver.vehicle?.vehicleType || vehicleType,
         distance: driver.distance,
         phoneNumber: driver.phoneNumber,
       };
 
-      // ✅ Directly open confirm booking modal after selecting a driver
       setSelectedVehicle(vehicleData);
       setIsSelectDriverModalOpen(false);
       setIsConfirmBookingModalOpen(true);
-    } catch {
+    } catch (err) {
+      console.error('Failed to select driver', err);
       message.error('Failed to select driver');
     }
-  };
+  }, [route, vehicleType]);
 
-  const handleBookingSuccess = () => {
-    // ✅ Booking successfully created in database
+  const handleBookingSuccess = useCallback(() => {
     setIsConfirmBookingModalOpen(false);
     setSelectedVehicle(null);
     message.success('Booking confirmed! Driver will arrive shortly.');
-    if (onConfirm) onConfirm(selectedVehicle!);
+    if (onConfirm && selectedVehicle) onConfirm(selectedVehicle);
     handleClosePanel();
-  };
+  }, [onConfirm, selectedVehicle, handleClosePanel]);
 
   return (
     <>
@@ -164,44 +187,24 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
             <div className="mb-4 text-sm text-gray-500">No route selected</div>
           )}
 
-          {/* Vehicle Type Selector */}
           <div className="mb-4">
             <div className="text-sm font-medium text-gray-700 mb-2">Vehicle type</div>
-            <div className="flex flex-col items-center gap-3">
-              {vehicleTypes.map((t) => (
-                <label
-                  key={t}
-                  className={`flex items-center justify-center gap-2 py-5 px-8 rounded-lg border cursor-pointer transition-colors w-full max-w-[96%] mx-auto h-16 ${vehicleType === t ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
-                >
-                  <input
-                    type="radio"
-                    name="vehicle"
-                    value={t}
-                    checked={vehicleType === t}
-                    onChange={() => setVehicleType(t)}
-                    className="hidden" // Hiding default radio, using custom styling
-                    aria-checked={vehicleType === t}
-                  />
-                  <span className={`text-lg ${vehicleType === t ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>{t}</span>
-                </label>
-              ))}
-            </div>
+            <VehicleTypeSelector value={vehicleType} onChange={setVehicleType} />
           </div>
-
-
         </div>
 
         {/* Action Buttons - sticky footer */}
-        <div className="sticky bottom-0 z-10 bg-white p-3 flex gap-3">
+        <div className="sticky bottom-0 z-10 bg-white p-3 flex gap-3 items-center">
           <button
             onClick={handleProceed}
-            className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-medium shadow-sm active:scale-[0.98]"
+            className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-medium shadow-sm active:scale-[0.98]"
+            aria-label="Proceed to find drivers"
           >
             Proceed
           </button>
           <button
             onClick={handleClosePanel}
-            className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition font-medium"
+            className="w-36 bg-gray-100 text-gray-700 py-3 rounded-lg hover:bg-gray-200 transition font-medium"
           >
             Cancel
           </button>

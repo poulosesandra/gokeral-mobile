@@ -61,14 +61,8 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
 
     if (!isOpen || !selectedVehicle) return null;
 
-    // Parse price from string like "₹450" to number
-    const parsePrice = (priceStr: string | undefined): number => {
-        if (!priceStr) return 250;
-        const match = priceStr.match(/[\d.]+/);
-        return match ? parseFloat(match[0]) : 250;
-    };
-
-    const estimatedFare = parsePrice(selectedVehicle.price);
+    // Use numeric price when available; fallback to default
+    const estimatedFare = Math.round(selectedVehicle.price ?? 250);
 
     const handleConfirmBooking = async () => {
         setIsLoading(true);
@@ -251,29 +245,7 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                             </div>
                         )}
                     </div>
-
-                    {/* Payment Method
-                    <div>
-                        <p className="text-sm font-medium text-gray-700 mb-2">Payment Method</p>
-                        <div className="flex gap-2">
-                            {(['CASH', 'UPI', 'CARD'] as const).map((method) => (
-                                <button
-                                    key={method}
-                                    onClick={() => setPaymentMethod(method)}
-                                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${paymentMethod === method
-                                        ? 'border-green-500 bg-green-50 text-green-700'
-                                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                                        }`}
-                                >
-                                    <span className="text-lg">
-                                        {method === 'CASH' ? '💵' : method === 'UPI' ? '📱' : '💳'}
-                                    </span>
-                                    <span className="font-medium text-sm">{method}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div> */}
-
+                    
                     {/* Notes */}
                     <div>
                         <p className="text-sm font-medium text-gray-700 mb-2">Notes for Driver (Optional)</p>
