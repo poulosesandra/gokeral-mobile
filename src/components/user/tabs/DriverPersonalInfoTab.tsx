@@ -39,22 +39,14 @@ const formatDob = (dob?: string) => {
 export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo, onProfileImageUpdate }: DriverPersonalInfoTabProps) => {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [readableLocation, setReadableLocation] = useState<string | null>(null);
-  // profile image controls
+  const [localDriverData, setLocalDriverData] = useState<DriverData>(driverData);
   const [optionsVisible, setOptionsVisible] = useState(false);
-  const [cameraModalVisible, setCameraModalVisible] = useState(false);
-  const [cameraLoading, setCameraLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
-      }
-    };
-  }, [stream]);
+    setLocalDriverData(driverData);
+  }, [driverData]);
 
   const uploadDriverFile = async (file: File) => {
     const isImage = file.type.startsWith("image/");
@@ -87,9 +79,16 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
           profileImage: url,
         });
 
-        // notify parent to refresh profile (and update localStorage there)
+        // Update local state immediately for instant display
+        const updatedUser = { ...parsed, profileImage: url };
+        localStorage.setItem("userData", JSON.stringify(updatedUser));
+        setLocalDriverData({ ...localDriverData, profileImage: url });
+        
+        // Notify parent to refresh
         onProfileImageUpdate?.(url);
+        
         message.success("Profile picture uploaded and saved");
+        setOptionsVisible(false);
       } else {
         message.warning("Uploaded but could not find file URL");
       }
@@ -118,7 +117,16 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
             phoneNumber: parsed.phoneNumber,
             profileImage: null,
           });
+          
+          // Update local state immediately for instant display
+          const updatedUser = { ...parsed, profileImage: null };
+          localStorage.setItem("userData", JSON.stringify(updatedUser));
+          setLocalDriverData({ ...localDriverData, profileImage: null });
+          
+          // Notify parent to refresh
           onProfileImageUpdate?.(null);
+          setOptionsVisible(false);
+          
           message.success("Profile picture removed");
         } catch (err: any) {
           console.error("Failed to remove profile picture", err);
@@ -135,64 +143,7 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
     if (file) {
       await uploadDriverFile(file);
       e.target.value = "";
-      setOptionsVisible(false);
     }
-  };
-
-  const openCamera = async () => {
-    message.info("Requesting camera permission...");
-    setOptionsVisible(false);
-    setCameraModalVisible(true);
-    setCameraLoading(true);
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: true });
-      setStream(s);
-      if (videoRef.current) {
-        videoRef.current.srcObject = s;
-        await videoRef.current.play().catch(() => {});
-      }
-      message.success("Camera access granted");
-    } catch (err: any) {
-      console.error("Camera access failed", err);
-      if (err?.name === "NotAllowedError" || err?.name === "SecurityError") {
-        message.error("Camera access blocked. Please allow camera permission in your browser.");
-      } else if (err?.name === "NotFoundError") {
-        message.error("No camera found on this device.");
-      } else {
-        message.error("Failed to access camera. See console for details.");
-      }
-      setCameraModalVisible(false);
-    } finally {
-      setCameraLoading(false);
-    }
-  };
-
-  const closeCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-      setStream(null);
-    }
-    setCameraModalVisible(false);
-  };
-
-  const captureAndUpload = async () => {
-    if (!videoRef.current) return;
-    const video = videoRef.current;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(async (blob) => {
-      if (!blob) {
-        message.error("Failed to capture image");
-        return;
-      }
-      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: "image/jpeg" });
-      await uploadDriverFile(file);
-      closeCamera();
-    }, "image/jpeg", 0.92);
   };
 
   useEffect(() => {
@@ -226,7 +177,6 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
           const address = data?.results?.[0]?.formatted_address;
           if (!cancelled) setReadableLocation(address || null);
           if (!cancelled && !address) {
-            // fallback next
           } else return;
         } catch (err) {
           console.warn("Google reverse geocode failed:", err);
@@ -256,7 +206,7 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
   const locationText = (() => {
     if (readableLocation) return readableLocation;
     if (readableLocation === null && currentLocation) return "Resolving address...";
-    return driverData.address || "Not provided";
+    return localDriverData.address || "Not provided";
   })();
 
   return (
@@ -271,8 +221,8 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
                   className="rounded-full bg-gradient-to-r from-green-500 to-emerald-600 shadow-xl flex items-center justify-center flex-shrink-0 border-4 border-white"
                   style={{ width: "150px", height: "150px" }}
                 >
-                  {driverData.profileImage ? (
-                    <img src={driverData.profileImage} className="w-full h-full rounded-full object-cover" alt="Driver" />
+                  {localDriverData.profileImage ? (
+                    <img src={localDriverData.profileImage} className="w-full h-full rounded-full object-cover" alt="Driver" />
                   ) : (
                     <UserOutlined style={{ fontSize: 72 }} />
                   )}
@@ -293,7 +243,7 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
               </div>
 
               <div className="space-y-1">
-                <h2 className="text-2xl font-bold text-black">{driverData.fullName || "Driver"}</h2>
+                <h2 className="text-2xl font-bold text-black">{localDriverData.fullName || "Driver"}</h2>
                 <p className="text-sm text-gray-600">Driver Account</p>
               </div>
             </div>
@@ -312,7 +262,7 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
                 <p className="text-xs text-gray-500 uppercase mb-2">Registered Email</p>
                 <div className="flex items-center gap-3">
                   <MailOutlined className="text-xl text-green-600" />
-                  <span className="text-gray-800 font-medium">{driverData.email || "Not provided"}</span>
+                  <span className="text-gray-800 font-medium">{localDriverData.email || "Not provided"}</span>
                 </div>
               </div>
 
@@ -320,14 +270,14 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
                 <p className="text-xs text-gray-500 uppercase mb-2">Telephone</p>
                 <div className="flex items-center gap-3">
                   <PhoneOutlined className="text-xl text-green-600" />
-                  <span className="text-gray-800 font-medium">{driverData.phoneNumber || "Not provided"}</span>
+                  <span className="text-gray-800 font-medium">{localDriverData.phoneNumber || "Not provided"}</span>
                 </div>
               </div>
 
               <div>
                 <p className="text-xs text-gray-500 uppercase mb-2">Driving License</p>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-800 font-medium">{driverData.driverLicenseNumber || "Not provided"}</span>
+                  <span className="text-gray-800 font-medium">{localDriverData.driverLicenseNumber || "Not provided"}</span>
                 </div>
               </div>
 
@@ -358,25 +308,25 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="py-3 border-b">
               <span className="text-gray-600 text-sm">Date of Birth</span>
-              <p className="font-medium text-gray-800">{formatDob(driverData.personalInfo?.dob)}</p>
+              <p className="font-medium text-gray-800">{formatDob(localDriverData.personalInfo?.dob)}</p>
             </div>
 
             <div className="py-3 border-b">
               <span className="text-gray-600 text-sm">Blood Group</span>
-              <p className="font-medium text-gray-800">{driverData.personalInfo?.bloodGroup || "Not set"}</p>
+              <p className="font-medium text-gray-800">{localDriverData.personalInfo?.bloodGroup || "Not set"}</p>
             </div>
 
             <div className="py-3 border-b md:col-span-2">
               <span className="text-gray-600 text-sm flex items-center gap-2"><HomeOutlined /> Address</span>
-              <p className="font-medium text-gray-800 mt-1">{driverData.address || "Not set"}</p>
+              <p className="font-medium text-gray-800 mt-1">{localDriverData.address || "Not set"}</p>
             </div>
 
             <div className="py-3 border-b md:col-span-2">
               <span className="text-gray-600 text-sm flex items-center gap-2"><UserOutlined /> Emergency Contact</span>
-              {driverData.personalInfo?.emergencyContact ? (
+              {localDriverData.personalInfo?.emergencyContact ? (
                 <div className="mt-1">
-                  <p className="font-medium text-gray-800">{driverData.personalInfo.emergencyContact.name} ({driverData.personalInfo.emergencyContact.relationship})</p>
-                  <p className="text-gray-600">{driverData.personalInfo.emergencyContact.phone}</p>
+                  <p className="font-medium text-gray-800">{localDriverData.personalInfo.emergencyContact.name} ({localDriverData.personalInfo.emergencyContact.relationship})</p>
+                  <p className="text-gray-600">{localDriverData.personalInfo.emergencyContact.phone}</p>
                 </div>
               ) : (
                 <p className="font-medium text-gray-800 mt-1">Not set</p>
@@ -399,8 +349,8 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
           <div className="space-y-4">
             <div>
               <h4 className="font-semibold text-gray-700 mb-3">Languages</h4>
-              {driverData.personalInfo?.languages && driverData.personalInfo.languages.length > 0 ? (
-                driverData.personalInfo.languages.map((lang, index) => (
+              {localDriverData.personalInfo?.languages && localDriverData.personalInfo.languages.length > 0 ? (
+                localDriverData.personalInfo.languages.map((lang, index) => (
                   <Tag key={index} color="blue" className="px-3 py-1 text-sm mr-2">{lang}</Tag>
                 ))
               ) : (
@@ -410,8 +360,8 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
 
             <div className="pt-3 border-t">
               <h4 className="font-semibold text-gray-700 mb-3">Certifications</h4>
-              {driverData.personalInfo?.certificates && driverData.personalInfo.certificates.length > 0 ? (
-                driverData.personalInfo.certificates.map((cert, index) => (
+              {localDriverData.personalInfo?.certificates && localDriverData.personalInfo.certificates.length > 0 ? (
+                localDriverData.personalInfo.certificates.map((cert, index) => (
                   <Tag key={index} color="green" className="px-3 py-1 text-sm mr-2">{cert}</Tag>
                 ))
               ) : (
@@ -429,43 +379,18 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
       <Modal
         title="Change Profile Picture"
         centered
-        visible={optionsVisible}
+        open={optionsVisible}
         onCancel={() => setOptionsVisible(false)}
         footer={null}
       >
         <div className="flex flex-col gap-3">
-          <Button block type="default" onClick={openCamera} icon={<CameraOutlined />}>
-            Open Camera
+          <Button block type="primary" onClick={openFilePicker} className="bg-blue-600 hover:bg-blue-700 border-0">
+            Choose Image
           </Button>
-          <Button block type="default" onClick={openFilePicker}>
-            Upload from device
-          </Button>
-          <Button block danger type="default" onClick={handleRemovePicture}>
-            Remove profile picture
+          <Button block danger type="primary" onClick={handleRemovePicture}>
+            Remove picture
           </Button>
         </div>
-      </Modal>
-
-      {/* Camera Modal */}
-      <Modal
-        title="Camera"
-        centered
-        visible={cameraModalVisible}
-        onCancel={closeCamera}
-        footer={(
-          <div className="flex items-center gap-2">
-            <Button onClick={closeCamera}>Cancel</Button>
-            <Button type="primary" onClick={captureAndUpload} loading={cameraLoading}>Capture</Button>
-          </div>
-        )}
-      >
-        {cameraLoading ? (
-          <div className="flex items-center justify-center py-10"><Spin /></div>
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <video ref={videoRef} style={{ width: "100%", maxHeight: 360 }} autoPlay playsInline muted />
-          </div>
-        )}
       </Modal>
     </div>
   );

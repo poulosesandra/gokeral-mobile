@@ -9,7 +9,6 @@ import { DriverSidebar, type DriverTabKey } from "./driverprofile/DriverSidebar"
 import { DriverHomeTab, type DriverData } from "../user/tabs/DriverHomeTab";
 import { DriverPersonalInfoTab } from "../user/tabs/DriverPersonalInfoTab";
 import { VehiclesTab } from "../user/tabs/VehiclesTab";
-
 import { DriverBookingsTab } from "../user/tabs/DriverBookingsTab";
 import { SecurityTab } from "../user/tabs/SecurityTab";
 import { PrivacyTab } from "../user/tabs/PrivacyTab";
@@ -50,7 +49,6 @@ export const DriverProfile = () => {
   });
   const [vehicleToEdit, setVehicleToEdit] = useState<{ id?: string; make?: string; model?: string; year?: number; licensePlate?: string; color?: string; [key: string]: any } | null>(null);
 
-  // Ride request popup state (auto-open when a pending ride arrives)
   const [rideModalOpen, setRideModalOpen] = useState(false);
   const [pendingRide, setPendingRide] = useState<{
     bookingId: string;
@@ -62,7 +60,6 @@ export const DriverProfile = () => {
   const [acceptLoading, setAcceptLoading] = useState(false);
   const [rejectLoading, setRejectLoading] = useState(false);
 
-  // Real-time ride listener (SSE with polling fallback)
   const currentUserForHook = authService.getCurrentUser();
   const driverIdForHook = currentUserForHook?._id || currentUserForHook?.id || "";
   const { newRideRequest, acceptRide: hookAcceptRide, rejectRide: hookRejectRide } = useDriverRideListener(driverIdForHook, !!driverIdForHook);
@@ -82,12 +79,6 @@ export const DriverProfile = () => {
       setRideModalOpen(true);
     }
   }, [newRideRequest]);
-
-  // Pending rides are now handled via `useDriverRideListener` and `newRideRequest`.
-  // Polling removed — if you need an on-demand check, call the hook's `fetchPendingRides`.
-  useEffect(() => {
-    // noop: polling removed
-  }, []);
 
   const handleAcceptRide = async () => {
     if (!pendingRide) return;
@@ -114,7 +105,7 @@ export const DriverProfile = () => {
     } finally {
       setAcceptLoading(false);
     }
-  }; 
+  };
 
   const handleRejectRide = async () => {
     if (!pendingRide) return;
@@ -145,7 +136,6 @@ export const DriverProfile = () => {
 
   const navigate = useNavigate();
 
-  // LOAD DRIVER DATA - Backend first approach
   useEffect(() => {
     const loadDriverData = async () => {
       try {
@@ -157,7 +147,6 @@ export const DriverProfile = () => {
           return;
         }
 
-        // Always fetch fresh data from backend
         try {
           const response = await authService.fetchDriverProfile();
           const backendData = response.driver || response;
@@ -204,7 +193,6 @@ export const DriverProfile = () => {
     loadDriverData();
   }, [navigate]);
 
-  // Handle window resize for responsive sidebar
   useEffect(() => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
@@ -248,7 +236,6 @@ export const DriverProfile = () => {
   };
 
   const handleVehicleAdded = () => {
-    // bump signal to refresh vehicle list in VehiclesTab
     setVehiclesRefreshSignal((s) => s + 1);
   };
 
@@ -279,7 +266,6 @@ export const DriverProfile = () => {
           relationship: "",
         };
 
-      // Call backend API to update driver profile
       await authService.updateDriverProfile({
         fullName: driverData.fullName,
         email: driverData.email,
@@ -296,11 +282,9 @@ export const DriverProfile = () => {
         },
       });
 
-      // Fetch fresh data from backend
       const response = await authService.fetchDriverProfile();
       const freshData = response.driver || response;
 
-      // Update component state with fresh backend data
       setDriverData({
         fullName: freshData.fullName || "",
         email: freshData.email || "",
@@ -356,14 +340,22 @@ export const DriverProfile = () => {
             onEditPersonalInfo={handleNavigateToPersonalInfo}
           />
         );
-      case "personalInfo":
-        return (
-          <DriverPersonalInfoTab
-            driverData={driverData}
-            loading={loading}
-            onEditPersonalInfo={handleEditPersonalInfo}
-          />
-        );
+case "personalInfo":
+  return (
+    <DriverPersonalInfoTab
+      driverData={driverData}
+      loading={loading}
+      onEditPersonalInfo={handleEditPersonalInfo}
+      onProfileImageUpdate={(url: string | null) => {
+        // Update parent state IMMEDIATELY - this triggers re-render of sidebar
+        setDriverData((prev) => ({
+          ...prev,
+          profileImage: url,
+        }));
+        message.success("Profile image updated");
+      }}
+    />
+  );
       case "vehicles":
         return (
           <VehiclesTab
@@ -395,16 +387,14 @@ export const DriverProfile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-gray-100">
-
-      
-        <UserHeader
-          navigate={handleNavigate}
-          handleLogout={handleLogout}
-          username={driverData.fullName}
-          onMenuToggle={toggleSidebar}
-          showMenuIcon={windowWidth <= 768}
-          onProfileClick={() => setActiveTab("personalInfo")}
-        />
+      <UserHeader
+        navigate={handleNavigate}
+        handleLogout={handleLogout}
+        username={driverData.fullName}
+        onMenuToggle={toggleSidebar}
+        showMenuIcon={windowWidth <= 768}
+        onProfileClick={() => setActiveTab("personalInfo")}
+      />
 
       <div className="flex relative w-full">
         {/* Sidebar */}
@@ -419,45 +409,19 @@ export const DriverProfile = () => {
             email: driverData.email,
             profileImage: driverData.profileImage,
           }}
-          onProfileImageUpdate={async (url: string) => {
-            try {
-              setLoading(true);
-
-              // Call backend API to update profile image
-              await authService.updateDriverProfile({
-                fullName: driverData.fullName,
-                email: driverData.email,
-                phoneNumber: driverData.phoneNumber,
-                driverLicenseNumber: driverData.driverLicenseNumber,
-                address: driverData.address,
-                profileImage: url,
-              });
-
-              // Fetch fresh data from backend
-              const response = await authService.fetchDriverProfile();
-              const freshData = response.driver || response;
-
-              // Update component state with fresh backend data
-              setDriverData((prev) => ({
-                ...prev,
-                profileImage: freshData.profileImage || url,
-              }));
-
-              setLoading(false);
-              message.success("Profile image updated successfully");
-            } catch (error) {
-              setLoading(false);
-              console.error("Error updating profile image:", error);
-              message.error("Failed to update profile image");
-            }
+          onProfileImageUpdate={(url: string | null) => {
+            // Update parent state IMMEDIATELY - this triggers re-render of sidebar
+            setDriverData((prev) => ({
+              ...prev,
+              profileImage: url,
+            }));
+            message.success("Profile image updated");
           }}
           handleLogout={handleLogout}
         />
-
         {/* Main Content */}
         <div className="flex-1 p-2 md:p-4 w-full transition-all duration-300 ease-in-out">
           <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">
-
             {renderTabContent()}
           </div>
 
@@ -481,7 +445,6 @@ export const DriverProfile = () => {
         rejectLoading={rejectLoading}
       />
 
-      {/* Personal Info Modal */}
       <DriverAddDetails
         open={personalInfoModalOpen}
         onCancel={() => setPersonalInfoModalOpen(false)}
@@ -502,7 +465,6 @@ export const DriverProfile = () => {
         }}
       />
 
-      {/* Add Vehicle Modal */}
       <AddVehicleModal
         open={addVehicleModalOpen}
         onClose={() => {

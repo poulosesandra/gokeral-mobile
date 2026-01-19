@@ -159,36 +159,60 @@ export const UserSidebar = ({
     }
   };
 
-const openCamera = async () => {
-  console.log("Requesting camera permission...");
-  message.info("Requesting camera permission...");
-  setOptionsVisible(false);
-  setCameraModalVisible(true);
-  setCameraLoading(true);
-  try {
-    const s = await navigator.mediaDevices.getUserMedia({ video: true });
-    setStream(s);
-    if (videoRef.current) {
-      videoRef.current.srcObject = s;
-      await videoRef.current.play().catch(() => {});
-    }
-    message.success("Camera access granted");
-  } catch (err: any) {
-    console.error("Camera access failed", err);
-    // Better explanations for common errors
-    if (err?.name === "NotAllowedError" || err?.name === "SecurityError") {
-      message.error("Camera access blocked. Please allow camera permission in your browser.");
-    } else if (err?.name === "NotFoundError") {
-      message.error("No camera found on this device.");
-    } else {
-      message.error("Failed to access camera. See console for details.");
-    }
-    setCameraModalVisible(false);
-  } finally {
-    setCameraLoading(false);
-  }
-};
+  const openCamera = async () => {
+    setOptionsVisible(false);
+    setCameraModalVisible(true);
+    setCameraLoading(true);
+    
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera API not supported");
+      }
 
+      const constraints = {
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user"
+        },
+        audio: false
+      };
+
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      setStream(mediaStream);
+
+      // Ensure video ref exists before assigning
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        
+        // Play immediately
+        videoRef.current.play().then(() => {
+          setCameraLoading(false);
+        }).catch((err) => {
+          console.error("Play error:", err);
+          setCameraLoading(false);
+        });
+      } else {
+        setCameraLoading(false);
+      }
+    } catch (err: any) {
+      console.error("Camera error:", err);
+      setCameraLoading(false);
+      setCameraModalVisible(false);
+
+      if (err?.name === "NotAllowedError") {
+        message.error("Camera permission denied. Please allow camera access in your browser settings.");
+      } else if (err?.name === "NotFoundError") {
+        message.error("No camera found on this device.");
+      } else if (err?.name === "NotReadableError") {
+        message.error("Camera is already in use by another application.");
+      } else if (err?.message === "Camera API not supported") {
+        message.error("Your browser does not support camera access. Please use HTTPS and a modern browser.");
+      } else {
+        message.error(`Camera error: ${err?.message || "Unknown error"}`);
+      }
+    }
+  };
   const closeCamera = () => {
     if (stream) {
       stream.getTracks().forEach((t) => t.stop());
@@ -272,18 +296,7 @@ const openCamera = async () => {
                 )}
               </div>
 
-              {/* <Button
-                type="primary"
-                shape="circle"
-                icon={<CameraOutlined style={{ fontSize: "14px" }} />}
-                size="small"
-                loading={uploading}
-                disabled={uploading}
-                className="absolute bottom-0 right-0 shadow-lg hover:scale-110 transition-transform"
-                style={{ width: "32px", height: "32px" }}
-                onClick={() => setOptionsVisible(true)}
-                title="Change profile picture"
-              /> */}
+
             </div>
 
             <div className="text-center w-full">
