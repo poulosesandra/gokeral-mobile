@@ -47,9 +47,31 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [sharingLocation, setSharingLocation] = useState(false);
+  type ActiveBooking = {
+    _id: string;
+    status: string;
+    rideOtp?: string;
+    // Add other properties as needed
+  } | null;
+  
+  const [activeBooking, setActiveBooking] = useState<ActiveBooking>(null);
+  const [otp, setOtp] = useState('');
+  const [role, setRole] = useState<'DRIVER' | 'USER' | null>(null);
+  const [showOtpPanel, setShowOtpPanel] = useState(false);
   const locationRequestRef = useRef(false);
   const locationFetchedRef = useRef(false);
-
+  
+  const getRoleFromToken = () => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(window.atob(token.split('.')[1]));
+      return payload.role as 'DRIVER' | 'USER' | null;
+    } catch {
+      return null;
+    }
+  };
+  
   const handleShareLocation = async () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       message.error('Geolocation is not supported by your browser.');
@@ -95,6 +117,72 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
     locationFetchedRef.current = true;
   }, []);
 
+  useEffect(() => {
+    setRole(getRoleFromToken());
+  }, []);
+  
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    let intervalId: number | undefined;
+
+    const fetchCurrent = async () => {
+      try {
+        const url = role === 'DRIVER' ? '/bookings/driver/current' : '/bookings/my-bookings/current';
+        const res = await fetch(url, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          setActiveBooking(data || null);
+          // auto-show OTP for user when accepted briefly
+          if (role === 'USER' && data?.status === 'ACCEPTED') {
+            setShowOtpPanel(true);
+            setTimeout(() => setShowOtpPanel(false), 4000);
+          }
+        } else if (res.status === 404) {
+          setActiveBooking(null);
+        }
+      } catch (e) {
+        console.error('Failed to fetch current booking', e);
+      }
+    };
+
+    if (role === 'USER') {
+      fetchCurrent();
+      intervalId = window.setInterval(fetchCurrent, 2000);
+    } else if (role === 'DRIVER') {
+      fetchCurrent();
+    }
+
+    return () => { if (intervalId) clearInterval(intervalId); };
+  }, [role]);
+
+  const handleOtpSubmit = async () => {
+    if (!activeBooking) return;
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/bookings/${activeBooking._id}/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ otp }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        message.success('OTP verified, ride started');
+        setShowOtpPanel(false);
+        // refetch current booking to update UI
+        // (simple approach: set activeBooking.status to 'IN_PROGRESS' locally if required)
+      } else {
+        message.error(data.message || 'Invalid OTP');
+      }
+    } catch (e) {
+      console.error(e);
+      message.error('Failed to verify OTP');
+    }
+  };
+
   return (
     <div className="w-full space-y-6">
 
@@ -102,14 +190,29 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
       <Card className="shadow-md rounded-2xl">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Your Location</h3>
-          <Button
-            type="primary"
-            loading={sharingLocation}
-            onClick={handleShareLocation}
-            disabled={sharingLocation}
-          >
-            {driverLocation ? '🔄 Update Location' : '📍 Share Location'}
-          </Button>
+          <div className="flex space-x-2">
+            <Button
+              type="primary"
+              loading={sharingLocation}
+              onClick={handleShareLocation}
+              disabled={sharingLocation}
+            >
+              {driverLocation ? '🔄 Update Location' : '📍 Share Location'}
+            </Button>
+            {role === 'DRIVER' && (
+              <Button onClick={() => setShowOtpPanel(s => !s)}>
+                {showOtpPanel ? 'Hide OTP' : 'Open OTP'}
+              </Button>
+            )}
+            {role === 'USER' && (
+              <Button
+                onClick={() => setShowOtpPanel(s => !s)}
+                disabled={!activeBooking || activeBooking.status !== 'ACCEPTED'}
+              >
+                {showOtpPanel ? 'Hide OTP' : 'Show OTP'}
+              </Button>
+            )}
+          </div>
         </div>
         {isLoaded ? (
           driverLocation ? (
@@ -141,8 +244,42 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
         )}
       </Card>
 
+      {/* OTP UI */}
+      {/* Driver: provide panel when toggled and status DRIVER_ARRIVED */}
+      {role === 'DRIVER' && showOtpPanel && (
+        <Card className="shadow-md rounded-2xl">
+          <h3 className="text-lg font-semibold mb-4">Enter OTP to Start Ride</h3>
+          {activeBooking?.status !== 'DRIVER_ARRIVED' ? (
+            <div className="text-sm text-gray-500">OTP can be entered after marking "Arrived". Current status: {activeBooking?.status ?? 'N/A'}</div>
+          ) : (
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                value={otp}
+                onChange={e => setOtp(e.target.value)}
+                className="flex-1 p-2 border rounded"
+                placeholder="Enter OTP"
+              />
+              <Button
+                type="primary"
+                onClick={handleOtpSubmit}
+                disabled={!otp}
+              >
+                Start Ride
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
 
-
+      {/* User: show OTP when toggled and booking accepted */}
+      {role === 'USER' && showOtpPanel && activeBooking && activeBooking.status === 'ACCEPTED' && (
+        <Card className="shadow-md rounded-2xl">
+          <h3 className="text-lg font-semibold mb-4">Your Ride OTP</h3>
+          <div className="text-2xl font-bold">{activeBooking.rideOtp ?? '—'}</div>
+        </Card>
+      )}
+ 
     </div>
   );
 };
