@@ -47,7 +47,7 @@ export const DriverProfile = () => {
       },
     },
   });
-  const [vehicleToEdit, setVehicleToEdit] = useState<{ id?: string; make?: string; model?: string; year?: number; licensePlate?: string; color?: string; [key: string]: any } | null>(null);
+  const [vehicleToEdit, setVehicleToEdit] = useState<{ id?: string; make?: string; model?: string; year?: number; licensePlate?: string; color?: string;[key: string]: any } | null>(null);
 
   const [rideModalOpen, setRideModalOpen] = useState(false);
   const [pendingRide, setPendingRide] = useState<{
@@ -239,82 +239,72 @@ export const DriverProfile = () => {
     setVehiclesRefreshSignal((s) => s + 1);
   };
 
-  const handleSavePersonalInfo = async (updatedData: {
+  const handleSavePersonalInfo = async (data: {
+    fullName?: string;
+    email?: string;
+    phoneNumber?: string;
+    driverLicenseNumber?: string;
     dateOfBirth?: string;
     bloodGroup?: string;
     address?: string;
     languages?: string[];
     certificates?: string[];
-    emergencyContact?: {
-      name: string;
-      phone: string;
-      relation: string;
-    };
+    emergencyContact?: { name?: string; phone?: string; relation?: string };
   }) => {
     try {
       setLoading(true);
-
-      const emergencyContact = updatedData.emergencyContact
-        ? {
-          name: updatedData.emergencyContact.name || "",
-          phone: updatedData.emergencyContact.phone || "",
-          relationship: updatedData.emergencyContact.relation || "",
-        }
-        : {
-          name: "",
-          phone: "",
-          relationship: "",
-        };
-
-      await authService.updateDriverProfile({
-        fullName: driverData.fullName,
-        email: driverData.email,
-        phoneNumber: driverData.phoneNumber,
-        driverLicenseNumber: driverData.driverLicenseNumber,
-        address: updatedData.address || driverData.address,
+      const payload: any = {
+        fullName: data.fullName,
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+        driverLicenseNumber: data.driverLicenseNumber,
+        address: data.address,
         personalInfo: {
-          bloodGroup: updatedData.bloodGroup || driverData.personalInfo?.bloodGroup,
-          dob: updatedData.dateOfBirth || driverData.personalInfo?.dob,
-          languages: updatedData.languages || driverData.personalInfo?.languages || [],
-          certificates:
-            updatedData.certificates || driverData.personalInfo?.certificates || [],
-          emergencyContact,
+          dob: data.dateOfBirth,
+          bloodGroup: data.bloodGroup,
+          languages: data.languages || [],
+          certificates: data.certificates || [],
+          emergencyContact: data.emergencyContact ? {
+            name: data.emergencyContact.name,
+            phone: data.emergencyContact.phone,
+            relationship: data.emergencyContact.relation,
+          } : undefined,
         },
-      });
+      };
 
-      const response = await authService.fetchDriverProfile();
-      const freshData = response.driver || response;
-
-      setDriverData({
-        fullName: freshData.fullName || "",
-        email: freshData.email || "",
-        phoneNumber: freshData.phoneNumber || "",
-        driverLicenseNumber: freshData.driverLicenseNumber || "",
-        address: freshData.address || "",
-        profileImage: freshData.profileImage || null,
-        personalInfo: {
-          bloodGroup: freshData.personalInfo?.bloodGroup || "",
-          dob: freshData.personalInfo?.dob || "",
-          languages: freshData.personalInfo?.languages || [],
-          certificates: freshData.personalInfo?.certificates || [],
-          emergencyContact: freshData.personalInfo?.emergencyContact || {
-            name: "",
-            phone: "",
-            relationship: "",
+      const updatedDriver = await authService.updateDriverProfile(payload);
+      // updatedDriver is set in authService; sync local state from it
+      if (updatedDriver) {
+        setDriverData({
+          fullName: updatedDriver.fullName || "",
+          email: updatedDriver.email || "",
+          phoneNumber: updatedDriver.phoneNumber || "",
+          driverLicenseNumber: updatedDriver.driverLicenseNumber || "",
+          address: updatedDriver.address || "",
+          profileImage: updatedDriver.profileImage || null,
+          personalInfo: {
+            bloodGroup: updatedDriver.personalInfo?.bloodGroup || "",
+            dob: updatedDriver.personalInfo?.dob || "",
+            languages: updatedDriver.personalInfo?.languages || [],
+            certificates: updatedDriver.personalInfo?.certificates || [],
+            emergencyContact: updatedDriver.personalInfo?.emergencyContact || {
+              name: "",
+              phone: "",
+              relationship: "",
+            },
           },
-        },
-      });
+        });
+      }
 
       setPersonalInfoModalOpen(false);
+      message.success("Details updated successfully");
+    } catch (err) {
+      console.error("Failed to update: ", err);
+      message.error("Failed to update details");
+    } finally {
       setLoading(false);
-      message.success("Personal information updated successfully");
-    } catch (error) {
-      setLoading(false);
-      console.error("Error saving driver personal info:", error);
-      message.error("Failed to update personal information");
     }
   };
-
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
@@ -340,22 +330,22 @@ export const DriverProfile = () => {
             onEditPersonalInfo={handleNavigateToPersonalInfo}
           />
         );
-case "personalInfo":
-  return (
-    <DriverPersonalInfoTab
-      driverData={driverData}
-      loading={loading}
-      onEditPersonalInfo={handleEditPersonalInfo}
-      onProfileImageUpdate={(url: string | null) => {
-        // Update parent state IMMEDIATELY - this triggers re-render of sidebar
-        setDriverData((prev) => ({
-          ...prev,
-          profileImage: url,
-        }));
-        message.success("Profile image updated");
-      }}
-    />
-  );
+      case "personalInfo":
+        return (
+          <DriverPersonalInfoTab
+            driverData={driverData}
+            loading={loading}
+            onEditPersonalInfo={handleEditPersonalInfo}
+            onProfileImageUpdate={(url: string | null) => {
+              // Update parent state IMMEDIATELY - this triggers re-render of sidebar
+              setDriverData((prev) => ({
+                ...prev,
+                profileImage: url,
+              }));
+              message.success("Profile image updated");
+            }}
+          />
+        );
       case "vehicles":
         return (
           <VehiclesTab
@@ -450,18 +440,20 @@ case "personalInfo":
         onCancel={() => setPersonalInfoModalOpen(false)}
         onSave={handleSavePersonalInfo}
         initialValues={{
+          fullName: driverData.fullName,
+          email: driverData.email,
+          phoneNumber: driverData.phoneNumber,
+          driverLicenseNumber: driverData.driverLicenseNumber,
           dateOfBirth: driverData.personalInfo?.dob || "",
           bloodGroup: driverData.personalInfo?.bloodGroup || "",
           address: driverData.address || "",
           languages: driverData.personalInfo?.languages || [],
           certificates: driverData.personalInfo?.certificates || [],
-          emergencyContact: driverData.personalInfo?.emergencyContact
-            ? {
-              name: driverData.personalInfo.emergencyContact.name || "",
-              phone: driverData.personalInfo.emergencyContact.phone || "",
-              relation: driverData.personalInfo.emergencyContact.relationship || "",
-            }
-            : undefined,
+          emergencyContact: driverData.personalInfo?.emergencyContact ? {
+            name: driverData.personalInfo.emergencyContact.name || "",
+            phone: driverData.personalInfo.emergencyContact.phone || "",
+            relation: driverData.personalInfo.emergencyContact.relationship || "",
+          } : undefined,
         }}
       />
 
