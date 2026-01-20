@@ -9,7 +9,7 @@ import AddVehiclePage from "../components/driver/driverprofile/modal/driverAddVe
 import { UserProfilePage } from "../pages/user/UserProfilePage";
 import DriverProfilePage from "../pages/driver/DriverProfilePage";
 import TermsPrivacyPage from "../pages/about";
-import ContactPage from "../pages/contact/contack";
+import ContactPage from "../pages/contact/contact";
 import DriverPersonalInfoModal from "../components/driver/driverprofile/modal/driverAddDetails";
 import Maps from "../pages/map/Maps";
 

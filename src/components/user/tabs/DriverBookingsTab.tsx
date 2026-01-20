@@ -83,6 +83,14 @@ export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
   const [acceptLoadingMap, setAcceptLoadingMap] = useState<Record<string, boolean>>({});
   const [rejectLoadingMap, setRejectLoadingMap] = useState<Record<string, boolean>>({});
 
+  // Pick the most reliable booking timestamp we can display.
+  // Backend provides `bookingTime` (legacy), plus `createdAt` (mongoose timestamps) and `timestamp`.
+  const getBookingDateString = (booking: Partial<Booking> | null | undefined): string | undefined => {
+    if (!booking) return undefined;
+    const anyBooking = booking as any;
+    return booking.bookingTime || booking.createdAt || anyBooking.timestamp;
+  };
+
   const fetchBookings = async () => {
     try {
       setLoading(true);
@@ -101,45 +109,24 @@ export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
         return false;
       }
 
-      // Fetch pending bookings assigned to this driver only
-      console.log("Fetching from /bookings/pending-for-driver");
+      // Fetch ALL bookings for this driver.
+      // Backend: BookingController -> GET /bookings/driver/all
+      console.log("Fetching from /bookings/driver/all");
+      const allResp = await api.get("/bookings/driver/all");
+      console.log("Driver bookings (driver/all) response:", allResp.data);
 
-      const assignedResp = await api.get("/bookings/pending-for-driver");
-      console.log("Assigned (pending-for-driver) response:", assignedResp.data);
-      // This endpoint returns an array, but items may not match our exact `Booking` shape.
-      const assigned: Booking[] = Array.isArray(assignedResp.data) ? assignedResp.data : [];
+      // This endpoint returns an array. Items may not perfectly match our `Booking` type.
+      const allBookings: Booking[] = Array.isArray(allResp.data) ? allResp.data : [];
 
-      // Merge assigned pending bookings with existing non-pending bookings so
-      // accepted/completed/cancelled bookings are not removed when backend
-      // endpoint returns only pending rides.
-      setBookings((prev) => {
-        const existingMap: Record<string, Booking> = {};
-        prev.forEach((b) => {
-          const key = getBookingId(b);
-          if (b.status && b.status !== 'PENDING') {
-            // Keep only non-pending from previous state
-            if (key) existingMap[String(key)] = b;
-          }
-        });
-
-        // Overwrite or add assigned pending bookings from server (appear at top)
-        assigned.forEach((b: Booking) => {
-          const key = getBookingId(b);
-          if (key) existingMap[String(key)] = b;
-        });
-
-        const merged = Object.values(existingMap);
-        // Keep order: assigned first, then existing non-pending
-        const pendingOrdered = [...assigned];
-        const nonPending = merged.filter(
-          (m) => !(pendingOrdered.some((p: Booking) => getBookingId(p) && getBookingId(p) === getBookingId(m)))
-        );
-
-        const result = [...pendingOrdered, ...nonPending];
-        console.log('Merged bookings:', result);
-        return result;
+      // Sort newest-first using whichever timestamp is present.
+      const sorted = [...allBookings].sort((a, b) => {
+        const aDate = new Date(getBookingDateString(a) || 0).getTime();
+        const bDate = new Date(getBookingDateString(b) || 0).getTime();
+        return bDate - aDate;
       });
-      console.log("Bookings set to state (assigned pending):", assigned.length);
+
+      setBookings(sorted);
+      console.log("Bookings set to state (driver/all):", sorted.length);
       return true;
 
     } catch (error: any) {
@@ -347,7 +334,7 @@ export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
               {filteredBookings.map((booking) => (
                 <Card
                   // Prefer stable backend ids; fall back to a deterministic string if missing.
-                  key={getBookingId(booking) || `${booking.pickupLocation}-${booking.bookingTime}`}
+                  key={getBookingId(booking) || `${booking.pickupLocation}-${getBookingDateString(booking) || "unknown-date"}`}
                   className="hover:shadow-lg transition-shadow cursor-pointer border-l-4"
                   style={{
                     borderLeftColor: getStatusColor(booking.status) === "success" ? "#52c41a" : 
