@@ -31,9 +31,7 @@ const DriverRideRequestModal: React.FC<DriverRideRequestProps> = ({
 
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
-    const [updateInterval, setUpdateInterval] = useState<number | null>(
-        null
-    );
+// removed unused updateInterval state
 
     // Show modal when new ride request arrives
     useEffect(() => {

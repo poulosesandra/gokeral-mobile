@@ -174,40 +174,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
     }
   };
 
-  const openCamera = async () => {
-    setOptionsVisible(false);
-    setCameraModalVisible(true);
-    setCameraLoading(true);
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } 
-      });
-      setStream(mediaStream);
-      
-      // Wait a tick to ensure ref is updated
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play();
-            setCameraLoading(false);
-            message.success("Camera started");
-          };
-        }
-      }, 100);
-    } catch (err: any) {
-      console.error("Camera access failed", err);
-      setCameraLoading(false);
-      setCameraModalVisible(false);
-      if (err?.name === "NotAllowedError" || err?.name === "SecurityError") {
-        message.error("Camera access blocked. Please allow camera permission in your browser.");
-      } else if (err?.name === "NotFoundError") {
-        message.error("No camera found on this device.");
-      } else {
-        message.error("Failed to access camera. See console for details.");
-      }
-    }
-  };
+  // Camera helper removed from HomeTab (not used here)
 
   const closeCamera = () => {
     if (stream) {

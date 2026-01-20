@@ -54,7 +54,7 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
     selectedVehicle,
     tripDetails,
 }) => {
-    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'UPI' | 'CARD'>('CASH');
+    const [paymentMethod] = useState<'CASH' | 'UPI' | 'CARD'>('CASH');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [userNotes, setUserNotes] = useState('');
