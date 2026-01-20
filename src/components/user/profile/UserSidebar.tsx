@@ -39,7 +39,7 @@ export const UserSidebar = ({
   onProfileUpdate,
 }: SidebarProps) => {
   const [localUser, setLocalUser] = useState<UserData>(userData);
-  const [uploading, setUploading] = useState(false);
+  const [, setUploading] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(false);

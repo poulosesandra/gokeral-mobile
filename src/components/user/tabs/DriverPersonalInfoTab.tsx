@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Skeleton, Button, Tag, Modal, message, Spin } from "antd";
+import { Card, Skeleton, Button, Tag, Modal, message } from "antd";
 import {
   EditOutlined,
   UserOutlined,

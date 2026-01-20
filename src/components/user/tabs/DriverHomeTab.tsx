@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Skeleton, message, Button } from "antd";
+import { Card, Skeleton, Button, message } from "antd";
 
 import { useEffect, useState, useRef } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
@@ -9,6 +9,20 @@ import { authService } from '../../../services/authServices';
 
 // Define libraries outside component to prevent recreation on each render
 const GOOGLE_MAPS_LIBRARIES: ("places")[] = ["places"];
+
+// Helper to safely extract role from JWT-like token stored in localStorage
+const getRoleFromToken = (): 'DRIVER' | 'USER' | null => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return (payload?.role === 'DRIVER' || payload?.role === 'USER') ? payload.role : null;
+  } catch (e) {
+    return null;
+  }
+};
 
 export type DriverData = {
   fullName: string;
@@ -58,19 +72,10 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
   const [otp, setOtp] = useState('');
   const [role, setRole] = useState<'DRIVER' | 'USER' | null>(null);
   const [showOtpPanel, setShowOtpPanel] = useState(false);
+  // uploader state removed (not used in this tab)
+
   const locationRequestRef = useRef(false);
   const locationFetchedRef = useRef(false);
-  
-  const getRoleFromToken = () => {
-    const token = localStorage.getItem('token');
-    if (!token) return null;
-    try {
-      const payload = JSON.parse(window.atob(token.split('.')[1]));
-      return payload.role as 'DRIVER' | 'USER' | null;
-    } catch {
-      return null;
-    }
-  };
   
   const handleShareLocation = async () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -78,6 +83,9 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
       return;
     }
 
+    // prevent concurrent location requests
+    if (locationRequestRef.current) return;
+    locationRequestRef.current = true;
     setSharingLocation(true);
     try {
       navigator.geolocation.getCurrentPosition(
@@ -92,10 +100,13 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
           } catch (error) {
             console.error('Failed to update location on backend:', error);
             message.error('Failed to sync location with server');
+          } finally {
+            locationRequestRef.current = false;
+            setSharingLocation(false);
           }
-          setSharingLocation(false);
         },
         (err) => {
+          locationRequestRef.current = false;
           setSharingLocation(false);
           if (err.code === 1) {
             message.error('Location permission denied. Please enable it in browser settings.');
@@ -106,6 +117,7 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
         { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
       );
     } catch (error) {
+      locationRequestRef.current = false;
       setSharingLocation(false);
       message.error('Failed to get location');
     }
