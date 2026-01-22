@@ -45,3 +45,33 @@ body {
   min-height: 400px;
   border-radius: 8px;
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   CARET / CURSOR FIX: Prevent stray blinking caret (and I-beam)
+   ───────────────────────────────────────────────────────────────── */
+
+/* Strong: hide caret everywhere by default */
+* {
+  caret-color: transparent !important;
+}
+
+/* Restore caret only for real editable controls */
+input:focus,
+textarea:focus,
+select:focus,
+[contenteditable="true"]:focus {
+  caret-color: auto !important;
+  user-select: text !important;
+}
+
+/* Prevent I-beam cursor + text selection on focused non-editable elements */
+:focus:not(input):not(textarea):not(select):not([contenteditable="true"]) {
+  cursor: default !important;
+  user-select: none !important;
+}
+
+/* Optional debug outline to identify the focused element (enable only while debugging)
+   *:focus {
+     outline: 3px dashed #ff00ff !important;
+   }
+*/
