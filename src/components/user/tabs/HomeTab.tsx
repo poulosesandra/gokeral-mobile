@@ -15,6 +15,7 @@ import {
 import type { UserData } from "../profile/UserProfile";
 import { useEffect, useRef, useState } from "react";
 import api from "../../../services/api";
+import bookingService from "../../../services/bookingService";
 
 // Define base TabKey type
 export type UserTabKey = "home" | "personal" | "bookings" | "security" | "privacy" | "data";
@@ -31,28 +32,51 @@ interface HomeTabProps {
 }
 
 export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpdate }: HomeTabProps) => {
-  const recentBookings: Array<{
-    id: string;
-    vehicle: string;
-    startDate: string;
-    endDate: string;
-    status: BookingStatus;
-  }> = [
-    {
-      id: "BK-001",
-      vehicle: "Toyota Camry",
-      startDate: "2023-04-10",
-      endDate: "2023-04-15",
-      status: "Completed",
-    },
-    {
-      id: "BK-002",
-      vehicle: "Honda Civic",
-      startDate: "2023-05-20",
-      endDate: "2023-05-25",
-      status: "Upcoming",
-    },
-  ];
+  const [recentBookings, setRecentBookings] = useState<Array<{ id: string; vehicle: string; startDate: string; endDate: string; status: BookingStatus }>>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+
+  const formatDate = (d?: string | Date | null) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+
+  const mapStatus = (status?: string): BookingStatus => {
+    if (!status) return "Upcoming";
+    const s = status.toUpperCase();
+    if (s === "COMPLETED") return "Completed";
+    if (s === "CANCELLED" || s === "REJECTED") return "Cancelled";
+    return "Upcoming";
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setBookingsLoading(true);
+        const data = await bookingService.getUserBookings();
+        const bookingsArray = Array.isArray(data) ? data : data?.bookings || data?.items || [];
+        const mapped = bookingsArray
+          .slice()
+          .sort((a: any, b: any) =>
+            new Date(b.createdAt || b.startTime || 0).getTime() - new Date(a.createdAt || a.startTime || 0).getTime()
+          )
+          .slice(0, 3)
+          .map((bk: any) => ({
+            id: bk.bookingId || bk._id || bk.id,
+            vehicle: `${bk?.vehicle?.details?.make || bk?.vehicle?.details?.vehicleModel || bk?.vehicle?.details?.vehicleModel || "Unknown Vehicle"}`.trim(),
+            startDate: formatDate(bk.startTime || bk.userInfo?.scheduledDateTime || bk.createdAt),
+            endDate: formatDate(bk.endTime || bk.createdAt),
+            status: mapStatus(bk.status),
+          }));
+        if (mounted) setRecentBookings(mapped);
+      } catch (err) {
+        console.error("Failed to load bookings", err);
+      } finally {
+        if (mounted) setBookingsLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [userData?.email]);
 
   const accountSections = [
     { title: "Personal Information", desc: "Name, email, phone", tab: "personal" as TabKey },
@@ -336,7 +360,11 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
           </div>
 
           <div className="space-y-4">
-            {recentBookings.length === 0 ? (
+            {bookingsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Spin />
+              </div>
+            ) : recentBookings.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No bookings yet</p>
             ) : (
               recentBookings.map((booking) => (
