@@ -15,13 +15,15 @@ import {
 import type { UserData } from "../profile/UserProfile";
 import { useEffect, useRef, useState } from "react";
 import api from "../../../services/api";
+import bookingService from "../../../services/bookingService";
 
 // Define base TabKey type
 export type UserTabKey = "home" | "personal" | "bookings" | "security" | "privacy" | "data";
 export type DriverTabKey = UserTabKey | "vehicles";
 export type TabKey = UserTabKey | DriverTabKey;
 
-export type BookingStatus = "Completed" | "Upcoming" | "Cancelled";
+// Mirror backend statuses (string) for exact presentation
+export type BookingStatus = string;
 
 interface HomeTabProps {
   userData: UserData;
@@ -31,28 +33,16 @@ interface HomeTabProps {
 }
 
 export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpdate }: HomeTabProps) => {
-  const recentBookings: Array<{
-    id: string;
-    vehicle: string;
-    startDate: string;
-    endDate: string;
-    status: BookingStatus;
-  }> = [
-    {
-      id: "BK-001",
-      vehicle: "Toyota Camry",
-      startDate: "2023-04-10",
-      endDate: "2023-04-15",
-      status: "Completed",
-    },
-    {
-      id: "BK-002",
-      vehicle: "Honda Civic",
-      startDate: "2023-05-20",
-      endDate: "2023-05-25",
-      status: "Upcoming",
-    },
-  ];
+  const [recentBookings, setRecentBookings] = useState<
+    Array<{
+      id: string;
+      vehicle: string;
+      startDate: string;
+      endDate: string;
+      status: BookingStatus;
+    }>
+  >([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
 
   const accountSections = [
     { title: "Personal Information", desc: "Name, email, phone", tab: "personal" as TabKey },
@@ -60,14 +50,101 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
     { title: "Privacy Preferences", desc: "Notification settings", tab: "privacy" as TabKey },
   ];
 
-  const getStatusTag = (status: BookingStatus) => {
-    const colors: Record<BookingStatus, string> = {
-      Completed: "success",
-      Upcoming: "processing",
-      Cancelled: "error",
-    };
-    return <Tag color={colors[status]}>{status}</Tag>;
+  // --- Vehicle mapping helper (same logic as BookingTab) ---
+  const mapVehicleType = (t?: string) => {
+    if (!t) return "Auto";
+    const s = String(t).toLowerCase();
+    if (s.includes("auto")) return "Auto";
+    if (s.includes("suv")) return "Seven Seater";
+    if (s.includes("sedan") || s.includes("hatch")) return "Five Seater";
+    return t;
   };
+
+  // --- Status helpers (copied from BookingTab to match UI exactly) ---
+  const getStatusColor = (status?: string) => {
+    const statusMap: Record<string, string> = {
+      PENDING: "blue",
+      ACCEPTED: "cyan",
+      DRIVER_ARRIVED: "orange",
+      IN_PROGRESS: "processing",
+      COMPLETED: "success",
+      CANCELLED: "error",
+    };
+    return statusMap[String(status || "").toUpperCase()] || "default";
+  };
+
+  const getStatusLabel = (status?: string) => {
+    const labels: Record<string, string> = {
+      PENDING: "Pending",
+      ACCEPTED: "Accepted",
+      DRIVER_ARRIVED: "Driver Arrived",
+      IN_PROGRESS: "In Progress",
+      COMPLETED: "Completed",
+      CANCELLED: "Cancelled",
+    };
+    return labels[String(status || "").toUpperCase()] || (status ? String(status) : "Unknown");
+  };
+
+  const getStatusTag = (status: BookingStatus) => {
+    return <Tag color={getStatusColor(status)}>{getStatusLabel(status)}</Tag>;
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "-";
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setBookingsLoading(true);
+        const resp = await bookingService.getUserBookings();
+        const bookingsArray = Array.isArray(resp) ? resp : resp?.bookings || resp?.items || [];
+
+        const mapped = (bookingsArray || [])
+          .slice()
+          .sort((a: any, b: any) =>
+            new Date(b.createdAt || b.startTime || b.bookingTime || 0).getTime() -
+            new Date(a.createdAt || a.startTime || a.bookingTime || 0).getTime()
+          )
+          .slice(0, 3)
+          .map((bk: any) => {
+            // prefer vehicle.details, fallback to driver.details.vehicles[0], or vehicle object
+            const vehicleDetails = bk?.vehicle?.details || bk?.driver?.details?.vehicles?.[0] || bk?.vehicle || {};
+            const name = (vehicleDetails.make || vehicleDetails.vehicleModel || vehicleDetails.vehicleModel || "Unknown Vehicle").trim();
+            const typeLabel = vehicleDetails.vehicleType || vehicleDetails.vehicleModel || vehicleDetails.make || "";
+            const humanType = typeLabel ? mapVehicleType(typeLabel) : "";
+            const vehicleLabel = humanType ? `${name} (${humanType})` : name;
+
+            return {
+              id: bk.bookingId || bk._id || bk.id,
+              vehicle: vehicleLabel,
+              startDate: formatDate(bk.startTime || bk.userInfo?.scheduledDateTime || bk.createdAt || bk.bookingTime),
+              endDate: formatDate(bk.endTime || bk.createdAt),
+              status: bk.status || "UNKNOWN",
+            };
+          });
+
+        if (mounted) setRecentBookings(mapped);
+      } catch (err) {
+        console.error("Failed to load bookings", err);
+        if (mounted) setRecentBookings([]);
+      } finally {
+        if (mounted) setBookingsLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [userData?.email]);
 
   // --- Profile picture controls ---
   const [optionsVisible, setOptionsVisible] = useState(false);
@@ -174,8 +251,6 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
     }
   };
 
-  // Camera helper removed from HomeTab (not used here)
-
   const closeCamera = () => {
     if (stream) {
       stream.getTracks().forEach((t) => t.stop());
@@ -190,29 +265,33 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
       message.error("Camera not ready");
       return;
     }
-    
+
     const video = videoRef.current;
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth || 1280;
     canvas.height = video.videoHeight || 720;
-    
+
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       message.error("Failed to get canvas context");
       return;
     }
-    
+
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    canvas.toBlob(async (blob) => {
-      if (!blob) {
-        message.error("Failed to capture image");
-        return;
-      }
-      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: "image/jpeg" });
-      await uploadFileToServer(file);
-      closeCamera();
-    }, "image/jpeg", 0.95);
+
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) {
+          message.error("Failed to capture image");
+          return;
+        }
+        const file = new File([blob], `camera-${Date.now()}.jpg`, { type: "image/jpeg" });
+        await uploadFileToServer(file);
+        closeCamera();
+      },
+      "image/jpeg",
+      0.95
+    );
   };
 
   return (
@@ -229,11 +308,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
                   style={{ width: "150px", height: "150px" }}
                 >
                   {userData.profileImage ? (
-                    <img
-                      src={userData.profileImage}
-                      className="w-full h-full rounded-full object-cover"
-                      alt="Profile"
-                    />
+                    <img src={userData.profileImage} className="w-full h-full rounded-full object-cover" alt="Profile" />
                   ) : (
                     <Avatar size={130} icon={<UserOutlined />} className="bg-gradient-to-br from-green-500 to-emerald-600" />
                   )}
@@ -270,7 +345,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
             <Button
               type="primary"
               icon={<EditOutlined />}
-              onClick={() => handleTabChange('personal')}
+              onClick={() => handleTabChange("personal")}
               className="bg-green-600 hover:bg-green-700 border-0 flex items-center gap-2"
               size="large"
             >
@@ -294,7 +369,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
                 <p className="text-xs text-gray-500 uppercase mb-2">Telephone</p>
                 <div className="flex items-center gap-3">
                   <PhoneOutlined className="text-xl text-green-600" />
-                  <span className="text-gray-800 font-medium">{userData.phoneNumber || 'Not provided'}</span>
+                  <span className="text-gray-800 font-medium">{userData.phoneNumber || "Not provided"}</span>
                 </div>
               </div>
 
@@ -303,7 +378,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
                 <p className="text-xs text-gray-500 uppercase mb-2">Location</p>
                 <div className="flex items-center gap-3">
                   <EnvironmentOutlined className="text-xl text-green-600" />
-                  <span className="text-gray-800 font-medium">{userData.address || userData.location || 'Not provided'}</span>
+                  <span className="text-gray-800 font-medium">{userData.address || userData.location || "Not provided"}</span>
                 </div>
               </div>
 
@@ -312,7 +387,9 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
                 <p className="text-xs text-gray-500 uppercase mb-2">Account Status</p>
                 <div className="flex items-center gap-3">
                   <IdcardOutlined className="text-xl text-green-600" />
-                  <Tag color="success" className="text-sm font-medium">Active</Tag>
+                  <Tag color="success" className="text-sm font-medium">
+                    Active
+                  </Tag>
                 </div>
               </div>
             </div>
@@ -326,40 +403,35 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
         <Card className="shadow-md rounded-2xl">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-semibold text-gray-800">Recent Bookings</h3>
-            <Button 
-              type="link" 
-              onClick={() => handleTabChange('bookings')}
-              className="text-blue-600 hover:text-blue-700"
-            >
+            <Button type="link" onClick={() => handleTabChange("bookings")} className="text-blue-600 hover:text-blue-700">
               View All
             </Button>
           </div>
 
-          <div className="space-y-4">
-            {recentBookings.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No bookings yet</p>
-            ) : (
-              recentBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg transition-colors"
-                >
-                  <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                    <CarOutlined className="text-white text-xl" />
-                  </div>
+          <Spin spinning={bookingsLoading}>
+            <div className="space-y-4">
+              {recentBookings.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No bookings yet</p>
+              ) : (
+                recentBookings.map((booking) => (
+                  <div key={booking.id} className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                      <CarOutlined className="text-white text-xl" />
+                    </div>
 
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-800">{booking.vehicle}</p>
-                    <p className="text-sm text-gray-500">
-                      {booking.startDate} to {booking.endDate}
-                    </p>
-                  </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800">{booking.vehicle}</p>
+                      <p className="text-sm text-gray-500">
+                        {booking.startDate} to {booking.endDate}
+                      </p>
+                    </div>
 
-                  {getStatusTag(booking.status)}
-                </div>
-              ))
-            )}
-          </div>
+                    {getStatusTag(booking.status)}
+                  </div>
+                ))
+              )}
+            </div>
+          </Spin>
         </Card>
 
         {/* ACCOUNT OVERVIEW */}
@@ -368,21 +440,13 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
 
           <div className="space-y-4">
             {accountSections.map((section) => (
-              <div
-                key={section.title}
-                className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors"
-              >
+              <div key={section.title} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors">
                 <div>
                   <p className="font-semibold text-gray-800">{section.title}</p>
                   <p className="text-sm text-gray-500">{section.desc}</p>
                 </div>
 
-                <Button
-                  type="link"
-                  icon={<EditOutlined />}
-                  onClick={() => handleTabChange(section.tab)}
-                  className="text-blue-600 hover:text-blue-700"
-                >
+                <Button type="link" icon={<EditOutlined />} onClick={() => handleTabChange(section.tab)} className="text-blue-600 hover:text-blue-700">
                   Edit
                 </Button>
               </div>
@@ -395,13 +459,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
       <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFilePicked} />
 
       {/* Options Modal */}
-      <Modal
-        title="Change Profile Picture"
-        centered
-        open={optionsVisible}
-        onCancel={() => setOptionsVisible(false)}
-        footer={null}
-      >
+      <Modal title="Change Profile Picture" centered open={optionsVisible} onCancel={() => setOptionsVisible(false)} footer={null}>
         <div className="flex flex-col gap-3">
           {/* <Button block type="default" onClick={openCamera} icon={<CameraOutlined />}>
             Open Camera
@@ -436,17 +494,17 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
           </div>
         ) : (
           <div style={{ width: "100%", display: "flex", justifyContent: "center", alignItems: "center", minHeight: "500px", backgroundColor: "#000" }}>
-            <video 
-              ref={videoRef} 
-              style={{ 
-                width: "100%", 
-                height: "auto", 
-                maxHeight: "500px", 
+            <video
+              ref={videoRef}
+              style={{
+                width: "100%",
+                height: "auto",
+                maxHeight: "500px",
                 backgroundColor: "#000",
-                borderRadius: "4px"
-              }} 
-              autoPlay 
-              playsInline 
+                borderRadius: "4px",
+              }}
+              autoPlay
+              playsInline
               muted
             />
           </div>

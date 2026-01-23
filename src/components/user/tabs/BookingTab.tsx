@@ -34,12 +34,15 @@ interface Booking {
       licensePlate?: string;
       vehicleType?: string;
     };
+    // support embedded details shape
+    details?: any;
   };
   driverId?: string;
   paymentMethod?: string;
   paymentCompleted?: boolean;
   driverRating?: number;
   driverReview?: string;
+  vehicle?: any;
 }
 
 interface BookingsTabProps {
@@ -388,27 +391,52 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
               </div>
             </div>
 
-            {/* Driver Info */}
-            {selectedBooking.driver && (
+            {/* Driver Info (support both flat and embedded shapes returned by backend) */}
+            {(selectedBooking.driver || selectedBooking.vehicle) && (
               <div>
                 <p className="text-gray-600 text-sm mb-2">Driver Information</p>
                 <div className="bg-gray-50 p-3 rounded space-y-2">
-                  <p>
-                    <span className="font-semibold">Name: </span>
-                    {selectedBooking.driver.fullName || "N/A"}
-                  </p>
-                  <p>
-                    <span className="font-semibold">Phone: </span>
-                    {selectedBooking.driver.phoneNumber || "N/A"}
-                  </p>
-                  <p>
-                    <span className="font-semibold">Vehicle: </span>
-                    {mapVehicleType(selectedBooking.driver.vehicle?.vehicleType) || "N/A"}
-                  </p>
-                  <p>
-                    <span className="font-semibold">License Plate: </span>
-                    {selectedBooking.driver.vehicle?.licensePlate || "N/A"}
-                  </p>
+                  {(() => {
+                    const drv = selectedBooking.driver || {};
+                    const details = drv.details || {};
+                    // name / phone fallback
+                    const name = drv.fullName || details.name || details.fullName || "N/A";
+                    const phone = drv.phoneNumber || details.phone || details.phoneNumber || "N/A";
+                    // vehicle fallback (driver.details.vehicles[0], vehicle.details, drv.vehicle)
+                    const vehicleType =
+                      drv.vehicle?.vehicleType ||
+                      details.vehicles?.[0]?.vehicleType ||
+                      details.vehicles?.[0]?.vehicleModel ||
+                      selectedBooking.vehicle?.details?.vehicleType ||
+                      selectedBooking.vehicle?.details?.vehicleModel ||
+                      "N/A";
+                    const license =
+                      drv.vehicle?.licensePlate ||
+                      details.vehicles?.[0]?.licensePlate ||
+                      selectedBooking.vehicle?.details?.licensePlate ||
+                      "N/A";
+
+                    return (
+                      <>
+                        <p>
+                          <span className="font-semibold">Name: </span>
+                          {name}
+                        </p>
+                        <p>
+                          <span className="font-semibold">Phone: </span>
+                          {phone}
+                        </p>
+                        <p>
+                          <span className="font-semibold">Vehicle: </span>
+                          {mapVehicleType(vehicleType)}
+                        </p>
+                        <p>
+                          <span className="font-semibold">License Plate: </span>
+                          {license}
+                        </p>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             )}
