@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { UserHeader } from "../UserHeader"
+import { useNavigate } from 'react-router-dom';
+import { Header } from "../Header"
 import { UserSidebar } from "./UserSidebar";
 import { HomeTab } from "../user/tabs/HomeTab";
 import { PersonalInfoTab } from "../user/tabs/PersonalInfoTab";
@@ -77,8 +78,9 @@ export const UserProfile = () => {
     })();
   }, [getUserDetails]);
 
+  const routerNavigate = useNavigate();
   const navigate = (path: string) => {
-    console.log(`Navigating to: ${path}`);
+    routerNavigate(path);
   };
 
   const handleLogout = () => {
@@ -217,10 +219,14 @@ export const UserProfile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-100">
-      <UserHeader
+      <Header
         navigate={navigate}
         handleLogout={handleLogout}
         username={userData.fullName}
+        onMenuToggle={toggleSidebar}
+        showMenuIcon={windowWidth <= 768}
+        profileImage={userData.profileImage}
+        onBack={() => routerNavigate("/map")}
       />
 
       <div className="flex relative w-full pl-0 pr-10">

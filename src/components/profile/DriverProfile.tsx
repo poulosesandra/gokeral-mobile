@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Spin, message, Button } from "antd";
 import { useNavigate } from "react-router-dom";
 import { MenuOutlined } from "@ant-design/icons";
-import { UserHeader } from "../UserHeader";
+import { Header } from "../Header";
 import { DriverSidebar, type DriverTabKey } from "../driver/driverprofile/DriverSidebar";
 import { DriverHomeTab, type DriverData } from "../user/tabs/DriverHomeTab";
 import { DriverPersonalInfoTab } from "../user/tabs/DriverPersonalInfoTab";
@@ -244,7 +244,7 @@ export const DriverProfile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-100">
-      <UserHeader
+      <Header
         navigate={handleNavigate}
         handleLogout={handleLogout}
         username={driverData.fullName}
