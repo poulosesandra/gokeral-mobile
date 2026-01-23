@@ -5,7 +5,7 @@ import { message } from 'antd'
 import MapControls from '../../components/map/MapControls';
 import MapArea from '../../components/map/MapArea';
 import BookingPanel from '../../components/booking/BookingPanel';
-import { UserHeader } from '../../components/user/UserHeader';
+import { Header } from '../../components/Header';
 import { authService } from '../../services/authServices';
 
 // Define libraries array outside component to prevent re-renders
@@ -231,7 +231,7 @@ const Maps: React.FC = () => {
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden bg-gray-50">
       {/* Header Component */}
-      <UserHeader 
+      <Header 
         navigate={handleNavigate}
         handleLogout={handleLogout}
         username={username}

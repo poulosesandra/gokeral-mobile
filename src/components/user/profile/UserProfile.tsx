@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { UserHeader } from "../UserHeader";
+import { Header } from "../../Header";
 import { UserSidebar } from "./UserSidebar";
 import { HomeTab } from "../tabs/HomeTab";
 import { PersonalInfoTab } from "../tabs/PersonalInfoTab";
@@ -231,14 +231,14 @@ export const UserProfile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-gray-100">
-      <UserHeader
+      <Header
         navigate={navigate}
         handleLogout={handleLogout}
         username={userData.fullName}
         onMenuToggle={toggleSidebar}
         showMenuIcon={windowWidth <= 768}
         profileImage={userData.profileImage}
-        onBack={() => routerNavigate("/map")} // added
+        onBack={() => routerNavigate("/map")}
       />
 
       <div className="flex relative w-full pl-0 pr-4 pt-6">
