@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { authService } from './services/authServices'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Small runtime guard: enforce caret/cursor behavior and log focused elements.
 // This helps hide stray carets on elements that shouldn't show them and aids debugging.
@@ -42,10 +43,21 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   });
 }
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1
+    }
+  }
+})
+
 authService.initAuth().then(() => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <App />
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
     </StrictMode>
   )
 })
