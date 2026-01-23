@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useDriverRideListener } from "../../hooks/useDriverRideListener";
 import { Spin, message } from "antd";
 import { useNavigate } from "react-router-dom";
-import { UserHeader } from "../user/UserHeader";
+import { Header } from "../Header";
 import { DriverSidebar, type DriverTabKey } from "./driverprofile/DriverSidebar";
 import { DriverHomeTab, type DriverData } from "../user/tabs/DriverHomeTab";
 import { DriverPersonalInfoTab } from "../user/tabs/DriverPersonalInfoTab";
@@ -377,7 +377,7 @@ export const DriverProfile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-gray-100">
-      <UserHeader
+      <Header
         navigate={handleNavigate}
         handleLogout={handleLogout}
         username={driverData.fullName}

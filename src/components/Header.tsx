@@ -1,122 +1,118 @@
-import { Car, Users, Phone } from "lucide-react";
+"use client";
+
+import { Avatar, Button, Dropdown } from "antd";
+import {
+  BellOutlined,
+  UserOutlined,
+  LogoutOutlined,
+  DownOutlined,
+  LeftOutlined,
+  MenuOutlined,
+} from "@ant-design/icons";
+import { Link } from "react-router-dom";
+import type { MenuProps } from "antd";
 
 interface HeaderProps {
-  isMenuOpen: boolean;
-  setIsMenuOpen: (value: boolean) => void;
+  navigate: (path: string) => void;
+  handleLogout: () => void;
+  username: string;
+  onMenuToggle?: () => void;
+  showMenuIcon?: boolean;
+  profileImage?: string | null;
+  onProfileClick?: () => void;
+  onBack?: () => void;
 }
 
-const Header = ({ isMenuOpen, setIsMenuOpen }: HeaderProps) => {
-  return (
-    <>
-      {/* Header */}
-      <header className="bg-white/95 backdrop-blur-md shadow-sm fixed w-full top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-2">
-              {!isMenuOpen && (
-                <>
-                  <Car className="h-8 w-8 text-green-600" />
-                  <span className="text-2xl font-bold text-gray-900 tracking-tight">Kerides</span>
-                </>
-              )}
-            </div>
-            <nav className="hidden md:flex space-x-8">
-              <a href="/driver/register" className="text-gray-700 hover:text-green-600 transition-colors font-medium">Drivers</a>
-              <a href="/contact" className="text-gray-700 hover:text-green-600 transition-colors font-medium">Contact</a>
-              <a href="/about" className="text-gray-700 hover:text-green-600 transition-colors font-medium">About</a>
-            </nav>
-            <div className="hidden md:flex space-x-4 items-center">
-              <a href="/user/login">
-                <button className="text-green-600 hover:text-green-700 font-semibold transition-colors">Login</button>
-              </a>
-              <a href="/user/register">
-                <button className="bg-green-600 text-white px-6 py-2.5 rounded-full hover:bg-green-700 transition-all transform hover:scale-105 font-semibold shadow-md">
-                  Sign Up
-                </button>
-              </a>
-            </div>
-            <button
-              className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              <div className="w-6 h-6 flex flex-col justify-center space-y-1.5">
-                <div className="w-full h-0.5 bg-gray-700 rounded-full transition-all"></div>
-                <div className="w-full h-0.5 bg-gray-700 rounded-full transition-all"></div>
-                <div className="w-full h-0.5 bg-gray-700 rounded-full transition-all"></div>
-              </div>
-            </button>
-          </div>
-        </div>
-      </header>
+export const Header = ({
+  navigate,
+  handleLogout,
+  username,
+  onMenuToggle,
+  showMenuIcon = false,
+  profileImage,
+  onProfileClick,
+  onBack,
+}: HeaderProps) => {
+  const items: MenuProps["items"] = [
+    { key: "profile", label: <div className="flex items-center"><UserOutlined className="mr-2" /><span>Profile</span></div> },
+    { key: "logout", label: <div className="flex items-center"><LogoutOutlined className="mr-2" /><span>Logout</span></div> },
+  ];
 
-      {/* Mobile Sidebar */}
-      {isMenuOpen && (
-        <>
-          {/* Overlay */}
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity"
-            onClick={() => setIsMenuOpen(false)}
-          />
-          {/* Sidebar */}
-          <nav
-            className="fixed top-0 right-0 h-full w-80 bg-white z-50 shadow-2xl flex flex-col p-0 overflow-hidden transition-transform duration-300"
-            style={{ transform: isMenuOpen ? "translateX(0)" : "translateX(100%)" }}
+  const handleMenuClick: MenuProps["onClick"] = (info) => {
+    if (info.key === "profile") {
+      if (onProfileClick) onProfileClick();
+      else navigate("/user/profile");
+    } else if (info.key === "logout") {
+      handleLogout();
+    }
+  };
+
+  return (
+    <header className="bg-white shadow-sm h-16">
+      <div className="w-full h-full px-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {onBack && !showMenuIcon && (
+            <Button
+              type="text"
+              icon={<LeftOutlined style={{ fontSize: "18px" }} />}
+              onClick={onBack}
+              className="hidden md:flex items-center justify-center mr-2"
+              size="large"
+              title="Back to map"
+              aria-label="Back to map"
+              style={{ width: "40px", height: "40px" }}
+            />
+          )}
+
+          <Link to={"/"} className="flex items-center gap-2 pl-1">
+            <span className="font-bold text-xl hidden sm:inline-block">Kerides</span>
+          </Link>
+
+          {showMenuIcon && (
+            <Button
+              type="text"
+              icon={<MenuOutlined style={{ fontSize: "20px" }} />}
+              className="md:hidden bg-white hover:bg-blue-50 transition-colors"
+              onClick={() => onMenuToggle?.()}
+              size="large"
+              style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
+            />
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-4">
+          <Button
+            type="text"
+            icon={<BellOutlined className="text-lg" />}
+            className="relative flex items-center justify-center"
+            size="middle"
           >
-            {/* Green accent bar and logo */}
-            <div className="flex items-center gap-3 px-6 py-6 bg-gradient-to-r from-green-600 to-green-500">
-              <Car className="h-8 w-8 text-white" />
-              <span className="text-2xl font-bold text-white tracking-tight">Kerides</span>
-              <button
-                className="ml-auto text-white text-3xl font-light hover:text-green-100 transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-                aria-label="Close menu"
-              >
-                &times;
-              </button>
-            </div>
-            {/* Menu links */}
-            <div className="flex flex-col gap-2 px-6 py-8 flex-1">
-              <a
-                href="/driver/register"
-                className="flex items-center gap-3 text-lg font-semibold text-gray-800 rounded-xl px-4 py-3.5 hover:bg-green-50 hover:text-green-600 transition-all"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Car className="h-5 w-5 text-green-500" /> Drivers
-              </a>
-              <a
-                href="/contact"
-                className="flex items-center gap-3 text-lg font-semibold text-gray-800 rounded-xl px-4 py-3.5 hover:bg-green-50 hover:text-green-600 transition-all"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Phone className="h-5 w-5 text-green-500" /> Contact
-              </a>
-              <a
-                href="/about"
-                className="flex items-center gap-3 text-lg font-semibold text-gray-800 rounded-xl px-4 py-3.5 hover:bg-green-50 hover:text-green-600 transition-all"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Users className="h-5 w-5 text-green-500" /> About
-              </a>
-              <div className="border-t border-gray-200 my-4"></div>
-              <a
-                href="/user/login"
-                className="flex items-center gap-3 text-lg font-semibold text-green-600 rounded-xl px-4 py-3.5 hover:bg-green-100 hover:text-green-700 transition-all"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Login
-              </a>
-              <a
-                href="/user/register"
-                className="flex items-center gap-3 text-lg font-semibold bg-green-600 text-white rounded-xl px-4 py-3.5 hover:bg-green-700 transition-all mt-2"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Sign Up
-              </a>
-            </div>
-          </nav>
-        </>
-      )}
-    </>
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+          </Button>
+
+          {/* optional small user button (for mobile sidebar) */}
+          {onMenuToggle && (
+            <Button
+              type="text"
+              onClick={() => onMenuToggle?.()}
+              size="middle"
+              title="Open profile sidebar"
+              className="flex items-center justify-center"
+            >
+              <UserOutlined style={{ fontSize: 18 }} />
+            </Button>
+          )}
+
+          <Dropdown menu={{ items, onClick: handleMenuClick }} placement="bottomRight">
+            <Button type="text" className="flex items-center gap-1 px-1 sm:px-3">
+              {profileImage ? <Avatar src={profileImage} size="small" /> : <Avatar icon={<UserOutlined />} size="small" />}
+              <span className="hidden sm:inline-block font-medium ml-2">{username}</span>
+              <DownOutlined className="text-xs ml-1" />
+            </Button>
+          </Dropdown>
+        </div>
+      </div>
+    </header>
   );
 };
 
