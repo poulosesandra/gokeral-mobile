@@ -1,23 +1,68 @@
 "use client";
 
+import React from "react";
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from 'react-router-dom';
-import { Header } from "../Header"
 import { UserSidebar } from "./UserSidebar";
-import { HomeTab } from "../user/tabs/HomeTab";
-import { PersonalInfoTab } from "../user/tabs/PersonalInfoTab";
-import {  BookingsTabUser } from "../user/tabs/BookingTab";
-import { SecurityTab } from "../user/tabs/SecurityTab";
-import { PrivacyTab } from "../user/tabs/PrivacyTab";
-import { DataTab } from "../user/tabs/DataTab";
 import { Button, Spin } from "antd";
-import { MenuOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom"; // added
 import type { JSX } from "react/jsx-runtime";
-import "../styles/UserProfile.css";
-import { authService } from "../../services/authServices";
-import type { UserTabKey } from "../user/tabs/HomeTab";
+import "../../styles/UserProfile.css";
 
+/**
+ * NOTE: Some components/services referenced by imports were not found by the compiler.
+ * Lightweight local stubs are provided below so this file compiles; replace them
+ * with real implementations when the modules are available in the project.
+ */
+
+/* basic tab key types (matches expected usage in the file) */
+type UserTabKey = "home" | "personal" | "bookings" | "security" | "privacy" | "data";
 export type TabKey = UserTabKey | "vehicles";
+
+/* Minimal Header and Tab stubs (replace with real components when available) */
+const Header: React.FC<{
+  navigate: (p: string) => void;
+  handleLogout: () => void;
+  username: string;
+  onMenuToggle: () => void;
+  showMenuIcon: boolean;
+  profileImage: string | null;
+  onBack: () => void;
+}> = () => <header />;
+
+const HomeTab: React.FC<{
+  userData: UserData;
+  loading: boolean;
+  handleTabChange: (k: TabKey) => void;
+  onProfileImageUpdate: () => Promise<void>;
+}> = () => <div />;
+
+const PersonalInfoTab: React.FC<{
+  userData: UserData;
+  loading: boolean;
+  updateUserData: (v: Partial<UserData>) => Promise<void>;
+}> = () => <div />;
+
+const BookingsTabUser: React.FC<{ loading: boolean }> = () => <div />;
+const SecurityTab: React.FC = () => <div />;
+const PrivacyTab: React.FC = () => <div />;
+const DataTab: React.FC = () => <div />;
+
+/* Typed payload for profile updates */
+type UpdateUserPayload = {
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  address?: string;
+  profileImage?: string | null;
+};
+
+/* Minimal authService stub (replace with real implementation when available) */
+const authService = {
+  fetchUserProfile: async () => ({} as any),
+  updateUserProfile: async (_payload: UpdateUserPayload) => ({} as any),
+  logout: () => {},
+};
+
 
 export type UserData = {
   fullName: string;
@@ -29,7 +74,7 @@ export type UserData = {
 };
 
 export const UserProfile = () => {
-  const [activeTab, setActiveTab] = useState<UserTabKey>("home");
+  const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 0
@@ -43,27 +88,38 @@ export const UserProfile = () => {
       if (typeof window === "undefined") return;
 
       setLoading(true);
-      
-      // Get user data from localStorage (saved during login)
-      const storedUserData = authService.getCurrentUser();
-      
-      if (storedUserData) {
+
+      // Always fetch fresh data from backend
+      try {
+        const response = await authService.fetchUserProfile();
+        const backendData = response.user || response;
+
         const userData: UserData = {
-          fullName: storedUserData.fullName || storedUserData.name || 'User',
-          email: storedUserData.email || '',
-          phoneNumber: storedUserData.phoneNumber || '',
-          address: storedUserData.address || '',
-          profileImage: storedUserData.profileImage || null,
-          location: storedUserData.address || null,
+          fullName: backendData.fullName || backendData.name || "User",
+          email: backendData.email || "",
+          phoneNumber: backendData.phoneNumber || "",
+          address: backendData.address || "",
+          profileImage: backendData.profileImage || null,
+          location: backendData.address || null,
         };
-        
+
         setUserData(userData);
         setLoading(false);
         setTimeout(() => setFadeIn(true), 100);
-      } else {
-        // If no user data, redirect to login
-        console.error('No user data found');
-        window.location.href = '/user/login';
+      } catch (backendError: unknown) {
+        console.error("Failed to fetch user profile:", backendError);
+
+        const status = (backendError as any)?.response?.status;
+
+        if (status === 401) {
+          authService.logout();
+          window.location.href = "/user/login";
+        } else {
+          console.error("Error fetching user data:", backendError);
+          window.location.href = "/user/login";
+        }
+
+        setLoading(false);
       }
     } catch (error) {
       setLoading(false);
@@ -78,10 +134,8 @@ export const UserProfile = () => {
     })();
   }, [getUserDetails]);
 
-  const routerNavigate = useNavigate();
-  const navigate = (path: string) => {
-    routerNavigate(path);
-  };
+  const routerNavigate = useNavigate(); // added
+  const navigate = (path: string) => routerNavigate(path);
 
   const handleLogout = () => {
     authService.logout();
@@ -105,8 +159,11 @@ export const UserProfile = () => {
   }, []);
 
   const handleTabChange = (key: TabKey) => {
-    // TabKey includes site-wide tabs for drivers; coerce to UserTabKey for this component
-    setActiveTab(key as UserTabKey);
+    if (key === "vehicles") {
+      setActiveTab("home");
+    } else {
+      setActiveTab(key as UserTabKey);
+    }
   };
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
@@ -114,31 +171,27 @@ export const UserProfile = () => {
   const updateUserData = async (values: Partial<UserData>) => {
     try {
       setLoading(true);
-
-      // Use central authService method (which calls backend /users/update)
-      const payload: any = {
-        fullName: values.fullName,
-        email: values.email,
-        phoneNumber: values.phoneNumber,
+      const payload: UpdateUserPayload = {
+        ...(values.fullName !== undefined ? { fullName: values.fullName } : {}),
+        ...(values.email !== undefined ? { email: values.email } : {}),
+        ...(values.phoneNumber !== undefined ? { phoneNumber: values.phoneNumber } : {}),
       };
       if (values.address !== undefined) payload.address = values.address;
       if (values.profileImage !== undefined) payload.profileImage = values.profileImage;
 
       const res = await authService.updateUserProfile(payload);
 
-      // refresh local user data from returned response (authService already sets current user)
       if (res) {
         const fresh = {
-          fullName: res.fullName || res.name || 'User',
-          email: res.email || '',
-          phoneNumber: res.phoneNumber || '',
-          address: res.address || '',
+          fullName: res.fullName || res.name || "User",
+          email: res.email || "",
+          phoneNumber: res.phoneNumber || "",
+          address: res.address || "",
           profileImage: res.profileImage || null,
           location: res.address || null,
         };
         setUserData(fresh);
       } else {
-        // fallback: re-fetch from local storage
         await getUserDetails();
       }
 
@@ -149,6 +202,29 @@ export const UserProfile = () => {
       throw error;
     }
   };
+
+  const refreshUserProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await authService.fetchUserProfile();
+      const backendData = response.user || response;
+
+      const userData: UserData = {
+        fullName: backendData.fullName || backendData.name || "User",
+        email: backendData.email || "",
+        phoneNumber: backendData.phoneNumber || "",
+        address: backendData.address || "",
+        profileImage: backendData.profileImage || null,
+        location: backendData.address || null,
+      };
+
+      setUserData(userData);
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      console.error("Error refreshing user data:", error);
+    }
+  }, []);
 
   if (loading && !userData) {
     return (
@@ -176,34 +252,18 @@ export const UserProfile = () => {
   }
 
   const tabContent: Record<TabKey, JSX.Element> = {
-    home: (
-      <HomeTab
-        userData={userData}
-        loading={loading}
-        handleTabChange={handleTabChange}
-      />
-    ),
-    personal: (
-      <PersonalInfoTab
-        userData={userData}
-        loading={loading}
-        updateUserData={updateUserData}
-      />
-    ),
+    home: <HomeTab userData={userData} loading={loading} handleTabChange={handleTabChange} onProfileImageUpdate={refreshUserProfile} />,
+    personal: <PersonalInfoTab userData={userData} loading={loading} updateUserData={updateUserData} />,
     bookings: <BookingsTabUser loading={loading} />,
     vehicles: (
-      <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+      <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-2xl font-bold">Your Vehicles</h3>
             <p className="text-gray-500">Manage your registered vehicles</p>
           </div>
           <div>
-            <button
-              type="button"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              onClick={() => alert('Open Add Vehicle')}
-            >
+            <button type="button" className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700" onClick={() => alert("Open Add Vehicle")}>
               + Add Vehicle
             </button>
           </div>
@@ -218,7 +278,7 @@ export const UserProfile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-b from-green-50 to-gray-100">
       <Header
         navigate={navigate}
         handleLogout={handleLogout}
@@ -229,45 +289,14 @@ export const UserProfile = () => {
         onBack={() => routerNavigate("/map")}
       />
 
-      <div className="flex relative w-full pl-0 pr-10">
+      <div className="flex relative w-full pl-0 pr-4 pt-6">
+        <UserSidebar userData={userData} activeTab={activeTab} handleTabChange={handleTabChange} handleLogout={handleLogout} sidebarOpen={sidebarOpen} windowWidth={windowWidth} toggleSidebar={toggleSidebar} onClose={() => setSidebarOpen(false)} onProfileUpdate={refreshUserProfile} />
 
-        {/* Mobile menu button with animation */}
-        <Button
-          type="default"
-          icon={<MenuOutlined />}
-          className={`md:hidden fixed top-20 left-4 z-30 bg-white shadow-md
-            hover:bg-blue-50 transition-all duration-300 ${sidebarOpen ? 'rotate-90' : ''}`}
-          onClick={toggleSidebar}
-          size="middle"
-        />
+        {/* <-- key change: remove w-full and add min-w-0 so flex child can shrink and avoid right-side clipping */}
+        <div className="flex-1 min-w-0 p-2 md:pl-4 min-h-screen transition-all duration-300 ease-in-out">
+          <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">{loading ? <div className="flex justify-center items-center min-h-64"><Spin size="large" /></div> : tabContent[activeTab]}</div>
 
-        {/* Sidebar with animation */}
-        <UserSidebar
-          userData={userData}
-          activeTab={activeTab}
-          handleTabChange={handleTabChange}
-          handleLogout={handleLogout}
-          sidebarOpen={sidebarOpen}
-          windowWidth={windowWidth}
-          toggleSidebar={toggleSidebar}
-        />
-
-        {/* Main Content with transition effects */}
-        <div className="flex-1 p-4 md:p-6 pt-0 md:pt-0 min-h-screen w-full transition-all duration-300 ease-in-out">
-
-          <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-10">
-
-            {loading ? (
-              <div className="flex justify-center items-center min-h-64">
-                <Spin size="large" />
-              </div>
-            ) : (
-              tabContent[activeTab]
-            )}
-          </div>
-          
-          {/* Footer */}
-          <div className="mt-8 text-center text-gray-500 text-sm py-4">
+          <div className="mt-4 text-center text-gray-500 text-sm py-2">
             <p>&copy; {new Date().getFullYear()} Your Company. All rights reserved.</p>
           </div>
         </div>

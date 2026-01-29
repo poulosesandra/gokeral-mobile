@@ -43,6 +43,7 @@ interface Booking {
   driverRating?: number;
   driverReview?: string;
   vehicle?: any;
+  [key: string]: any;
 }
 
 interface BookingsTabProps {
@@ -85,7 +86,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
   const [ratingLoading, setRatingLoading] = useState(false);
 
   useEffect(() => {
-    fetchBookings();
+    void fetchBookings();
   }, []);
 
   const fetchBookings = async () => {
@@ -103,6 +104,35 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       }
 
       setBookings(allBookings);
+
+      // If some ACCEPTED / IN_PROGRESS bookings are missing embedded driver info,
+      // fetch details for those and merge so user sees immediate assignment.
+      const needsDriverInfo = allBookings.filter((b: Booking) => {
+        const s = (b.status || '').toUpperCase();
+        return (s === 'ACCEPTED' || s === 'IN_PROGRESS') && !(b.driver && (b.driver.fullName || b.driver.phoneNumber)) && (b._id || b.id);
+      });
+
+      if (needsDriverInfo.length > 0) {
+        await Promise.all(
+          needsDriverInfo.map(async (b: Booking) => {
+            try {
+              const detailed = await bookingService.getBookingById(b._id || b.id || '');
+              const updatedBooking = detailed.booking || detailed || {};
+              setBookings((prev) =>
+                prev.map((p) => {
+                  if ((p._id && updatedBooking._id && String(p._id) === String(updatedBooking._id)) || (p.id && updatedBooking.id && String(p.id) === String(updatedBooking.id))) {
+                    return { ...p, ...updatedBooking };
+                  }
+                  return p;
+                })
+              );
+            } catch (err) {
+              console.warn("Failed to fetch booking details for", b._id || b.id, err);
+            }
+          })
+        );
+      }
+
     } catch (error: any) {
       console.error("Error fetching bookings:", error);
       setBookings([]);
@@ -149,7 +179,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       setRatingModalOpen(false);
       setRating(0);
       setReview("");
-      fetchBookings(); // Refresh bookings
+      void fetchBookings(); // Refresh bookings
     } catch (error: any) {
       console.error("Error rating booking:", error);
       message.error(error.response?.data?.message || "Failed to submit rating");
@@ -162,7 +192,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
     try {
       await bookingService.cancelBooking(bookingId);
       message.success("Booking cancelled successfully");
-      fetchBookings(); // Refresh bookings
+      void fetchBookings(); // Refresh bookings
     } catch (error: any) {
       console.error("Error cancelling booking:", error);
       message.error(error.response?.data?.message || "Failed to cancel booking");
@@ -266,16 +296,16 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                 >
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     {/* Left Side - Location & Time */}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-3 mb-2">
                         <EnvironmentOutlined className="text-blue-600 mt-1 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-500">From</p>
-                          <p className="font-semibold text-gray-800 truncate">
+                          <p className="font-semibold text-gray-800 break-words">
                             {booking.pickupLocation}
                           </p>
                           <p className="text-sm text-gray-500 mt-1">To</p>
-                          <p className="font-semibold text-gray-800 truncate">
+                          <p className="font-semibold text-gray-800 break-words">
                             {booking.dropoffLocation}
                           </p>
                         </div>
@@ -283,29 +313,26 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                     </div>
 
                     {/* Middle - Date & Driver */}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
                         <ClockCircleOutlined className="text-green-600" />
                         <div>
                           <p className="text-sm text-gray-500">Booking Date</p>
-                          <p className="font-semibold text-gray-800">
-                            {formatDate(booking.bookingTime)}
-                          </p>
+                          <p className="font-semibold text-gray-800">{formatDate(booking.bookingTime)}</p>
                         </div>
                       </div>
                       <p className="text-sm mt-2">
                         <span className="text-gray-600">Driver: </span>
-                        <span className="font-semibold">
-                          {booking.driver?.fullName || "Unassigned"}
-                        </span>
+                        <span className="font-semibold">{booking.driver?.fullName || "Unassigned"}</span>
                       </p>
                     </div>
 
-                    {/* Right Side - Fare & Status */}
-                    <div className="flex flex-col items-end gap-2">
+                    {/* Right Side - Fare & Status (fixed min width so it stays visible) */}
+                    <div className="flex flex-col items-end gap-2 min-w-[180px] flex-shrink-0">
                       <Tag color={getStatusColor(booking.status)}>
                         {getStatusLabel(booking.status)}
                       </Tag>
+
                       {booking.status === "COMPLETED" && (
                         <div className="flex items-center gap-1">
                           <DollarOutlined />
@@ -315,9 +342,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                         </div>
                       )}
                       {booking.driverRating && booking.status === "COMPLETED" && (
-                        <span className="text-sm text-yellow-500">
-                          ⭐ {booking.driverRating}/5
-                        </span>
+                        <span className="text-sm text-yellow-500">⭐ {booking.driverRating}/5</span>
                       )}
                     </div>
                   </div>
@@ -335,39 +360,21 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
           open={detailsModalOpen}
           onCancel={() => setDetailsModalOpen(false)}
           footer={[
-            <Button key="close" onClick={() => setDetailsModalOpen(false)}>
-              Close
-            </Button>,
+            <Button key="close" onClick={() => setDetailsModalOpen(false)}>Close</Button>,
             selectedBooking.status === "PENDING" && (
-              <Button
-                key="cancel"
-                danger
-                onClick={() => {
-                  Modal.confirm({
-                    title: "Cancel Booking",
-                    content: "Are you sure you want to cancel this booking?",
-                    okText: "Yes",
-                    cancelText: "No",
-                    onOk() {
-                      handleCancelBooking(selectedBooking._id!);
-                      setDetailsModalOpen(false);
-                    },
-                  });
-                }}
-              >
-                Cancel Booking
-              </Button>
+              <Button key="cancel" danger onClick={() => {
+                Modal.confirm({
+                  title: "Cancel Booking",
+                  content: "Are you sure you want to cancel this booking?",
+                  okText: "Yes",
+                  cancelText: "No",
+                  onOk() { handleCancelBooking(selectedBooking._id!); setDetailsModalOpen(false); }
+                });
+              }}>Cancel Booking</Button>
             ),
-            selectedBooking.status === "COMPLETED" &&
-              !selectedBooking.driverRating && (
-                <Button
-                  key="rate"
-                  type="primary"
-                  onClick={() => handleRateBooking(selectedBooking)}
-                >
-                  Rate Driver
-                </Button>
-              ),
+            selectedBooking.status === "COMPLETED" && !selectedBooking.driverRating && (
+              <Button key="rate" type="primary" onClick={() => handleRateBooking(selectedBooking)}>Rate Driver</Button>
+            ),
           ]}
           width={600}
         >
@@ -375,9 +382,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
             {/* Status */}
             <div>
               <p className="text-gray-600 text-sm">Status</p>
-              <Tag color={getStatusColor(selectedBooking.status)}>
-                {getStatusLabel(selectedBooking.status)}
-              </Tag>
+              <Tag color={getStatusColor(selectedBooking.status)}>{getStatusLabel(selectedBooking.status)}</Tag>
             </div>
 
             {/* Route Information */}
@@ -391,7 +396,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
               </div>
             </div>
 
-            {/* Driver Info (support both flat and embedded shapes returned by backend) */}
+            {/* Driver Info */}
             {(selectedBooking.driver || selectedBooking.vehicle) && (
               <div>
                 <p className="text-gray-600 text-sm mb-2">Driver Information</p>
@@ -399,41 +404,16 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                   {(() => {
                     const drv = selectedBooking.driver || {};
                     const details = drv.details || {};
-                    // name / phone fallback
                     const name = drv.fullName || details.name || details.fullName || "N/A";
                     const phone = drv.phoneNumber || details.phone || details.phoneNumber || "N/A";
-                    // vehicle fallback (driver.details.vehicles[0], vehicle.details, drv.vehicle)
-                    const vehicleType =
-                      drv.vehicle?.vehicleType ||
-                      details.vehicles?.[0]?.vehicleType ||
-                      details.vehicles?.[0]?.vehicleModel ||
-                      selectedBooking.vehicle?.details?.vehicleType ||
-                      selectedBooking.vehicle?.details?.vehicleModel ||
-                      "N/A";
-                    const license =
-                      drv.vehicle?.licensePlate ||
-                      details.vehicles?.[0]?.licensePlate ||
-                      selectedBooking.vehicle?.details?.licensePlate ||
-                      "N/A";
-
+                    const vehicleType = drv.vehicle?.vehicleType || details.vehicles?.[0]?.vehicleType || selectedBooking.vehicle?.details?.vehicleType || "N/A";
+                    const license = drv.vehicle?.licensePlate || details.vehicles?.[0]?.licensePlate || selectedBooking.vehicle?.details?.licensePlate || "N/A";
                     return (
                       <>
-                        <p>
-                          <span className="font-semibold">Name: </span>
-                          {name}
-                        </p>
-                        <p>
-                          <span className="font-semibold">Phone: </span>
-                          {phone}
-                        </p>
-                        <p>
-                          <span className="font-semibold">Vehicle: </span>
-                          {mapVehicleType(vehicleType)}
-                        </p>
-                        <p>
-                          <span className="font-semibold">License Plate: </span>
-                          {license}
-                        </p>
+                        <p><span className="font-semibold">Name: </span>{name}</p>
+                        <p><span className="font-semibold">Phone: </span>{phone}</p>
+                        <p><span className="font-semibold">Vehicle: </span>{mapVehicleType(vehicleType)}</p>
+                        <p><span className="font-semibold">License Plate: </span>{license}</p>
                       </>
                     );
                   })()}
@@ -444,9 +424,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
             {/* Booking Time */}
             <div>
               <p className="text-gray-600 text-sm">Booking Time</p>
-              <p className="font-semibold text-gray-800">
-                {formatDate(selectedBooking.bookingTime)}
-              </p>
+              <p className="font-semibold text-gray-800">{formatDate(selectedBooking.bookingTime)}</p>
             </div>
 
             {/* Fare Information */}
@@ -454,18 +432,9 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
               <div>
                 <p className="text-gray-600 text-sm mb-2">Fare Information</p>
                 <div className="bg-gray-50 p-3 rounded space-y-2">
-                  <p>
-                    <span className="font-semibold">Estimated: </span>₹
-                    {selectedBooking.estimatedFare || 0}
-                  </p>
-                  <p>
-                    <span className="font-semibold">Actual: </span>₹
-                    {selectedBooking.actualFare || 0}
-                  </p>
-                  <p>
-                    <span className="font-semibold">Payment Method: </span>
-                    {selectedBooking.paymentMethod || "N/A"}
-                  </p>
+                  <p><span className="font-semibold">Estimated: </span>₹{selectedBooking.estimatedFare || 0}</p>
+                  <p><span className="font-semibold">Actual: </span>₹{selectedBooking.actualFare || 0}</p>
+                  <p><span className="font-semibold">Payment Method: </span>{selectedBooking.paymentMethod || "N/A"}</p>
                 </div>
               </div>
             )}
@@ -476,51 +445,10 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                 <p className="text-gray-600 text-sm mb-2">Your Rating</p>
                 <div className="bg-gray-50 p-3 rounded space-y-2">
                   <Rate value={selectedBooking.driverRating} disabled />
-                  {selectedBooking.driverReview && (
-                    <p className="text-gray-600 mt-2">{selectedBooking.driverReview}</p>
-                  )}
+                  {selectedBooking.driverReview && <p className="text-gray-600 mt-2">{selectedBooking.driverReview}</p>}
                 </div>
               </div>
             )}
-          </Space>
-        </Modal>
-      )}
-
-      {/* Rating Modal */}
-      {selectedBooking && (
-        <Modal
-          title="Rate Your Driver"
-          open={ratingModalOpen}
-          onCancel={() => setRatingModalOpen(false)}
-          footer={[
-            <Button key="cancel" onClick={() => setRatingModalOpen(false)}>
-              Cancel
-            </Button>,
-            <Button
-              key="submit"
-              type="primary"
-              loading={ratingLoading}
-              onClick={handleSubmitRating}
-              disabled={rating === 0}
-            >
-              Submit Rating
-            </Button>,
-          ]}
-        >
-          <Space direction="vertical" style={{ width: "100%" }} size="large">
-            <p>How would you rate your driver?</p>
-            <div className="flex justify-center">
-              <Rate value={rating} onChange={setRating} style={{ fontSize: 32 }} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 mb-2">Additional comments (optional)</p>
-              <Input.TextArea
-                placeholder="Share your feedback..."
-                value={review}
-                onChange={(e) => setReview(e.target.value)}
-                rows={4}
-              />
-            </div>
           </Space>
         </Modal>
       )}
