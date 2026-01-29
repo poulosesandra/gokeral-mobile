@@ -119,7 +119,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
   const filteredBookings =
     filterStatus === "all"
       ? bookings
-      : bookings.filter((b) => b.status === filterStatus);
+      : bookings.filter((b) => (b.status || '').toUpperCase() === filterStatus.toUpperCase());
 
   const completedBookings = bookings.filter((b) => b.status === "COMPLETED").length;
   const cancelledBookings = bookings.filter((b) => b.status === "CANCELLED").length;  
@@ -240,7 +240,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       {/* Bookings List */}
       <Card className="shadow-md rounded-2xl">
         <h3 className="text-2xl font-semibold text-gray-800 mb-6">
-          {filterStatus === "all" ? "Booking History" : `${filterStatus} Bookings`}
+          {filterStatus === "all" ? "Booking History" : `${getStatusLabel(filterStatus)} Bookings`}
         </h3>
 
         <Spin spinning={loading}>

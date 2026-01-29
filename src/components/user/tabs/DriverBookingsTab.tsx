@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FC } from "react";
 import { Card, Empty, Tag, Spin, Button, Modal, message, Space } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, ReloadOutlined } from "@ant-design/icons";
 import api from "../../../services/api";
@@ -101,13 +101,22 @@ const getPassengerPhone = (b?: Partial<Booking> | null): string => {
 };
 
 // Normalize the booking/ride identifier.
-// This prevents calling endpoints like `/api/rides/undefined/accept`.
+// Prefer the Mongo `_id` (stringified) to avoid sending "BK-..." (bookingId) to endpoints that expect ObjectId.
 const getBookingId = (booking: Partial<Booking> | null | undefined): string | undefined => {
   if (!booking) return undefined;
-  return booking.rideId || booking.bookingId || booking._id || booking.id;
+  const rawId = (booking as any)._id;
+  if (rawId) {
+    // If it's an ObjectId object, convert to string; if it's already string, return it.
+    try {
+      return typeof rawId === "string" ? rawId : rawId.toString?.() || String(rawId);
+    } catch {
+      return String(rawId);
+    }
+  }
+  // Fallbacks
+  return booking.rideId || booking.bookingId || booking.id;
 };
-
-export const DriverBookingsTab = (_props: DriverBookingsTabProps) => {
+export const DriverBookingsTab: FC<DriverBookingsTabProps> = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("all");

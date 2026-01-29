@@ -223,6 +223,7 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         pickupLongitude={pickupLocation?.lng || 0}
         maxDrivers={10}
         route={route}
+        vehicleType={vehicleType} // <-- added prop
       />
 
       {/* Render the confirm booking modal (actual booking creation with payment & details) */}
