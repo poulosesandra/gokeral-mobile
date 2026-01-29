@@ -48,7 +48,7 @@ export const Header = ({
   };
 
   return (
-    <header className="bg-white shadow-sm h-16">
+    <header className="bg-white shadow-sm h-16 sticky top-0 z-50">
       <div className="w-full h-full px-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {onBack && !showMenuIcon && (

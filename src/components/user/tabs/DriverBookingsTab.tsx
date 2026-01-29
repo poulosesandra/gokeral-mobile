@@ -195,7 +195,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      message.success(res.data?.message || "Ride accepted");
+      message.success(res.data?.Message || res.data?.message || "Ride accepted");
 
       setBookings((prev) => prev.map((b) => (getBookingId(b) === id ? { ...b, status: "ACCEPTED" } : b)));
     } catch (err: any) {
@@ -251,9 +251,13 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = () => {
     }
   };
 
-  const filteredBookings = filterStatus === "all" ? bookings : bookings.filter((b) => b.status === filterStatus);
-  const completedBookings = bookings.filter((b) => b.status === "COMPLETED").length;
-  const cancelledBookings = bookings.filter((b) => b.status === "CANCELLED").length;
+  const filteredBookings =
+    filterStatus === "all"
+      ? bookings
+      : bookings.filter((b) => (b.status || "").toUpperCase() === filterStatus.toUpperCase());
+
+  const completedBookings = bookings.filter((b) => (b.status || "").toUpperCase() === "COMPLETED").length;
+  const cancelledBookings = bookings.filter((b) => (b.status || "").toUpperCase() === "CANCELLED").length;
 
   const handleViewDetails = (booking: Booking) => {
     setSelectedBooking(booking);
@@ -327,7 +331,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = () => {
                 >
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     {/* Left - Locations */}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-3 mb-2">
                         <EnvironmentOutlined className="text-blue-600 mt-1 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -340,7 +344,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = () => {
                     </div>
 
                     {/* Middle - Date & Passenger */}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
                         <ClockCircleOutlined className="text-green-600" />
                         <div>
@@ -349,24 +353,24 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = () => {
                         </div>
                       </div>
 
-                      <p className="text-sm mt-2">
+                      <p className="text-sm mt-2 truncate">
                         <span className="text-gray-600">Passenger: </span>
                         <span className="font-semibold">{getPassengerName(booking)}</span>
                       </p>
-                      <p className="text-sm mt-1">
+                      <p className="text-sm mt-1 truncate">
                         <span className="text-gray-600">Phone: </span>
                         <span className="font-semibold">{getPassengerPhone(booking)}</span>
                       </p>
                     </div>
 
                     {/* Right - Fare & Status */}
-                    <div className="flex flex-col items-end gap-2">
+                    <div className="flex flex-col md:items-end items-start gap-2 md:w-44 md:flex-shrink-0">
                       <Tag color={getStatusColor(booking.status)}>{getStatusLabel(booking.status)}</Tag>
 
                       {booking.status === "PENDING" && (
-                        <div className="flex items-center gap-2">
-                          <Button type="primary" size="small" onClick={(e) => { e.stopPropagation(); handleAccept(booking); }} loading={!!acceptLoadingMap[String(getBookingId(booking) || "")]}>Accept</Button>
-                          <Button danger size="small" onClick={(e) => { e.stopPropagation(); handleRejectConfirm(booking); }} loading={!!rejectLoadingMap[String(getBookingId(booking) || "")]}>Reject</Button>
+                        <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+                          <Button type="primary" size="small" className="w-full md:w-auto" onClick={(e) => { e.stopPropagation(); handleAccept(booking); }} loading={!!acceptLoadingMap[String(getBookingId(booking) || "")]}>Accept</Button>
+                          <Button danger size="small" className="w-full md:w-auto" onClick={(e) => { e.stopPropagation(); handleRejectConfirm(booking); }} loading={!!rejectLoadingMap[String(getBookingId(booking) || "")]}>Reject</Button>
                         </div>
                       )}
 

@@ -1,8 +1,35 @@
 @import "tailwindcss";
 
+/* GLOBAL: safer sizing and avoid unwanted overflow */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Allow horizontal scrolling if content truly needs it (prevents clipping).
+   Previously we set overflow-x:hidden which clipped content on the right. */
+html, body {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   font-optical-sizing: auto;
+}
+
+/* Ensure layout children in flex containers can shrink instead of forcing overflow */
+main, .ant-layout, .ant-layout-content, .w-full, .flex {
+  min-width: 0;
+}
+
+/* Make the global header sticky so it stays fixed while the page content scrolls */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: var(--tw-bg-opacity, #fff); /* keep header background */
 }
 
 /* Override Ant Design primary button color to green */
@@ -46,16 +73,11 @@ body {
   border-radius: 8px;
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   CARET / CURSOR FIX: Prevent stray blinking caret (and I-beam)
-   ───────────────────────────────────────────────────────────────── */
-
-/* Strong: hide caret everywhere by default */
+/* CARET / CURSOR FIX (unchanged) */
 * {
   caret-color: transparent !important;
 }
 
-/* Restore caret only for real editable controls */
 input:focus,
 textarea:focus,
 select:focus,
@@ -64,14 +86,7 @@ select:focus,
   user-select: text !important;
 }
 
-/* Prevent I-beam cursor + text selection on focused non-editable elements */
 :focus:not(input):not(textarea):not(select):not([contenteditable="true"]) {
   cursor: default !important;
   user-select: none !important;
 }
-
-/* Optional debug outline to identify the focused element (enable only while debugging)
-   *:focus {
-     outline: 3px dashed #ff00ff !important;
-   }
-*/
