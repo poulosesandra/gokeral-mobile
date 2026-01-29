@@ -52,6 +52,7 @@ interface SelectDriverModalProps {
     pickupLongitude: number;
     maxDrivers?: number;
     route?: google.maps.DirectionsRoute | null;
+    vehicleType?: string;
 }
 
 const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
@@ -62,6 +63,7 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
     pickupLongitude,
     maxDrivers = 10,
     route,
+    vehicleType,
 }) => {
     const [drivers, setDrivers] = useState<Driver[]>([]);
     const [loading, setLoading] = useState(false);
@@ -71,60 +73,51 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
         if (isOpen) {
             fetchNearbyDrivers();
         }
-    }, [isOpen, pickupLatitude, pickupLongitude]);
+    }, [isOpen, pickupLatitude, pickupLongitude, vehicleType]);
 
     const fetchNearbyDrivers = async () => {
         try {
             setLoading(true);
 
-            // ✅ Try to get nearby drivers with operating area filter first
+            // Try operating-area endpoint first
+            let fetched: Driver[] = [];
             try {
                 const response = await api.get('/bookings/nearby-drivers', {
-                    params: {
-                        latitude: pickupLatitude,
-                        longitude: pickupLongitude,
-                        radius: 2, // 2 KM radius
-                    },
+                    params: { latitude: pickupLatitude, longitude: pickupLongitude, radius: 2 },
                 });
-
-                const limitedDrivers = (response.data || []).slice(0, maxDrivers);
-
-                // If we got results, use them
-                if (limitedDrivers.length > 0) {
-                    setDrivers(limitedDrivers);
-                    console.log(`✅ Found ${limitedDrivers.length} nearby drivers`);
-                    return;
+                fetched = (response.data || []).slice(0, maxDrivers);
+                if (!fetched.length) {
+                    // fallback: flexible
+                    const flex = await api.get('/bookings/nearby-drivers-flexible', {
+                        params: { latitude: pickupLatitude, longitude: pickupLongitude, radius: 2 },
+                    });
+                    fetched = (flex.data || []).slice(0, maxDrivers);
                 }
-
-                // If no results, fall through to flexible endpoint
-                console.warn('⚠️ No drivers found with operating area filter, trying flexible search...');
-            } catch (error: any) {
-                // If error occurred (like 403), try flexible endpoint
-                console.warn('⚠️ Operating area filter failed, trying flexible search...', error.message);
+            } catch (err) {
+                // on error, try flexible
+                try {
+                    const flex = await api.get('/bookings/nearby-drivers-flexible', {
+                        params: { latitude: pickupLatitude, longitude: pickupLongitude, radius: 2 },
+                    });
+                    fetched = (flex.data || []).slice(0, maxDrivers);
+                } catch (flexErr) {
+                    console.error('Driver search failed', flexErr);
+                    message.error('Failed to load nearby drivers. Please try again.');
+                    fetched = [];
+                }
             }
 
-            // ✅ Fallback: Get nearby drivers without operating area restriction
-            try {
-                const flexibleResponse = await api.get('/bookings/nearby-drivers-flexible', {
-                    params: {
-                        latitude: pickupLatitude,
-                        longitude: pickupLongitude,
-                        radius: 2,
-                    },
+            // If vehicleType is provided, filter drivers by normalized vehicle type
+            let finalDrivers = fetched;
+            if (vehicleType) {
+                const want = String(vehicleType).trim();
+                finalDrivers = fetched.filter((d) => {
+                    const drvType = mapVehicleType(d.vehicle?.vehicleType);
+                    return drvType === want;
                 });
-
-                const limitedDrivers = (flexibleResponse.data || []).slice(0, maxDrivers);
-                setDrivers(limitedDrivers);
-                if (limitedDrivers.length > 0) {
-                    console.log(`✅ Found ${limitedDrivers.length} nearby drivers (flexible search)`);
-                } else {
-                    message.warning('No drivers available in your area. Please check back later.');
-                }
-            } catch (flexibleError) {
-                console.error('❌ Both driver search endpoints failed:', flexibleError);
-                message.error('Failed to load nearby drivers. Please try again.');
-                setDrivers([]);
             }
+
+            setDrivers(finalDrivers.slice(0, maxDrivers));
         } finally {
             setLoading(false);
         }
@@ -133,21 +126,15 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
     const getEstimatedPrice = (driver: Driver): string | undefined => {
         const leg = route?.legs?.[0];
         if (!leg) return undefined;
-
         const distanceInMeters = leg.distance?.value || 0;
         const durationInSeconds = leg.duration?.value || 0;
         const distanceInKm = distanceInMeters / 1000;
-
-        const fareStructure = driver.vehicle?.fareStructure || {
-            minimumFare: 50,
-            perKilometerRate: 15,
-            waitingChargePerMinute: 1,
-        };
-
+        const fareStructure = driver.vehicle?.fareStructure || { minimumFare: 50, perKilometerRate: 15, waitingChargePerMinute: 1 };
         const fare = calculateFare(distanceInKm, durationInSeconds, fareStructure);
         return `₹${Math.round(fare)}`;
     };
 
+    // Helper added: return first vehicle image or undefined
     const getVehicleImage = (driver: Driver): string | undefined => {
         const first = driver.vehicle?.vehicleImages?.[0];
         return typeof first === 'string' ? first : undefined;
@@ -162,28 +149,9 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
     });
 
     return (
-        <Modal
-            title="Select Driver"
-            open={isOpen}
-            onCancel={onClose}
-            footer={null}
-            width={600}
-            centered
-            closeIcon={<CloseOutlined />}
-        >
+        <Modal title="Select Driver" open={isOpen} onCancel={onClose} footer={null} width={600} centered closeIcon={<CloseOutlined />}>
             <div className="space-y-4">
-                {/* Search Input */}
-                <div>
-                    <Input
-                        placeholder="Search by driver name or vehicle..."
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                        className="p-2"
-                        allowClear
-                    />
-                </div>
-
-                {/* Drivers List */}
+                <Input placeholder="Search by driver name or vehicle..." value={searchText} onChange={(e) => setSearchText(e.target.value)} allowClear />
                 <div className="max-h-[500px] overflow-y-auto">
                     {loading ? (
                         <div className="flex justify-center items-center h-64">
@@ -191,24 +159,14 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                         </div>
                     ) : filteredDrivers.length === 0 ? (
                         <Empty
-                            description={searchText ? 'No drivers match your search' : 'No drivers available nearby'}
+                            description={searchText ? 'No drivers match your search' : vehicleType ? `No ${vehicleType} drivers available nearby` : 'No drivers available nearby'}
                             style={{ marginTop: '2rem', marginBottom: '2rem' }}
                         />
                     ) : (
                         <div className="space-y-3">
-                            <p className="text-sm text-gray-600 font-medium">
-                                ✅ {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} available within 2 km
-                            </p>
-
+                            <p className="text-sm text-gray-600 font-medium">✅ {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} available within 2 km</p>
                             {filteredDrivers.map((driver, index) => (
-                                <Card
-                                    key={driver._id}
-                                    className="cursor-pointer hover:shadow-md transition-shadow border border-gray-200"
-                                    onClick={() => {
-                                        onSelectDriver(driver);
-                                        onClose();
-                                    }}
-                                >
+                                <Card key={driver._id} className="cursor-pointer hover:shadow-md transition-shadow border border-gray-200" onClick={() => { onSelectDriver(driver); onClose(); }}>
                                     <div className="flex justify-between items-start gap-3">
                                         {/* Driver Info */}
                                         <div className="flex gap-3 flex-1">
