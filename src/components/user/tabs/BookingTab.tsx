@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate, Input } from "antd";
-import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined } from "@ant-design/icons";
+import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, CopyOutlined } from "@ant-design/icons";
 import bookingService from "../../../services/bookingService";
 
 // NOTE: Replacing utility imports with hardcoded mapping as requested
@@ -43,6 +43,7 @@ interface Booking {
   driverRating?: number;
   driverReview?: string;
   vehicle?: any;
+  rideOtp?: string;
   [key: string]: any;
 }
 
@@ -356,7 +357,32 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       {/* Details Modal */}
       {selectedBooking && (
         <Modal
-          title="Booking Details"
+          title={
+            <div className="flex justify-between items-center w-full">
+              <span>Booking Details</span>
+              {selectedBooking.rideOtp && (
+                <div className="flex items-center gap-2">
+                  <div className="text-xs text-gray-500">OTP</div>
+                  <Tag color="volcano" className="font-bold">{String(selectedBooking.rideOtp)}</Tag>
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() => {
+                      try {
+                        navigator.clipboard?.writeText(String(selectedBooking.rideOtp));
+                        message.success("OTP copied to clipboard");
+                      } catch (e) {
+                        message.error("Failed to copy OTP");
+                      }
+                    }}
+                    icon={<CopyOutlined />}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              )}
+            </div>
+          }
           open={detailsModalOpen}
           onCancel={() => setDetailsModalOpen(false)}
           footer={[
