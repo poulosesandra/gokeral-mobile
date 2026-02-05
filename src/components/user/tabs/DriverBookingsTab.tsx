@@ -127,6 +127,14 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = () => {
     fetchBookings();
   }, []);
 
+  useEffect(() => {
+    const onBookingUpdated = (ev: any) => {
+      void fetchBookings();
+    };
+    window.addEventListener('booking:updated', onBookingUpdated);
+    return () => window.removeEventListener('booking:updated', onBookingUpdated);
+  }, []);
+
   const [acceptLoadingMap, setAcceptLoadingMap] = useState<Record<string, boolean>>({});
   const [rejectLoadingMap, setRejectLoadingMap] = useState<Record<string, boolean>>({});
 

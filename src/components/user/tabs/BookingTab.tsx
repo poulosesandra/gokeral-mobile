@@ -90,6 +90,15 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
     void fetchBookings();
   }, []);
 
+  useEffect(() => {
+    const onBookingUpdated = (ev: any) => {
+      // Optionally inspect ev.detail.bookingId/ev.detail.status if needed
+      void fetchBookings();
+    };
+    window.addEventListener('booking:updated', onBookingUpdated);
+    return () => window.removeEventListener('booking:updated', onBookingUpdated);
+  }, []);
+
   const fetchBookings = async () => {
     try {
       setLoading(true);
