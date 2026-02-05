@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate, Input } from "antd";
-import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, CopyOutlined } from "@ant-design/icons";
+import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, CopyOutlined, ReloadOutlined } from "@ant-design/icons";
 import bookingService from "../../../services/bookingService";
 
 // NOTE: Replacing utility imports with hardcoded mapping as requested
@@ -279,9 +279,21 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
 
       {/* Bookings List */}
       <Card className="shadow-md rounded-2xl">
-        <h3 className="text-2xl font-semibold text-gray-800 mb-6">
-          {filterStatus === "all" ? "Booking History" : `${getStatusLabel(filterStatus)} Bookings`}
-        </h3>
+
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-semibold text-gray-800">
+            {filterStatus === "all" ? "Booking History" : `${getStatusLabel(filterStatus)} Bookings`}
+          </h3>
+          <Button
+            type="default"
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={(e) => { e.stopPropagation(); void fetchBookings(); }}
+            loading={loading}
+          >
+            Refresh
+          </Button>
+        </div>
 
         <Spin spinning={loading}>
           {filteredBookings.length === 0 ? (
