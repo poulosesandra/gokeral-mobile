@@ -52,6 +52,10 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
   const [otp, setOtp] = useState("");
   const [role, setRole] = useState<"DRIVER" | "USER" | null>(null);
   const [showOtpPanel, setShowOtpPanel] = useState(false);
+  const [findingByOtp, setFindingByOtp] = useState(false);
+  const [bookingCandidate, setBookingCandidate] = useState<ActiveBooking | null>(null);
+  const [arriving, setArriving] = useState(false);
+  const [startingRide, setStartingRide] = useState(false);
 
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(-1);
@@ -280,30 +284,152 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
     }
   };
 
-  const handleStartRide = async () => {
-    if (!otp) {
-      message.warning("Enter OTP first");
+  const findBookingByOtp = useCallback(async (otpToFind: string) => {
+    if (!otpToFind) {
+      message.warning('Enter OTP first');
+      return null;
+    }
+
+    setFindingByOtp(true);
+    try {
+      // Try active / pending / recent driver bookings (no new API needed)
+      const endpoints = [
+        '/bookings/driver/active',
+        '/bookings/pending-for-driver',
+        '/bookings/driver/my-bookings',
+      ];
+
+      let all: any[] = [];
+      for (const ep of endpoints) {
+        try {
+          const r = await api.get(ep);
+          const payload = r.data;
+          if (Array.isArray(payload?.bookings)) all = all.concat(payload.bookings);
+          else if (Array.isArray(payload)) all = all.concat(payload);
+          else if (Array.isArray(payload?.data)) all = all.concat(payload.data);
+        } catch (e) {
+          // ignore failures for individual endpoints
+        }
+      }
+
+      // dedupe by _id
+      const byId = new Map<string, any>();
+      for (const b of all) {
+        const id = b._id || b.id || '';
+        if (id) byId.set(id, b);
+      }
+
+      const combined = Array.from(byId.values());
+      const found = combined.find((b: any) => String(b.rideOtp ?? '') === String(otpToFind));
+      if (found) {
+        if (found.status) found.status = String(found.status).toUpperCase();
+        setActiveBooking(found);
+        setBookingCandidate(found);
+        setShowOtpPanel(true);
+        manualToggleRef.current = true; // keep OTP panel open
+        message.success('Booking connected — click "Start Ride" to confirm arrival and begin the trip');
+        return found;
+      } else {
+        message.error('No booking found for this OTP. Ask the passenger to confirm the number and try again.');
+        setBookingCandidate(null);
+        return null;
+      }
+    } catch (err) {
+      console.error('Error finding booking by OTP', err);
+      message.error('Failed to search for booking');
+      return null;
+    } finally {
+      setFindingByOtp(false);
+    }
+  }, [setActiveBooking]);
+
+  const handleMarkArrived = async () => {
+    if (!activeBooking || !activeBooking._id) {
+      message.warning('No booking connected to mark arrival.');
       return;
     }
-    if (!activeBooking || !activeBooking._id) {
-      message.warning("No active booking to start. Refresh or check assignment.");
+    setArriving(true);
+    try {
+      const res = await api.patch(`/bookings/${activeBooking._id}/arrived`);
+      const data = res.data;
+      setLastFetchStatus(res.status);
+      setLastFetchTime(new Date().toLocaleTimeString());
+      setLastFetchDataSnippet(JSON.stringify(data).slice(0, 500) + (JSON.stringify(data).length > 500 ? '…' : ''));
+      const booking = extractBookingFromResponse(data);
+      if (booking) {
+        if (booking.status) booking.status = String(booking.status).toUpperCase();
+        setActiveBooking(booking);
+        message.success('Arrival confirmed — you can now start the ride.');
+      } else {
+        message.success('Arrival confirmed.');
+        await fetchCurrent();
+      }
+    } catch (e: any) {
+      console.error('[DriverHome] mark arrived failed', e);
+      const err = e?.response?.data?.message || e?.message || 'Failed to mark arrival';
+      message.error(err);
+    } finally {
+      setArriving(false);
+    }
+  };
+
+  const handleStartRide = async () => {
+    if (!otp) {
+      message.warning('Enter OTP first');
       return;
     }
 
+    // Ensure booking is connected
+    if (!activeBooking || !activeBooking._id) {
+      const found = await findBookingByOtp(otp);
+      if (!found || !found._id) {
+        // Keep OTP panel open; don't show a warning popup here.
+        setShowOtpPanel(true);
+        return;
+      }
+    }
+
+    if (startingRide) return;
+    setStartingRide(true);
+
     try {
+      // Auto-mark arrival if booking is still ACCEPTED
+      if (activeBooking?.status === 'ACCEPTED') {
+        try {
+          const arrivedRes = await api.patch(`/bookings/${activeBooking._id}/arrived`);
+          const arrivedBooking = extractBookingFromResponse(arrivedRes.data);
+          if (arrivedBooking) {
+            if (arrivedBooking.status) arrivedBooking.status = String(arrivedBooking.status).toUpperCase();
+            setActiveBooking(arrivedBooking);
+          } else {
+            await fetchCurrent();
+          }
+          message.success('Arrival confirmed.');
+        } catch (err: any) {
+          const errMsg = err?.response?.data?.message || err?.message || 'Failed to mark arrival';
+          message.error(errMsg);
+          setStartingRide(false);
+          return;
+        }
+      }
+
+      if (activeBooking?.status === 'IN_PROGRESS') {
+        message.info('Ride already in progress.');
+        setStartingRide(false);
+        return;
+      }
+
       const res = await api.post(`/bookings/${activeBooking._id}/verify-otp`, { otp });
       const data = res.data;
       if (res.status === 200) {
-        message.success("Ride started successfully");
-        // update local booking state and refresh
+        message.success('Ride started successfully');
         const bookingFromResponse = extractBookingFromResponse(data?.booking ?? data) || activeBooking;
-        setActiveBooking((prev) => (prev ? { ...prev, status: "IN_PROGRESS" } : prev));
-        setOtp("");
+        setActiveBooking((prev) => (prev ? { ...prev, status: 'IN_PROGRESS' } : prev));
+        setOtp('');
         setShowOtpPanel(false);
         manualToggleRef.current = false;
         await fetchCurrent();
 
-        // compute & display route if we have pickup/drop info
         const origin =
           bookingFromResponse?.pickupDetails && bookingFromResponse.pickupDetails.latitude && bookingFromResponse.pickupDetails.longitude
             ? { lat: Number(bookingFromResponse.pickupDetails.latitude), lng: Number(bookingFromResponse.pickupDetails.longitude) }
@@ -316,16 +442,18 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
 
         if (origin && destination) {
           await computeAndShowRoute(origin as any, destination as any);
-          // center will be set by MapArea when selectedRouteIndex >= 0
         } else {
           console.warn("Insufficient pickup/drop info to compute route");
         }
       } else {
-        message.error(data?.message || "Invalid OTP");
+        message.error(data?.message || 'Invalid OTP');
       }
-    } catch (e) {
-      console.error("[DriverHome] verify OTP failed", e);
-      message.error("Failed to verify OTP");
+    } catch (e: any) {
+      console.error('[DriverHome] verify OTP failed', e);
+      const errMsg = e?.response?.data?.message || e?.message || 'Failed to verify OTP';
+      message.error(errMsg);
+    } finally {
+      setStartingRide(false);
     }
   };
 
@@ -384,11 +512,26 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
             <div>
               <h3 className="text-lg font-semibold mb-1">Enter OTP to Start Ride</h3>
               <div className="text-sm text-gray-500">
-                {activeBooking ? `Current status: ${activeBooking.status ?? "N/A"}` : "No active booking. Type the OTP after asking the passenger."}
+                {activeBooking
+                  ? `Current status: ${activeBooking.status ?? "N/A"}`
+                  : "No active booking. Type the OTP after asking the passenger."}
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Button onClick={() => fetchCurrent()}>Refresh Now</Button>
+              <Button type="primary" onClick={() => findBookingByOtp(otp)} disabled={!otp} loading={findingByOtp}>
+                Find & Connect
+              </Button>
+              {activeBooking && activeBooking.status === 'ACCEPTED' && (
+                <Button onClick={handleMarkArrived} loading={arriving}>
+                  Mark Arrival
+                </Button>
+              )}
+              {activeBooking && (
+                <Button danger onClick={() => { setActiveBooking(null); setBookingCandidate(null); manualToggleRef.current = false; }}>
+                  Disconnect Ride
+                </Button>
+              )}
             </div>
           </div>
 
@@ -401,7 +544,12 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
               className="flex-1 p-2 border rounded"
               placeholder="Enter OTP provided by passenger"
             />
-            <Button type="primary" onClick={handleStartRide} disabled={!otp}>
+            <Button
+              type="primary"
+              onClick={handleStartRide}
+              disabled={!otp || startingRide}
+              loading={startingRide}
+            >
               Start Ride
             </Button>
           </div>
