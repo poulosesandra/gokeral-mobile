@@ -157,14 +157,91 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
     }
   }, [role]);
 
+  // --- helper: connect to SSE using fetch so we can send Authorization header --- 
+  const connectSseWithAuth = useCallback((url: string, onMessage: (data: any) => void) => {
+    const token = localStorage.getItem('token');
+    const controller = new AbortController();
+
+    fetch(url, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`SSE connect failed (${res.status})`);
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        const readLoop = async () => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const events = buffer.split('\n\n');
+            buffer = events.pop() ?? '';
+            for (const ev of events) {
+              const line = ev.split('\n').find(l => l.startsWith('data:'));
+              if (!line) continue;
+              const json = line.slice(5).trim();
+              try {
+                const parsed = JSON.parse(json);
+                onMessage(parsed);
+              } catch (e) {
+                console.warn('[SSE] could not parse data', e);
+              }
+            }
+          }
+        };
+
+        readLoop().catch((err) => console.error('[SSE] read loop error', err));
+      })
+      .catch((err) => {
+        console.error('[SSE] connect error', err);
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  // --- replace polling effect with event-driven logic ---
   useEffect(() => {
-    let intervalId: number | undefined;
-    if (role === "DRIVER" || role === "USER") {
+    let cleanup: undefined | (() => void);
+
+    if (role === 'DRIVER') {
+      // initial fetch
       fetchCurrent();
-      intervalId = window.setInterval(fetchCurrent, 1500);
+
+      const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '';
+      const url = `${apiBase}/drivers/subscribe-to-bookings`;
+
+      cleanup = connectSseWithAuth(url, (payload: any) => {
+        // payloads from server: { event: 'connected' } or { event: 'new_ride_request', booking: {...} }
+        const bookingData = payload?.booking ?? payload?.data ?? payload;
+        const booking = extractBookingFromResponse(bookingData);
+        if (booking) {
+          if (booking.status) booking.status = String(booking.status).toUpperCase();
+          setActiveBooking(booking);
+          setLastFetchStatus(200);
+          setLastFetchTime(new Date().toLocaleTimeString());
+          setLastFetchDataSnippet(JSON.stringify(payload).slice(0, 500) + (JSON.stringify(payload).length > 500 ? '…' : ''));
+          if (["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"].includes(booking.status ?? '')) {
+            setShowOtpPanel(true);
+          }
+        } else {
+          setActiveBooking(null);
+          if (role === 'DRIVER' && !manualToggleRef.current) setShowOtpPanel(false);
+        }
+      });
+    } else if (role === 'USER') {
+      // single fetch on mount
+      fetchCurrent();
+      const onVisibility = () => { if (document.visibilityState === 'visible') fetchCurrent(); };
+      window.addEventListener('visibilitychange', onVisibility);
+      cleanup = () => window.removeEventListener('visibilitychange', onVisibility);
     }
-    return () => { if (intervalId) clearInterval(intervalId); };
-  }, [role, fetchCurrent]);
+
+    return () => { if (cleanup) cleanup(); };
+  }, [role, fetchCurrent, connectSseWithAuth]);
 
   const handleToggleOtp = () => {
     setShowOtpPanel((s) => {
