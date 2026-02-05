@@ -2,6 +2,7 @@
 
 import { Card, Skeleton, Button, message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { FC } from "react";
 import { useJsApiLoader } from "@react-google-maps/api";
 import MapArea from "../../map/MapArea";
 import { authService } from "../../../services/authServices";
@@ -37,7 +38,7 @@ interface DriverHomeTabProps {
   onEditPersonalInfo: () => void;
 }
 
-export const DriverHomeTab = (_props: DriverHomeTabProps) => {
+export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE",
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -46,14 +47,14 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [sharingLocation, setSharingLocation] = useState(false);
-  type ActiveBooking = { _id?: string; id?: string; status?: string; rideOtp?: string; pickupDetails?: any; dropDetails?: any; pickupLocation?: string; dropoffLocation?: string; [k: string]: any } | null;
+  type ActiveBooking = { _id?: string; id?: string; status?: string; rideOtp?: string; pickupDetails?: Record<string, unknown>; dropDetails?: Record<string, unknown>; pickupLocation?: string; dropoffLocation?: string; [k: string]: unknown } | null;
 
   const [activeBooking, setActiveBooking] = useState<ActiveBooking>(null);
   const [otp, setOtp] = useState("");
   const [role, setRole] = useState<"DRIVER" | "USER" | null>(null);
   const [showOtpPanel, setShowOtpPanel] = useState(false);
   const [findingByOtp, setFindingByOtp] = useState(false);
-  const [bookingCandidate, setBookingCandidate] = useState<ActiveBooking | null>(null);
+  // bookingCandidate removed — it was assigned but never read
   const [arriving, setArriving] = useState(false);
   const [startingRide, setStartingRide] = useState(false);
 
@@ -99,7 +100,7 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
         },
         { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
       );
-    } catch (e) {
+    } catch {
       locationRequestRef.current = false;
       setSharingLocation(false);
       message.error("Failed to get location");
@@ -110,16 +111,24 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
     setRole(getRoleFromToken());
   }, []);
 
-  const extractBookingFromResponse = (data: any) => {
+  const extractBookingFromResponse = (data: unknown): ActiveBooking => {
     if (!data) return null;
-    let b = data.booking ?? data.data?.booking ?? data.data ?? data;
-    while (b && b.booking) b = b.booking;
+    const unwrap = (d: unknown): unknown => {
+      if (!d || typeof d !== "object") return d;
+      const obj = d as Record<string, unknown>;
+      if ("booking" in obj) return unwrap(obj.booking);
+      if ("data" in obj) return unwrap(obj.data);
+      return d;
+    };
+    let b = unwrap(data);
     if (!b) {
-      if (Array.isArray(data.bookings) && data.bookings.length > 0) return data.bookings[0];
+      const obj = data as Record<string, unknown>;
+      if (Array.isArray(obj?.bookings) && obj.bookings.length > 0) return obj.bookings[0] as ActiveBooking;
       return null;
     }
-    if (Array.isArray(b)) return b[0] ?? null;
-    if (b._id || b.id || b.status) return b;
+    if (Array.isArray(b)) return (b[0] ?? null) as ActiveBooking;
+    const o = b as Record<string, unknown>;
+    if (o["_id"] || o["id"] || o["status"]) return o as ActiveBooking;
     return null;
   };
 
@@ -155,14 +164,14 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
       } else {
         console.warn("[DriverHome] Unexpected response", res.status, data);
       }
-    } catch (e) {
-      console.error("[DriverHome] Failed to fetch current booking", e);
-      setLastFetchDataSnippet(String(e).slice(0, 500));
+    } catch (err: unknown) {
+      console.error("[DriverHome] Failed to fetch current booking", err);
+      setLastFetchDataSnippet(String(err).slice(0, 500));
     }
   }, [role]);
 
   // --- helper: connect to SSE using fetch so we can send Authorization header --- 
-  const connectSseWithAuth = useCallback((url: string, onMessage: (data: any) => void) => {
+  const connectSseWithAuth = useCallback((url: string, onMessage: (data: unknown) => void) => {
     const token = localStorage.getItem('token');
     const controller = new AbortController();
 
@@ -191,8 +200,8 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
               try {
                 const parsed = JSON.parse(json);
                 onMessage(parsed);
-              } catch (e) {
-                console.warn('[SSE] could not parse data', e);
+              } catch (parseErr) {
+                console.warn('[SSE] could not parse data', parseErr);
               }
             }
           }
@@ -218,9 +227,10 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
       const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '';
       const url = `${apiBase}/drivers/subscribe-to-bookings`;
 
-      cleanup = connectSseWithAuth(url, (payload: any) => {
+      cleanup = connectSseWithAuth(url, (payload: unknown) => {
         // payloads from server: { event: 'connected' } or { event: 'new_ride_request', booking: {...} }
-        const bookingData = payload?.booking ?? payload?.data ?? payload;
+        const p = payload as Record<string, unknown>;
+        const bookingData = (p?.booking ?? p?.data ?? payload) as unknown;
         const booking = extractBookingFromResponse(bookingData);
         if (booking) {
           if (booking.status) booking.status = String(booking.status).toUpperCase();
@@ -257,7 +267,7 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
 
   // Compute route and show on map (uses Google DirectionsService)
   const computeAndShowRoute = async (origin: google.maps.LatLngLiteral | string, destination: google.maps.LatLngLiteral | string) => {
-    if (!isLoaded || !(window as any).google) {
+    if (!isLoaded || !(window as unknown as { google?: unknown }).google) {
       console.warn("Google API not loaded");
       return;
     }
@@ -279,8 +289,8 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
       });
       setDirectionsResponse(result);
       setSelectedRouteIndex(0);
-    } catch (e) {
-      console.error("Failed to compute route", e);
+    } catch (err: unknown) {
+      console.error("Failed to compute route", err);
     }
   };
 
@@ -299,42 +309,49 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
         '/bookings/driver/my-bookings',
       ];
 
-      let all: any[] = [];
+      let all: unknown[] = [];
       for (const ep of endpoints) {
         try {
           const r = await api.get(ep);
-          const payload = r.data;
-          if (Array.isArray(payload?.bookings)) all = all.concat(payload.bookings);
-          else if (Array.isArray(payload)) all = all.concat(payload);
-          else if (Array.isArray(payload?.data)) all = all.concat(payload.data);
-        } catch (e) {
+          const payload = r.data as unknown;
+          if (payload && typeof payload === "object") {
+            const p = payload as Record<string, unknown>;
+            if (Array.isArray(p.bookings)) all = all.concat(p.bookings);
+            else if (Array.isArray(payload)) all = all.concat(payload as unknown[]);
+            else if (Array.isArray(p.data)) all = all.concat(p.data as unknown[]);
+          }
+        } catch {
           // ignore failures for individual endpoints
         }
       }
 
       // dedupe by _id
-      const byId = new Map<string, any>();
+      const byId = new Map<string, unknown>();
       for (const b of all) {
-        const id = b._id || b.id || '';
+        const o = b as Record<string, unknown>;
+        const id = String(o['_id'] ?? o['id'] ?? '');
         if (id) byId.set(id, b);
       }
 
       const combined = Array.from(byId.values());
-      const found = combined.find((b: any) => String(b.rideOtp ?? '') === String(otpToFind));
+      const found = combined.find((b) => {
+        const o = b as Record<string, unknown>;
+        const ride = o['rideOtp'] ?? o['rideotp'] ?? o['ride_otp'] ?? '';
+        return String(ride ?? '') === String(otpToFind);
+      }) as ActiveBooking | undefined;
+
       if (found) {
         if (found.status) found.status = String(found.status).toUpperCase();
         setActiveBooking(found);
-        setBookingCandidate(found);
         setShowOtpPanel(true);
         manualToggleRef.current = true; // keep OTP panel open
         message.success('Booking connected — click "Start Ride" to confirm arrival and begin the trip');
         return found;
       } else {
         message.error('No booking found for this OTP. Ask the passenger to confirm the number and try again.');
-        setBookingCandidate(null);
         return null;
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error finding booking by OTP', err);
       message.error('Failed to search for booking');
       return null;
@@ -344,29 +361,51 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
   }, [setActiveBooking]);
 
   const handleMarkArrived = async () => {
-    if (!activeBooking || !activeBooking._id) {
-      message.warning('No booking connected to mark arrival.');
+    // Resolve a usable booking id (try several fields)
+    let bookingIdToUse =
+      activeBooking?._id ||
+      activeBooking?.id ||
+      activeBooking?.bookingId ||
+      activeBooking?.rideId ||
+      undefined;
+
+    // If we don't have one, try to find booking silently using the current OTP (if present)
+    if (!bookingIdToUse) {
+      try {
+        const found = otp ? await findBookingByOtp(otp, { silent: true }) : null;
+        bookingIdToUse = found?._id || found?.id || found?.bookingId || found?.rideId || undefined;
+      } catch (e) {
+        /* ignore - will show message below */
+      }
+    }
+
+    if (!bookingIdToUse) {
+      message.error("Cannot mark arrival: no connected booking. Use Find & Connect first.");
       return;
     }
+
     setArriving(true);
     try {
-      const res = await api.patch(`/bookings/${activeBooking._id}/arrived`);
+      const res = await api.patch(`/bookings/${bookingIdToUse}/arrived`);
       const data = res.data;
       setLastFetchStatus(res.status);
       setLastFetchTime(new Date().toLocaleTimeString());
-      setLastFetchDataSnippet(JSON.stringify(data).slice(0, 500) + (JSON.stringify(data).length > 500 ? '…' : ''));
-      const booking = extractBookingFromResponse(data);
+      setLastFetchDataSnippet(JSON.stringify(data).slice(0, 500) + (JSON.stringify(data).length > 500 ? "…" : ""));
+
+      const booking = extractBookingFromResponse(data) || data;
       if (booking) {
         if (booking.status) booking.status = String(booking.status).toUpperCase();
         setActiveBooking(booking);
-        message.success('Arrival confirmed — you can now start the ride.');
+        // notify other tabs
+        window.dispatchEvent(new CustomEvent("booking:updated", { detail: { bookingId: bookingIdToUse, status: booking.status } }));
+        message.success("Arrival confirmed — you can now start the ride.");
       } else {
-        message.success('Arrival confirmed.');
+        message.success("Arrival confirmed.");
         await fetchCurrent();
       }
     } catch (e: any) {
-      console.error('[DriverHome] mark arrived failed', e);
-      const err = e?.response?.data?.message || e?.message || 'Failed to mark arrival';
+      console.error("[DriverHome] mark arrived failed", e);
+      const err = e?.response?.data?.message || e?.message || "Failed to mark arrival";
       message.error(err);
     } finally {
       setArriving(false);
@@ -379,12 +418,13 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
       return;
     }
 
-    // Ensure booking is connected
-    if (!activeBooking || !activeBooking._id) {
-      const found = await findBookingByOtp(otp);
-      if (!found || !found._id) {
-        // Keep OTP panel open; don't show a warning popup here.
-        setShowOtpPanel(true);
+    // Ensure we have an id to use (try silent find if needed)
+    let bookingIdToUse = activeBooking?._id || activeBooking?.id || activeBooking?.bookingId || activeBooking?.rideId;
+    if (!bookingIdToUse) {
+      const found = await findBookingByOtp(otp, { silent: true });
+      bookingIdToUse = found?._id || found?.id || found?.bookingId || found?.rideId;
+      if (!bookingIdToUse) {
+        setShowOtpPanel(true); // keep panel open silently
         return;
       }
     }
@@ -396,11 +436,12 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
       // Auto-mark arrival if booking is still ACCEPTED
       if (activeBooking?.status === 'ACCEPTED') {
         try {
-          const arrivedRes = await api.patch(`/bookings/${activeBooking._id}/arrived`);
-          const arrivedBooking = extractBookingFromResponse(arrivedRes.data);
+          const arrivedRes = await api.patch(`/bookings/${bookingIdToUse}/arrived`);
+          const arrivedBooking = extractBookingFromResponse(arrivedRes.data) || arrivedRes.data;
           if (arrivedBooking) {
             if (arrivedBooking.status) arrivedBooking.status = String(arrivedBooking.status).toUpperCase();
             setActiveBooking(arrivedBooking);
+            window.dispatchEvent(new CustomEvent("booking:updated", { detail: { bookingId: bookingIdToUse, status: arrivedBooking.status } }));
           } else {
             await fetchCurrent();
           }
@@ -419,7 +460,13 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
         return;
       }
 
-      const res = await api.post(`/bookings/${activeBooking._id}/verify-otp`, { otp });
+      const bookingId = bookingIdToUse;
+      if (!bookingId) {
+        message.warning('No booking connected');
+        setStartingRide(false);
+        return;
+      }
+      const res = await api.post(`/bookings/${bookingId}/verify-otp`, { otp });
       const data = res.data;
       if (res.status === 200) {
         message.success('Ride started successfully');
@@ -441,21 +488,24 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
             : bookingFromResponse?.dropoffLocation || null;
 
         if (origin && destination) {
-          await computeAndShowRoute(origin as any, destination as any);
+          await computeAndShowRoute(origin as google.maps.LatLngLiteral, destination as google.maps.LatLngLiteral);
         } else {
           console.warn("Insufficient pickup/drop info to compute route");
         }
       } else {
         message.error(data?.message || 'Invalid OTP');
       }
-    } catch (e: any) {
-      console.error('[DriverHome] verify OTP failed', e);
-      const errMsg = e?.response?.data?.message || e?.message || 'Failed to verify OTP';
-      message.error(errMsg);
+    } catch (err: unknown) {
+      console.error('[DriverHome] verify OTP failed', err);
+      message.error(String(err ?? 'Failed to verify OTP'));
     } finally {
       setStartingRide(false);
     }
   };
+
+  // notify other tabs that booking status changed
+  const updatedId = activeBooking?._id || activeBooking?.id || activeBooking?.bookingId || activeBooking?.rideId;
+  if (updatedId) window.dispatchEvent(new CustomEvent('booking:updated', { detail: { bookingId: updatedId, status: activeBooking?.status } }));
 
   return (
     <div className="w-full space-y-6">
@@ -528,7 +578,7 @@ export const DriverHomeTab = (_props: DriverHomeTabProps) => {
                 </Button>
               )}
               {activeBooking && (
-                <Button danger onClick={() => { setActiveBooking(null); setBookingCandidate(null); manualToggleRef.current = false; }}>
+                <Button danger onClick={() => { setActiveBooking(null); manualToggleRef.current = false; }}>
                   Disconnect Ride
                 </Button>
               )}
