@@ -178,6 +178,16 @@ export const UserProfile = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const bookingId = params.get('bookingId');
+    if (params.get('tab') === 'bookings') setActiveTab('bookings');
+    if (bookingId) {
+      setActiveTab('bookings');
+      try { window.dispatchEvent(new CustomEvent('open-booking', { detail: { bookingId } })); } catch {}
+    }
+  }, [location.search]);
+
   if (loading && !userData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">

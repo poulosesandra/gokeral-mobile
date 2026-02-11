@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate, Input } from "antd";
+import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, CopyOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useLocation } from "react-router-dom";
 import bookingService from "../../../services/bookingService";
 
 // NOTE: Replacing utility imports with hardcoded mapping as requested
 const mapVehicleType = (t?: string) => {
-  if (!t) return 'Auto';
+  if (!t) return "Auto";
   const s = String(t).toLowerCase();
-  if (s.includes('auto')) return 'Auto';
-  if (s.includes('suv')) return 'Seven Seater';
-  if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
+  if (s.includes("auto")) return "Auto";
+  if (s.includes("suv")) return "Seven Seater";
+  if (s.includes("sedan") || s.includes("hatch")) return "Five Seater";
   return t;
 };
 
@@ -34,7 +35,6 @@ interface Booking {
       licensePlate?: string;
       vehicleType?: string;
     };
-    // support embedded details shape
     details?: any;
   };
   driverId?: string;
@@ -86,18 +86,85 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
   const [review, setReview] = useState("");
   const [ratingLoading, setRatingLoading] = useState(false);
 
+  const location = useLocation();
+
   useEffect(() => {
     void fetchBookings();
   }, []);
 
   useEffect(() => {
     const onBookingUpdated = (ev: any) => {
-      // Optionally inspect ev.detail.bookingId/ev.detail.status if needed
       void fetchBookings();
     };
-    window.addEventListener('booking:updated', onBookingUpdated);
-    return () => window.removeEventListener('booking:updated', onBookingUpdated);
+    window.addEventListener("booking:updated", onBookingUpdated);
+    return () => window.removeEventListener("booking:updated", onBookingUpdated);
   }, []);
+
+  // --- New: listen for open-booking so "Open" in Notifications works for users ---
+  useEffect(() => {
+    const onOpenBooking = async (ev: Event) => {
+      const bookingId = (ev as CustomEvent)?.detail?.bookingId;
+      if (!bookingId) return;
+
+      // Try find in current list
+      let found = bookings.find(
+        (b) => String(b._id) === String(bookingId) || String(b.id) === String(bookingId)
+      );
+
+      if (!found) {
+        try {
+          const res = await bookingService.getBookingById(bookingId);
+          found = (res.booking || res) as Booking;
+        } catch (err) {
+          console.error("Failed to fetch booking for open-booking:", err);
+          message.error("Failed to fetch booking details");
+          return;
+        }
+      }
+
+      if (found) {
+        setSelectedBooking(found);
+        setDetailsModalOpen(true);
+      } else {
+        message.error("Booking not found");
+      }
+    };
+
+    window.addEventListener("open-booking", onOpenBooking as EventListener);
+    return () => window.removeEventListener("open-booking", onOpenBooking as EventListener);
+  }, [bookings]);
+
+  // --- New: check URL query (fallback) so modal opens after navigation from anywhere (e.g., Home) ---
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const bookingId = params.get("bookingId");
+    const tab = params.get("tab");
+    if (tab === "bookings" && bookingId) {
+      (async () => {
+        // Try find locally first
+        let found = bookings.find(
+          (b) => String(b._id) === String(bookingId) || String(b.id) === String(bookingId)
+        );
+        if (!found) {
+          try {
+            const res = await bookingService.getBookingById(bookingId);
+            found = (res.booking || res) as Booking;
+          } catch (err) {
+            console.error("Failed to fetch booking from URL param:", err);
+            message.error("Failed to fetch booking details");
+            return;
+          }
+        }
+        if (found) {
+          setSelectedBooking(found);
+          setDetailsModalOpen(true);
+        } else {
+          message.error("Booking not found");
+        }
+      })();
+    }
+    // Run whenever location.search changes
+  }, [location.search, bookings]);
 
   const fetchBookings = async () => {
     try {
@@ -118,15 +185,15 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       // If some ACCEPTED / IN_PROGRESS bookings are missing embedded driver info,
       // fetch details for those and merge so user sees immediate assignment.
       const needsDriverInfo = allBookings.filter((b: Booking) => {
-        const s = (b.status || '').toUpperCase();
-        return (s === 'ACCEPTED' || s === 'IN_PROGRESS') && !(b.driver && (b.driver.fullName || b.driver.phoneNumber)) && (b._id || b.id);
+        const s = (b.status || "").toUpperCase();
+        return (s === "ACCEPTED" || s === "IN_PROGRESS") && !(b.driver && (b.driver.fullName || b.driver.phoneNumber)) && (b._id || b.id);
       });
 
       if (needsDriverInfo.length > 0) {
         await Promise.all(
           needsDriverInfo.map(async (b: Booking) => {
             try {
-              const detailed = await bookingService.getBookingById(b._id || b.id || '');
+              const detailed = await bookingService.getBookingById(b._id || b.id || "");
               const updatedBooking = detailed.booking || detailed || {};
               setBookings((prev) =>
                 prev.map((p) => {
@@ -142,7 +209,6 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
           })
         );
       }
-
     } catch (error: any) {
       console.error("Error fetching bookings:", error);
       setBookings([]);
@@ -157,9 +223,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
   };
 
   const filteredBookings =
-    filterStatus === "all"
-      ? bookings
-      : bookings.filter((b) => (b.status || '').toUpperCase() === filterStatus.toUpperCase());
+    filterStatus === "all" ? bookings : bookings.filter((b) => (b.status || "").toUpperCase() === filterStatus.toUpperCase());
 
   const completedBookings = bookings.filter((b) => b.status === "COMPLETED").length;
   const cancelledBookings = bookings.filter((b) => b.status === "CANCELLED").length;  

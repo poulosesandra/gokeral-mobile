@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDriverRideListener } from "../../hooks/useDriverRideListener";
 import { Spin, message } from "antd";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Header } from "../Header";
 import { DriverSidebar, type DriverTabKey } from "./driverprofile/DriverSidebar";
 import { DriverHomeTab, type DriverData } from "../user/tabs/DriverHomeTab";
@@ -59,6 +59,9 @@ export const DriverProfile = () => {
   } | null>(null);
   const [acceptLoading, setAcceptLoading] = useState(false);
   const [rejectLoading, setRejectLoading] = useState(false);
+
+  // New: openBookingId passed from Header navigation (query param)
+  const [openBookingId, setOpenBookingId] = useState<string | undefined>(undefined);
 
   const currentUserForHook = authService.getCurrentUser();
   const driverIdForHook = currentUserForHook?._id || currentUserForHook?.id || "";
@@ -135,6 +138,7 @@ export const DriverProfile = () => {
   };
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const loadDriverData = async () => {
@@ -193,6 +197,20 @@ export const DriverProfile = () => {
     loadDriverData();
   }, [navigate]);
 
+  // Watch location query params for ?tab=bookings and ?bookingId=...
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get("tab");
+    const bookingIdParam = params.get("bookingId");
+    if (tabParam === "bookings") {
+      setActiveTab("bookings");
+    }
+    if (bookingIdParam) {
+      setActiveTab("bookings");
+      setOpenBookingId(bookingIdParam);
+    }
+  }, [location.search]);
+
   useEffect(() => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
@@ -217,108 +235,12 @@ export const DriverProfile = () => {
     navigate(path);
   };
 
-  const handleEditPersonalInfo = () => {
-    setPersonalInfoModalOpen(true);
-  };
+  const toggleSidebar = () => setSidebarOpen((s) => !s);
 
-  const handleNavigateToPersonalInfo = () => {
-    setActiveTab("personalInfo");
-  };
-
-  const handleAddVehicle = () => {
-    setVehicleToEdit(null);
-    setAddVehicleModalOpen(true);
-  };
-
-  const handleEditVehicle = (vehicle: any) => {
-    setVehicleToEdit(vehicle);
-    setAddVehicleModalOpen(true);
-  };
-
-  const handleVehicleAdded = () => {
-    setVehiclesRefreshSignal((s) => s + 1);
-  };
-
-  const handleSavePersonalInfo = async (data: {
-    fullName?: string;
-    email?: string;
-    phoneNumber?: string;
-    driverLicenseNumber?: string;
-    dateOfBirth?: string;
-    bloodGroup?: string;
-    address?: string;
-    languages?: string[];
-    certificates?: string[];
-    emergencyContact?: { name?: string; phone?: string; relation?: string };
-  }) => {
-    try {
-      setLoading(true);
-      const payload: any = {
-        fullName: data.fullName,
-        email: data.email,
-        phoneNumber: data.phoneNumber,
-        driverLicenseNumber: data.driverLicenseNumber,
-        address: data.address,
-        personalInfo: {
-          dob: data.dateOfBirth,
-          bloodGroup: data.bloodGroup,
-          languages: data.languages || [],
-          certificates: data.certificates || [],
-          emergencyContact: data.emergencyContact ? {
-            name: data.emergencyContact.name,
-            phone: data.emergencyContact.phone,
-            relationship: data.emergencyContact.relation,
-          } : undefined,
-        },
-      };
-
-      const updatedDriver = await authService.updateDriverProfile(payload);
-      // updatedDriver is set in authService; sync local state from it
-      if (updatedDriver) {
-        setDriverData({
-          fullName: updatedDriver.fullName || "",
-          email: updatedDriver.email || "",
-          phoneNumber: updatedDriver.phoneNumber || "",
-          driverLicenseNumber: updatedDriver.driverLicenseNumber || "",
-          address: updatedDriver.address || "",
-          profileImage: updatedDriver.profileImage || null,
-          personalInfo: {
-            bloodGroup: updatedDriver.personalInfo?.bloodGroup || "",
-            dob: updatedDriver.personalInfo?.dob || "",
-            languages: updatedDriver.personalInfo?.languages || [],
-            certificates: updatedDriver.personalInfo?.certificates || [],
-            emergencyContact: updatedDriver.personalInfo?.emergencyContact || {
-              name: "",
-              phone: "",
-              relationship: "",
-            },
-          },
-        });
-      }
-
-      setPersonalInfoModalOpen(false);
-      message.success("Details updated successfully");
-    } catch (err) {
-      console.error("Failed to update: ", err);
-      message.error("Failed to update details");
-    } finally {
-      setLoading(false);
-    }
-  };
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-center">
-          <Spin size="large" />
-          <p className="mt-4 text-gray-600 font-medium">Loading your profile...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleAddVehicle = () => setAddVehicleModalOpen(true);
+  const handleEditVehicle = (v: any) => setVehicleToEdit(v);
+  const handleEditPersonalInfo = () => setPersonalInfoModalOpen(true);
+  const handleNavigateToPersonalInfo = () => setActiveTab("personalInfo");
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -355,7 +277,8 @@ export const DriverProfile = () => {
           />
         );
       case "bookings":
-        return <DriverBookingsTab loading={loading} />;
+        // Pass openBookingId so the bookings tab can auto-open the details modal
+        return <DriverBookingsTab loading={loading} openBookingId={openBookingId} onOpenHandled={() => setOpenBookingId(undefined)} />;
       case "settings":
         return (
           <div className="space-y-6">
@@ -374,6 +297,25 @@ export const DriverProfile = () => {
         );
     }
   };
+
+  // Listen for open-booking events (dispatched by Header) to ensure the Bookings tab opens
+  useEffect(() => {
+    const onOpenBooking = (ev: Event) => {
+      const bookingId = (ev as CustomEvent)?.detail?.bookingId;
+      if (bookingId) {
+        setActiveTab("bookings");
+        setOpenBookingId(bookingId);
+        try {
+          navigate(`/driver/profile?tab=bookings&bookingId=${encodeURIComponent(bookingId)}`);
+        } catch {}
+      } else {
+        setActiveTab("bookings");
+        try { navigate('/driver/profile?tab=bookings'); } catch {}
+      }
+    };
+    window.addEventListener("open-booking", onOpenBooking as EventListener);
+    return () => window.removeEventListener("open-booking", onOpenBooking as EventListener);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-gray-100">
@@ -400,7 +342,6 @@ export const DriverProfile = () => {
             profileImage: driverData.profileImage,
           }}
           onProfileImageUpdate={(url: string | null) => {
-            // Update parent state IMMEDIATELY - this triggers re-render of sidebar
             setDriverData((prev) => ({
               ...prev,
               profileImage: url,
@@ -422,52 +363,25 @@ export const DriverProfile = () => {
         </div>
       </div>
 
+      {/* Ride Request modal (unchanged) */}
       <RideRequestModal
         open={rideModalOpen}
         pickupLocation={pendingRide?.pickupLocation || ""}
         phoneNumber={pendingRide?.phoneNumber}
         fare={pendingRide?.estimatedFare || 0}
-        distance={pendingRide?.distance || "N/A"}
         onAccept={handleAcceptRide}
         onReject={handleRejectRide}
-        onCancel={() => { setRideModalOpen(false); setPendingRide(null); }}
-        acceptLoading={acceptLoading}
-        rejectLoading={rejectLoading}
-      />
-
-      <DriverAddDetails
-        open={personalInfoModalOpen}
-        onCancel={() => setPersonalInfoModalOpen(false)}
-        onSave={handleSavePersonalInfo}
-        initialValues={{
-          fullName: driverData.fullName,
-          email: driverData.email,
-          phoneNumber: driverData.phoneNumber,
-          driverLicenseNumber: driverData.driverLicenseNumber,
-          dateOfBirth: driverData.personalInfo?.dob || "",
-          bloodGroup: driverData.personalInfo?.bloodGroup || "",
-          address: driverData.address || "",
-          languages: driverData.personalInfo?.languages || [],
-          certificates: driverData.personalInfo?.certificates || [],
-          emergencyContact: driverData.personalInfo?.emergencyContact ? {
-            name: driverData.personalInfo.emergencyContact.name || "",
-            phone: driverData.personalInfo.emergencyContact.phone || "",
-            relation: driverData.personalInfo.emergencyContact.relationship || "",
-          } : undefined,
-        }}
-      />
-
-      <AddVehicleModal
-        open={addVehicleModalOpen}
         onClose={() => {
-          setAddVehicleModalOpen(false);
-          setVehicleToEdit(null);
+          setRideModalOpen(false);
+          setPendingRide(null);
         }}
-        onSuccess={handleVehicleAdded}
-        vehicleData={vehicleToEdit}
+        accepting={acceptLoading}
+        rejecting={rejectLoading}
       />
+
+      {/* Modals */}
+      <DriverAddDetails open={personalInfoModalOpen} onClose={() => setPersonalInfoModalOpen(false)} onSaved={() => setPersonalInfoModalOpen(false)} />
+      <AddVehicleModal open={addVehicleModalOpen} defaultValue={vehicleToEdit} onClose={() => { setAddVehicleModalOpen(false); setVehicleToEdit(null); }} onSaved={() => { setVehiclesRefreshSignal((s) => s + 1); setAddVehicleModalOpen(false); }} />
     </div>
   );
 };
-
-export default DriverProfile;

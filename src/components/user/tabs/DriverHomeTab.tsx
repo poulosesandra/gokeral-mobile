@@ -245,6 +245,14 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
           setActiveBooking(null);
           if (role === 'DRIVER' && !manualToggleRef.current) setShowOtpPanel(false);
         }
+        // Emit an app-wide event so Header can increment the bell in real-time
+        if (p?.event === 'new_ride_request') {
+          try {
+            window.dispatchEvent(new CustomEvent('ride-request', { detail: { booking } }));
+          } catch (e) {
+            // ignore if CustomEvent fails in older browsers
+          }
+        }
       });
     } else if (role === 'USER') {
       // single fetch on mount
