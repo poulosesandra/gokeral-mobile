@@ -4,21 +4,14 @@ import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { UserSidebar } from "./UserSidebar";
 import { Button, Spin } from "antd";
-import { useNavigate } from "react-router-dom"; // added
+import { useNavigate, useLocation } from "react-router-dom";
 import type { JSX } from "react/jsx-runtime";
 import "../../styles/UserProfile.css";
 
-/**
- * NOTE: Some components/services referenced by imports were not found by the compiler.
- * Lightweight local stubs are provided below so this file compiles; replace them
- * with real implementations when the modules are available in the project.
- */
-
-/* basic tab key types (matches expected usage in the file) */
+/* (stubs and types unchanged) */
 type UserTabKey = "home" | "personal" | "bookings" | "security" | "privacy" | "data";
 export type TabKey = UserTabKey | "vehicles";
 
-/* Minimal Header and Tab stubs (replace with real components when available) */
 const Header: React.FC<{
   navigate: (p: string) => void;
   handleLogout: () => void;
@@ -47,7 +40,6 @@ const SecurityTab: React.FC = () => <div />;
 const PrivacyTab: React.FC = () => <div />;
 const DataTab: React.FC = () => <div />;
 
-/* Typed payload for profile updates */
 type UpdateUserPayload = {
   fullName?: string;
   email?: string;
@@ -56,13 +48,11 @@ type UpdateUserPayload = {
   profileImage?: string | null;
 };
 
-/* Minimal authService stub (replace with real implementation when available) */
 const authService = {
   fetchUserProfile: async () => ({} as any),
   updateUserProfile: async (_payload: UpdateUserPayload) => ({} as any),
   logout: () => {},
 };
-
 
 export type UserData = {
   fullName: string;
@@ -89,7 +79,6 @@ export const UserProfile = () => {
 
       setLoading(true);
 
-      // Always fetch fresh data from backend
       try {
         const response = await authService.fetchUserProfile();
         const backendData = response.user || response;
@@ -134,7 +123,7 @@ export const UserProfile = () => {
     })();
   }, [getUserDetails]);
 
-  const routerNavigate = useNavigate(); // added
+  const routerNavigate = useNavigate();
   const navigate = (path: string) => routerNavigate(path);
 
   const handleLogout = () => {
@@ -226,6 +215,37 @@ export const UserProfile = () => {
     }
   }, []);
 
+  const location = useLocation();
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    if (q.get("tab") === "bookings") setActiveTab("bookings");
+  }, [location.search]);
+
+  // --- Corrected: register open-booking listener inside useEffect and clean up ---
+  useEffect(() => {
+    const onOpenBooking = (ev: Event) => {
+      const bookingId = (ev as CustomEvent)?.detail?.bookingId;
+      if (bookingId) {
+        setActiveTab("bookings");
+        try {
+          routerNavigate(`/user/profile?tab=bookings&bookingId=${encodeURIComponent(bookingId)}`);
+        } catch {
+          // ignore navigation errors
+        }
+      } else {
+        setActiveTab("bookings");
+        try {
+          routerNavigate("/user/profile?tab=bookings");
+        } catch {
+          // ignore navigation errors
+        }
+      }
+    };
+
+    window.addEventListener("open-booking", onOpenBooking as EventListener);
+    return () => window.removeEventListener("open-booking", onOpenBooking as EventListener);
+  }, [routerNavigate]);
+
   if (loading && !userData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -292,7 +312,6 @@ export const UserProfile = () => {
       <div className="flex relative w-full pl-0 pr-4 pt-6">
         <UserSidebar userData={userData} activeTab={activeTab} handleTabChange={handleTabChange} handleLogout={handleLogout} sidebarOpen={sidebarOpen} windowWidth={windowWidth} toggleSidebar={toggleSidebar} onClose={() => setSidebarOpen(false)} onProfileUpdate={refreshUserProfile} />
 
-        {/* <-- key change: remove w-full and add min-w-0 so flex child can shrink and avoid right-side clipping */}
         <div className="flex-1 min-w-0 p-2 md:pl-4 min-h-screen transition-all duration-300 ease-in-out">
           <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">{loading ? <div className="flex justify-center items-center min-h-64"><Spin size="large" /></div> : tabContent[activeTab]}</div>
 

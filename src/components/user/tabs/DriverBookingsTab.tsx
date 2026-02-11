@@ -47,6 +47,8 @@ interface Booking {
 
 interface DriverBookingsTabProps {
   loading?: boolean;
+  openBookingId?: string;
+  onOpenHandled?: () => void;
 }
 
 const getStatusColor = (status: string) => {
@@ -116,7 +118,8 @@ const getBookingId = (booking: Partial<Booking> | null | undefined): string | un
   // Fallbacks
   return booking.rideId || booking.bookingId || booking.id;
 };
-export const DriverBookingsTab: FC<DriverBookingsTabProps> = () => {
+
+export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, onOpenHandled }) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -281,6 +284,31 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = () => {
       minute: "2-digit",
     });
   };
+
+  // Open booking details when parent supplies `openBookingId`
+  useEffect(() => {
+    if (!openBookingId) return;
+    const open = async () => {
+      // Try find in current list
+      let found = bookings.find((b) => getBookingId(b) === openBookingId);
+      if (!found) {
+        try {
+          const res = await api.get(`/bookings/${openBookingId}`);
+          found = res.data as Booking;
+        } catch (err) {
+          message.error("Failed to fetch booking details");
+        }
+      }
+      if (found) {
+        setSelectedBooking(found);
+        setDetailsModalOpen(true);
+      } else {
+        message.error("Booking not found");
+      }
+      onOpenHandled?.();
+    };
+    open();
+  }, [openBookingId, bookings, onOpenHandled]);
 
   return (
     <div className="w-full space-y-4">
