@@ -18,7 +18,7 @@ const getRoleFromToken = (): "DRIVER" | "USER" | null => {
     if (parts.length < 2) return null;
     const payload = JSON.parse(atob(parts[1]));
     return payload?.role === "DRIVER" || payload?.role === "USER" ? payload.role : null;
-  } catch (e) {
+  } catch {
     return null;
   }
 };
@@ -111,7 +111,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     setRole(getRoleFromToken());
   }, []);
 
-  const extractBookingFromResponse = (data: unknown): ActiveBooking => {
+  const extractBookingFromResponse = useCallback((data: unknown): ActiveBooking => {
     if (!data) return null;
     const unwrap = (d: unknown): unknown => {
       if (!d || typeof d !== "object") return d;
@@ -120,7 +120,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       if ("data" in obj) return unwrap(obj.data);
       return d;
     };
-    let b = unwrap(data);
+    const b = unwrap(data);
     if (!b) {
       const obj = data as Record<string, unknown>;
       if (Array.isArray(obj?.bookings) && obj.bookings.length > 0) return obj.bookings[0] as ActiveBooking;
@@ -130,7 +130,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     const o = b as Record<string, unknown>;
     if (o["_id"] || o["id"] || o["status"]) return o as ActiveBooking;
     return null;
-  };
+  }, []);
 
   const fetchCurrent = useCallback(async () => {
     const url = role === "DRIVER" ? "/bookings/driver/current" : "/bookings/my-bookings/current";
@@ -147,7 +147,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         if (booking) {
           if (booking.status) booking.status = String(booking.status).toUpperCase();
           setActiveBooking(booking);
-          if (role === "DRIVER" && ["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"].includes(booking.status)) {
+          if (role === "DRIVER" && ["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"].includes(booking.status ?? '')) {
             setShowOtpPanel(true);
           }
           if (role === "USER" && booking.status === "ACCEPTED") {
@@ -168,7 +168,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       console.error("[DriverHome] Failed to fetch current booking", err);
       setLastFetchDataSnippet(String(err).slice(0, 500));
     }
-  }, [role]);
+  }, [role, extractBookingFromResponse]);
 
   // --- helper: connect to SSE using fetch so we can send Authorization header --- 
   const connectSseWithAuth = useCallback((url: string, onMessage: (data: unknown) => void) => {
@@ -249,7 +249,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         if (p?.event === 'new_ride_request') {
           try {
             window.dispatchEvent(new CustomEvent('ride-request', { detail: { booking } }));
-          } catch (e) {
+          } catch {
             // ignore if CustomEvent fails in older browsers
           }
         }
@@ -263,7 +263,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     }
 
     return () => { if (cleanup) cleanup(); };
-  }, [role, fetchCurrent, connectSseWithAuth]);
+  }, [role, fetchCurrent, connectSseWithAuth, extractBookingFromResponse]);
 
   const handleToggleOtp = () => {
     setShowOtpPanel((s) => {
@@ -302,9 +302,9 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     }
   };
 
-  const findBookingByOtp = useCallback(async (otpToFind: string) => {
+  const findBookingByOtp = useCallback(async (otpToFind: string, options?: { silent?: boolean }) => {
     if (!otpToFind) {
-      message.warning('Enter OTP first');
+      if (!options?.silent) message.warning('Enter OTP first');
       return null;
     }
 
@@ -353,10 +353,10 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         setActiveBooking(found);
         setShowOtpPanel(true);
         manualToggleRef.current = true; // keep OTP panel open
-        message.success('Booking connected — click "Start Ride" to confirm arrival and begin the trip');
+        if (!options?.silent) message.success('Booking connected — click "Start Ride" to confirm arrival and begin the trip');
         return found;
       } else {
-        message.error('No booking found for this OTP. Ask the passenger to confirm the number and try again.');
+        if (!options?.silent) message.error('No booking found for this OTP. Ask the passenger to confirm the number and try again.');
         return null;
       }
     } catch (err: unknown) {
@@ -382,7 +382,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       try {
         const found = otp ? await findBookingByOtp(otp, { silent: true }) : null;
         bookingIdToUse = found?._id || found?.id || found?.bookingId || found?.rideId || undefined;
-      } catch (e) {
+      } catch {
         /* ignore - will show message below */
       }
     }
@@ -411,9 +411,9 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         message.success("Arrival confirmed.");
         await fetchCurrent();
       }
-    } catch (e: any) {
-      console.error("[DriverHome] mark arrived failed", e);
-      const err = e?.response?.data?.message || e?.message || "Failed to mark arrival";
+    } catch (error: unknown) {
+      console.error("[DriverHome] mark arrived failed", error);
+      const err = (error as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (error as { message?: string })?.message || "Failed to mark arrival";
       message.error(err);
     } finally {
       setArriving(false);
@@ -454,9 +454,10 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
             await fetchCurrent();
           }
           message.success('Arrival confirmed.');
-        } catch (err: any) {
-          const errMsg = err?.response?.data?.message || err?.message || 'Failed to mark arrival';
-          message.error(errMsg);
+        } catch (err: unknown) {
+          const errObj = err as Record<string, unknown>;
+          const errMsg = ((errObj?.response as Record<string, unknown>)?.data as Record<string, unknown>)?.message || (errObj as Record<string, unknown>)?.message || 'Failed to mark arrival';
+          message.error(String(errMsg));
           setStartingRide(false);
           return;
         }

@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useDriverRideListener } from "../../hooks/useDriverRideListener";
-import { Spin, message } from "antd";
+import { message } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Header } from "../Header";
 import { DriverSidebar, type DriverTabKey } from "./driverprofile/DriverSidebar";
-import { DriverHomeTab, type DriverData } from "../user/tabs/DriverHomeTab";
+import { DriverHomeTab } from "../user/tabs/DriverHomeTab";
 import { DriverPersonalInfoTab } from "../user/tabs/DriverPersonalInfoTab";
 import { VehiclesTab } from "../user/tabs/VehiclesTab";
 import { DriverBookingsTab } from "../user/tabs/DriverBookingsTab";
@@ -17,6 +17,26 @@ import DriverAddDetails, { type DriverPersonalInfoValues } from "./driverprofile
 import AddVehicleModal from "./driverprofile/modal/driverAddVehicle";
 import RideRequestModal from "./driverprofile/modal/RideRequestModal";
 import { authService } from "../../services/authServices";
+
+export type DriverData = {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  driverLicenseNumber: string;
+  address?: string;
+  profileImage: string | null;
+  personalInfo?: {
+    bloodGroup?: string;
+    dob?: string;
+    languages?: string[];
+    certificates?: string[];
+    emergencyContact?: {
+      name?: string;
+      phone?: string;
+      relationship?: string;
+    };
+  };
+};
 
 export const DriverProfile = () => {
   const [activeTab, setActiveTab] = useState<DriverTabKey>("home");
@@ -48,7 +68,7 @@ export const DriverProfile = () => {
       },
     },
   });
-  const [vehicleToEdit, setVehicleToEdit] = useState<{ id?: string; make?: string; model?: string; year?: number; licensePlate?: string; color?: string;[key: string]: any } | null>(null);
+  const [vehicleToEdit, setVehicleToEdit] = useState<{ id?: string; make?: string; model?: string; year?: number; licensePlate?: string; color?: string; [key: string]: string | number | undefined } | null>(null);
 
   const [rideModalOpen, setRideModalOpen] = useState(false);
   const [pendingRide, setPendingRide] = useState<{
@@ -104,7 +124,7 @@ export const DriverProfile = () => {
       message.success("Ride accepted");
       setRideModalOpen(false);
       setPendingRide(null);
-    } catch (err) {
+    } catch {
       message.error("Failed to accept ride");
     } finally {
       setAcceptLoading(false);
@@ -131,7 +151,7 @@ export const DriverProfile = () => {
       message.info("Ride rejected");
       setRideModalOpen(false);
       setPendingRide(null);
-    } catch (err) {
+    } catch {
       message.error("Failed to reject ride");
     } finally {
       setRejectLoading(false);
@@ -176,8 +196,9 @@ export const DriverProfile = () => {
             },
           });
           setLoading(false);
-        } catch (backendError: any) {
-          console.error("Failed to fetch driver profile:", backendError);
+        } catch (backendError: unknown) {
+          const error = backendError as { response?: { status: number } };
+          console.error("Failed to fetch driver profile:", error);
 
           if (backendError.response?.status === 401) {
             authService.logout();
@@ -238,8 +259,16 @@ export const DriverProfile = () => {
 
   const toggleSidebar = () => setSidebarOpen((s) => !s);
 
-  const handleAddVehicle = () => setAddVehicleModalOpen(true);
-  const handleEditVehicle = (v: any) => setVehicleToEdit(v);
+  const handleAddVehicle = () => {
+    setVehicleToEdit(null);
+    setAddVehicleModalOpen(true);
+  };
+
+  const handleEditVehicle = (v: { id?: string; make?: string; model?: string; year?: number; licensePlate?: string; color?: string; [key: string]: string | number | undefined }) => {
+    setVehicleToEdit(v);
+    setAddVehicleModalOpen(true);
+  };
+
   const handleEditPersonalInfo = () => setPersonalInfoModalOpen(true);
   const handleNavigateToPersonalInfo = () => setActiveTab("personalInfo");
 
@@ -373,10 +402,16 @@ export const DriverProfile = () => {
         setOpenBookingId(bookingId);
         try {
           navigate(`/driver/profile?tab=bookings&bookingId=${encodeURIComponent(bookingId)}`);
-        } catch {}
+        } catch (e) {
+          console.error("Navigation error:", e);
+        }
       } else {
         setActiveTab("bookings");
-        try { navigate('/driver/profile?tab=bookings'); } catch {}
+        try {
+          navigate('/driver/profile?tab=bookings');
+        } catch (e) {
+          console.error("Navigation error:", e);
+        }
       }
     };
     window.addEventListener("open-booking", onOpenBooking as EventListener);
@@ -384,18 +419,19 @@ export const DriverProfile = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50 to-gray-100">
-      <Header
-        navigate={handleNavigate}
-        handleLogout={handleLogout}
-        username={driverData.fullName}
-        onMenuToggle={toggleSidebar}
-        showMenuIcon={windowWidth <= 768}
-        onProfileClick={() => setActiveTab("personalInfo")}
-      />
+    <div className="h-screen bg-gradient-to-b from-green-50 to-gray-100 overflow-hidden">
+      <div className="fixed top-0 left-0 right-0 z-40">
+        <Header
+          navigate={handleNavigate}
+          handleLogout={handleLogout}
+          username={driverData.fullName}
+          onMenuToggle={toggleSidebar}
+          showMenuIcon={windowWidth <= 768}
+          onProfileClick={() => setActiveTab("personalInfo")}
+        />
+      </div>
 
-      <div className="flex relative w-full">
-        {/* Sidebar */}
+      <div className="flex relative w-full pt-16 h-full">
         <DriverSidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -408,21 +444,17 @@ export const DriverProfile = () => {
             profileImage: driverData.profileImage,
           }}
           onProfileImageUpdate={(url: string | null) => {
-            setDriverData((prev) => ({
-              ...prev,
-              profileImage: url,
-            }));
+            setDriverData((prev) => ({ ...prev, profileImage: url }));
             message.success("Profile image updated");
           }}
           handleLogout={handleLogout}
         />
-        {/* Main Content */}
-        <div className="flex-1 p-2 md:p-4 w-full transition-all duration-300 ease-in-out">
+
+        <div className="flex-1 p-2 md:p-4 md:pl-64 h-full w-full transition-all duration-300 ease-in-out overflow-y-auto">
           <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">
             {renderTabContent()}
           </div>
 
-          {/* Footer */}
           <div className="mt-4 text-center text-gray-500 text-sm py-2">
             <p>&copy; {new Date().getFullYear()} Gokeral. All rights reserved.</p>
           </div>
@@ -437,10 +469,6 @@ export const DriverProfile = () => {
         fare={pendingRide?.estimatedFare || 0}
         onAccept={handleAcceptRide}
         onReject={handleRejectRide}
-        onClose={() => {
-          setRideModalOpen(false);
-          setPendingRide(null);
-        }}
         accepting={acceptLoading}
         rejecting={rejectLoading}
       />
@@ -472,9 +500,9 @@ export const DriverProfile = () => {
       />
       <AddVehicleModal
         open={addVehicleModalOpen}
-        defaultValue={vehicleToEdit}
+        vehicleData={vehicleToEdit}
         onClose={() => { setAddVehicleModalOpen(false); setVehicleToEdit(null); }}
-        onSaved={() => { setVehiclesRefreshSignal((s) => s + 1); setAddVehicleModalOpen(false); }}
+        onSuccess={() => { setVehiclesRefreshSignal((s) => s + 1); setAddVehicleModalOpen(false); setVehicleToEdit(null); }}
       />
     </div>
   );

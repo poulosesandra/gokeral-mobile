@@ -245,9 +245,9 @@ export const UserSidebar = ({
     <>
       <div
         className={`
-          fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-lg border-r border-gray-200
+          fixed top-16 bottom-0 left-0 z-30 w-64 bg-white shadow-lg border-r border-gray-200
           md:w-64 md:ml-0
-          md:sticky md:top-0 md:h-screen md:rounded-none md:border-r
+          h-[calc(100vh-4rem)]
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
