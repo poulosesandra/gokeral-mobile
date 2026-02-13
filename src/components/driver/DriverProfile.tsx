@@ -13,7 +13,7 @@ import { DriverBookingsTab } from "../user/tabs/DriverBookingsTab";
 import { SecurityTab } from "../user/tabs/SecurityTab";
 import { PrivacyTab } from "../user/tabs/PrivacyTab";
 import { DataTab } from "../user/tabs/DataTab";
-import DriverAddDetails from "./driverprofile/modal/driverAddDetails";
+import DriverAddDetails, { type DriverPersonalInfoValues } from "./driverprofile/modal/driverAddDetails";
 import AddVehicleModal from "./driverprofile/modal/driverAddVehicle";
 import RideRequestModal from "./driverprofile/modal/RideRequestModal";
 import { authService } from "../../services/authServices";
@@ -26,6 +26,7 @@ export const DriverProfile = () => {
   );
   const [loading, setLoading] = useState(true);
   const [personalInfoModalOpen, setPersonalInfoModalOpen] = useState(false);
+  const [personalInfoSaving, setPersonalInfoSaving] = useState(false);
   const [addVehicleModalOpen, setAddVehicleModalOpen] = useState(false);
   const [vehiclesRefreshSignal, setVehiclesRefreshSignal] = useState(0);
   const [driverData, setDriverData] = useState<DriverData>({
@@ -242,6 +243,71 @@ export const DriverProfile = () => {
   const handleEditPersonalInfo = () => setPersonalInfoModalOpen(true);
   const handleNavigateToPersonalInfo = () => setActiveTab("personalInfo");
 
+  const handleSavePersonalInfo = async (values: DriverPersonalInfoValues) => {
+    setPersonalInfoSaving(true);
+
+    const emergencyContact = values.emergencyContact
+      ? {
+          name: values.emergencyContact.name || "",
+          phone: values.emergencyContact.phone || "",
+          relationship: values.emergencyContact.relation || "",
+        }
+      : driverData.personalInfo?.emergencyContact || {
+          name: "",
+          phone: "",
+          relationship: "",
+        };
+
+    const payload = {
+      fullName: values.fullName ?? driverData.fullName,
+      email: values.email ?? driverData.email,
+      phoneNumber: values.phoneNumber ?? driverData.phoneNumber,
+      driverLicenseNumber: values.driverLicenseNumber ?? driverData.driverLicenseNumber,
+      address: values.address ?? driverData.address,
+      personalInfo: {
+        bloodGroup: values.bloodGroup ?? driverData.personalInfo?.bloodGroup ?? "",
+        dob: values.dateOfBirth ?? driverData.personalInfo?.dob ?? "",
+        languages: values.languages ?? driverData.personalInfo?.languages ?? [],
+        certificates: values.certificates ?? driverData.personalInfo?.certificates ?? [],
+        emergencyContact,
+      },
+    };
+
+    try {
+      const res = await authService.updateDriverProfile(payload);
+      const updated = res?.driver || res || payload;
+
+      setDriverData((prev) => ({
+        ...prev,
+        fullName: updated.fullName ?? payload.fullName ?? prev.fullName,
+        email: updated.email ?? payload.email ?? prev.email,
+        phoneNumber: updated.phoneNumber ?? payload.phoneNumber ?? prev.phoneNumber,
+        driverLicenseNumber: updated.driverLicenseNumber ?? payload.driverLicenseNumber ?? prev.driverLicenseNumber,
+        address: updated.address ?? payload.address ?? prev.address,
+        profileImage: updated.profileImage ?? prev.profileImage,
+        personalInfo: {
+          bloodGroup: updated.personalInfo?.bloodGroup ?? payload.personalInfo?.bloodGroup ?? prev.personalInfo?.bloodGroup ?? "",
+          dob: updated.personalInfo?.dob ?? payload.personalInfo?.dob ?? prev.personalInfo?.dob ?? "",
+          languages: updated.personalInfo?.languages ?? payload.personalInfo?.languages ?? prev.personalInfo?.languages ?? [],
+          certificates: updated.personalInfo?.certificates ?? payload.personalInfo?.certificates ?? prev.personalInfo?.certificates ?? [],
+          emergencyContact: updated.personalInfo?.emergencyContact ?? payload.personalInfo?.emergencyContact ?? prev.personalInfo?.emergencyContact ?? {
+            name: "",
+            phone: "",
+            relationship: "",
+          },
+        },
+      }));
+
+      message.success("Personal information updated");
+      setPersonalInfoModalOpen(false);
+    } catch (err) {
+      console.error("Failed to update personal info:", err);
+      message.error("Failed to update personal information");
+    } finally {
+      setPersonalInfoSaving(false);
+    }
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case "home":
@@ -380,8 +446,36 @@ export const DriverProfile = () => {
       />
 
       {/* Modals */}
-      <DriverAddDetails open={personalInfoModalOpen} onClose={() => setPersonalInfoModalOpen(false)} onSaved={() => setPersonalInfoModalOpen(false)} />
-      <AddVehicleModal open={addVehicleModalOpen} defaultValue={vehicleToEdit} onClose={() => { setAddVehicleModalOpen(false); setVehicleToEdit(null); }} onSaved={() => { setVehiclesRefreshSignal((s) => s + 1); setAddVehicleModalOpen(false); }} />
+      <DriverAddDetails
+        open={personalInfoModalOpen}
+        loading={personalInfoSaving}
+        onCancel={() => setPersonalInfoModalOpen(false)}
+        onSave={handleSavePersonalInfo}
+        initialValues={{
+          fullName: driverData.fullName,
+          email: driverData.email,
+          phoneNumber: driverData.phoneNumber,
+          driverLicenseNumber: driverData.driverLicenseNumber,
+          dateOfBirth: driverData.personalInfo?.dob || "",
+          bloodGroup: driverData.personalInfo?.bloodGroup || "",
+          address: driverData.address || "",
+          languages: driverData.personalInfo?.languages || [],
+          certificates: driverData.personalInfo?.certificates || [],
+          emergencyContact: driverData.personalInfo?.emergencyContact
+            ? {
+                name: driverData.personalInfo.emergencyContact.name || "",
+                phone: driverData.personalInfo.emergencyContact.phone || "",
+                relation: driverData.personalInfo.emergencyContact.relationship || "",
+              }
+            : undefined,
+        }}
+      />
+      <AddVehicleModal
+        open={addVehicleModalOpen}
+        defaultValue={vehicleToEdit}
+        onClose={() => { setAddVehicleModalOpen(false); setVehicleToEdit(null); }}
+        onSaved={() => { setVehiclesRefreshSignal((s) => s + 1); setAddVehicleModalOpen(false); }}
+      />
     </div>
   );
 };
