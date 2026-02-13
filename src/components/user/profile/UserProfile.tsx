@@ -240,22 +240,35 @@ export const UserProfile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50 to-gray-100">
-      <Header
-        navigate={navigate}
-        handleLogout={handleLogout}
-        username={userData.fullName}
-        onMenuToggle={toggleSidebar}
-        showMenuIcon={windowWidth <= 768}
-        profileImage={userData.profileImage}
-        onBack={() => routerNavigate("/map")}
-      />
+    <div className="h-screen bg-gradient-to-b from-green-50 to-gray-100 overflow-hidden">
+      <div className="fixed top-0 left-0 right-0 z-40">
+        <Header
+          navigate={navigate}
+          handleLogout={handleLogout}
+          username={userData.fullName}
+          onMenuToggle={toggleSidebar}
+          showMenuIcon={windowWidth <= 768}
+          profileImage={userData.profileImage}
+          onBack={() => routerNavigate("/map")}
+        />
+      </div>
 
-      <div className="flex relative w-full pl-0 pr-4 pt-6">
-        <UserSidebar userData={userData} activeTab={activeTab} handleTabChange={handleTabChange} handleLogout={handleLogout} sidebarOpen={sidebarOpen} windowWidth={windowWidth} onClose={() => setSidebarOpen(false)} onProfileUpdate={refreshUserProfile} />
+      <div className="flex relative w-full pl-0 pr-4 pt-16 h-full">
+        <UserSidebar
+          userData={userData}
+          activeTab={activeTab}
+          handleTabChange={handleTabChange}
+          handleLogout={handleLogout}
+          sidebarOpen={sidebarOpen}
+          windowWidth={windowWidth}
+          onClose={() => setSidebarOpen(false)}
+          onProfileUpdate={refreshUserProfile}
+        />
 
-        <div className="flex-1 p-2 md:pl-4 min-h-screen w-full transition-all duration-300 ease-in-out">
-          <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">{loading ? <div className="flex justify-center items-center min-h-64"><Spin size="large" /></div> : tabContent[activeTab]}</div>
+        <div className="flex-1 p-2 md:p-4 md:pl-64 h-full w-full transition-all duration-300 ease-in-out overflow-y-auto">
+          <div className="w-full mx-auto bg-white rounded-xl shadow-sm p-4 md:p-6">
+            {loading ? <div className="flex justify-center items-center min-h-64"><Spin size="large" /></div> : tabContent[activeTab]}
+          </div>
 
           <div className="mt-4 text-center text-gray-500 text-sm py-2">
             <p>&copy; {new Date().getFullYear()} Your Company. All rights reserved.</p>
