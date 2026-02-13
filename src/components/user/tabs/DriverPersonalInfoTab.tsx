@@ -253,7 +253,15 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
         <Card className="shadow-lg rounded-2xl lg:col-span-2">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-2xl font-bold text-gray-800">Bio & other details</h3>
-            <Button type="primary" icon={<EditOutlined />} onClick={onEditPersonalInfo} className="bg-green-600 hover:bg-green-700 border-0" size="large">Edit Details</Button>
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              onClick={onEditPersonalInfo}
+              className="bg-green-600 hover:bg-green-700 border-0 cursor-pointer"
+              size="large"
+            >
+              Edit Details
+            </Button>
           </div>
 
           <Skeleton loading={loading} active>
