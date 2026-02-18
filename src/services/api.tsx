@@ -7,13 +7,18 @@ export function setAuthToken(token: string | null) {
 
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    userApi.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    driverApi.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   } else {
     delete api.defaults.headers.common['Authorization'];
+    delete userApi.defaults.headers.common['Authorization'];
+    delete driverApi.defaults.headers.common['Authorization'];
   }
 }
 
+// Auth Service API (Port 3001)
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/',
+  baseURL: import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -21,53 +26,74 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor
-api.interceptors.request.use(
-  (config) => {
-    // prefer in-memory token, fall back to localStorage for backwards compatibility
-    const token = authToken || localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    
-    console.log(`📤 [API REQUEST] ${config.method?.toUpperCase()} ${config.url}`, 
-      config.data ? config.data : '');
-    
-    return config;
+// User Service API (Port 3002)
+export const userApi = axios.create({
+  baseURL: import.meta.env.VITE_USER_SERVICE_URL || 'http://localhost:3002',
+  headers: {
+    'Content-Type': 'application/json',
   },
-  (error) => {
-    console.error('❌ [API REQUEST ERROR]:', error);
-    return Promise.reject(error);
-  }
-);
+  timeout: 15000,
+  withCredentials: true,
+});
 
-// Response interceptor
-api.interceptors.response.use(
-  (response) => {
-    console.log(`✅ [API RESPONSE] ${response.status} ${response.config.url}`);
-    return response;
+// Driver Service API (Port 3003)
+export const driverApi = axios.create({
+  baseURL: import.meta.env.VITE_DRIVER_SERVICE_URL || 'http://localhost:3003',
+  headers: {
+    'Content-Type': 'application/json',
   },
-  (error) => {
-    console.error('❌ [API ERROR]:', {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message,
-      data: error.response?.data,
-    });
+  timeout: 15000,
+  withCredentials: true,
+});
 
-    // Only redirect to home on 401 if it's NOT a login/register endpoint
-    const isAuthEndpoint = error.config?.url?.includes('/login') || 
-                          error.config?.url?.includes('/register');
-    
-    if (error.response?.status === 401 && !isAuthEndpoint) {
-      console.warn('⚠️ [UNAUTHORIZED] Clearing localStorage and redirecting');
-      localStorage.clear();
-      window.location.href = '/';
-    }
-    
-    return Promise.reject(error);
+// Shared interceptor configurations
+const requestInterceptor = (config: any) => {
+  const token = authToken || localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  
+  console.log(`📤 [API REQUEST] ${config.method?.toUpperCase()} ${config.url}`, 
+    config.data ? config.data : '');
+  
+  return config;
+};
+
+const requestErrorInterceptor = (error: any) => {
+  console.error('❌ [API REQUEST ERROR]:', error);
+  return Promise.reject(error);
+};
+
+const responseInterceptor = (response: any) => {
+  console.log(`✅ [API RESPONSE] ${response.status} ${response.config.url}`);
+  return response;
+};
+
+const responseErrorInterceptor = (error: any) => {
+  console.error('❌ [API ERROR]:', {
+    url: error.config?.url,
+    method: error.config?.method,
+    status: error.response?.status,
+    message: error.response?.data?.message || error.message,
+    data: error.response?.data,
+  });
+
+  const isAuthEndpoint = error.config?.url?.includes('/login') || 
+                        error.config?.url?.includes('/register');
+  
+  if (error.response?.status === 401 && !isAuthEndpoint) {
+    console.warn('⚠️ [UNAUTHORIZED] Clearing localStorage and redirecting');
+    localStorage.clear();
+    window.location.href = '/';
+  }
+  
+  return Promise.reject(error);
+};
+
+// Apply interceptors to all API instances
+[api, userApi, driverApi].forEach(instance => {
+  instance.interceptors.request.use(requestInterceptor, requestErrorInterceptor);
+  instance.interceptors.response.use(responseInterceptor, responseErrorInterceptor);
+});
 
 export default api;

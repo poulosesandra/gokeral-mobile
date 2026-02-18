@@ -1,4 +1,4 @@
-import api, { setAuthToken } from './api';
+import api, { setAuthToken, userApi, driverApi } from './api';
 
 // ==================== INTERFACES ====================
 export interface LoginCredentials {
@@ -45,24 +45,16 @@ export interface DriverSignupData {
 }
 
 export interface AuthResponse {
-  success: boolean;
-  message: string;
-  token: string;
-  user?: {
+  success?: boolean;
+  message?: string;
+  accessToken: string;
+  refreshToken: string;
+  user: {
     id: string;
-    fullName: string;
     email: string;
-    phoneNumber: string;
-    address?: string;
     role: string;
-  };
-  driver?: {
-    id: string;
-    fullName: string;
-    email: string;
-    phoneNumber: string;
-    driverLicenseNumber?: string;
-    role: string;
+    fullName?: string;
+    phoneNumber?: string;
   };
 }
 
@@ -178,14 +170,15 @@ export const authService = {
         email: data.email,
         phoneNumber: data.phoneNumber,
         password: data.password,
+        role: 'USER',
       };
 
-      const response = await api.post<AuthResponse>('/auth/register-user', payload);
+      const response = await api.post<AuthResponse>('/auth/register', payload);
 
       console.log('✅ [USER REGISTER] Response:', response.data);
 
-      if (response.data.token) {
-        authService.setToken(response.data.token);
+      if (response.data.accessToken) {
+        authService.setToken(response.data.accessToken);
         authService.setCurrentUser(response.data.user || null);
       }
       return response.data;
@@ -200,12 +193,12 @@ export const authService = {
     try {
       console.log('🔵 [USER LOGIN] Sending request:', data.email);
 
-      const response = await api.post<AuthResponse>('/auth/login-user', data);
+      const response = await api.post<AuthResponse>('/auth/login', data);
 
       console.log('✅ [USER LOGIN] Response:', response.data);
 
-      if (response.data.token) {
-        authService.setToken(response.data.token);
+      if (response.data.accessToken) {
+        authService.setToken(response.data.accessToken);
         authService.setCurrentUser(response.data.user || null);
       }
       return response.data;
@@ -226,23 +219,24 @@ export const authService = {
         email: data.email,
         phoneNumber: data.phoneNumber,
         password: data.password,
+        role: 'DRIVER',
       };
 
       if (data.address !== undefined) payload.address = data.address;
       if (data.location !== undefined) payload.location = data.location;
-      if (data.driverLicenseNumber) payload.driverLicenseNumber = data.driverLicenseNumber;
+      if (data.driverLicenseNumber) payload.licenseNumber = data.driverLicenseNumber;
       if (data.personalInfo) payload.personalInfo = data.personalInfo;
       if (data.drivingExperience) payload.drivingExperience = data.drivingExperience;
 
       console.log('🔵 [DRIVER REGISTER] Sending request (sanitized):', payload);
 
-      const response = await api.post<AuthResponse>('/auth/register-driver', payload);
+      const response = await api.post<AuthResponse>('/auth/register', payload);
 
       console.log('✅ [DRIVER REGISTER] Response:', response.data);
 
-      if (response.data.token) {
-        authService.setToken(response.data.token);
-        authService.setCurrentUser(response.data.driver || null);
+      if (response.data.accessToken) {
+        authService.setToken(response.data.accessToken);
+        authService.setCurrentUser(response.data.user || null);
       }
 
       return response.data;
@@ -261,13 +255,13 @@ export const authService = {
     try {
       console.log('🔵 [DRIVER LOGIN] Sending request:', data.email);
 
-      const response = await api.post<AuthResponse>('/auth/login-driver', data);
+      const response = await api.post<AuthResponse>('/auth/login', data);
 
       console.log('✅ [DRIVER LOGIN] Response:', response.data);
 
-      if (response.data.token) {
-        authService.setToken(response.data.token);
-        authService.setCurrentUser(response.data.driver || null);
+      if (response.data.accessToken) {
+        authService.setToken(response.data.accessToken);
+        authService.setCurrentUser(response.data.user || null);
       }
 
       return response.data;
@@ -283,12 +277,12 @@ export const authService = {
   // ==================== PROFILE METHODS ====================
 
   fetchUserProfile: async () => {
-    const res = await api.get('/users/profile');
+    const res = await userApi.get('/profiles/me');
     return res.data;
   },
 
   fetchDriverProfile: async () => {
-    const res = await api.get('/drivers/profile');
+    const res = await driverApi.get('/driver-profiles/me');
     return res.data;
   },
 
@@ -299,9 +293,9 @@ export const authService = {
       phoneNumber: data.phoneNumber,
       address: data.address,
     };
-    const res = await api.patch('/users/update', payload);
+    const res = await userApi.put('/profiles/me', payload);
     if (res.data) {
-      authService.setCurrentUser(res.data,);
+      authService.setCurrentUser(res.data);
     }
     return res.data;
   },
@@ -313,12 +307,12 @@ export const authService = {
       phoneNumber: data.phoneNumber,
     };
     if (data.address !== undefined) payload.address = data.address;
-    if (data.driverLicenseNumber !== undefined) payload.driverLicenseNumber = data.driverLicenseNumber;
+    if (data.driverLicenseNumber !== undefined) payload.licenseNumber = data.driverLicenseNumber;
     if (data.profileImage !== undefined) payload.profileImage = data.profileImage;
     if (data.personalInfo !== undefined) payload.personalInfo = data.personalInfo;
     if (data.drivingExperience !== undefined) payload.drivingExperience = data.drivingExperience;
 
-    const res = await api.patch('/drivers/update', payload);
+    const res = await driverApi.put('/driver-profiles/me', payload);
     if (res.data) {
       authService.setCurrentUser(res.data);
     }
@@ -394,6 +388,27 @@ export const authService = {
   stopLocationTracking: (_intervalId: any) => {
     // no-op
   },
+};
+
+// ==================== REGISTER / LOGIN METHODS ====================
+
+interface RegisterPayload {
+  fullName: string;
+  email: string;
+  password: string;
+  phoneNumber?: string;
+  role?: 'user' | 'driver'; // ADD THIS
+  driverLicenseNumber?: string;
+}
+
+export const register = async (userData: RegisterPayload) => {
+  const response = await api.post('/auth/register', userData);
+  return response.data;
+};
+
+export const login = async (credentials: { email: string; password: string }) => {
+  const response = await api.post('/auth/login', credentials);
+  return response.data;
 };
 
 export default authService;
