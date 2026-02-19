@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 
+// If backend doesn't expose pending rides endpoint, set to false to avoid repeated calls.
+let pendingRidesAvailable: boolean | null = null; // null = unknown, true = available, false = not available
+
 export interface NewRideRequest {
     rideId: string;
     bookingId: string;
@@ -45,6 +48,8 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
 
     // One-off fetch to get pending ride requests (SSE removed)
     const fetchPendingRidesOnce = useCallback(async () => {
+        // Short-circuit if we've previously detected endpoint is unavailable
+        if (pendingRidesAvailable === false) return;
         if (!enabled || !driverId) return;
         try {
             const response = await fetch('/api/rides/pending', {
@@ -55,9 +60,20 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
 
             if (!response.ok) {
                 const text = await response.text().catch(() => '');
+                // If backend explicitly returns 404, mark endpoint as unavailable to avoid future calls
+                if (response.status === 404) {
+                  pendingRidesAvailable = false;
+                  console.warn('[useDriverRideListener] /api/rides/pending not available — disabling further checks');
+                  setError('Pending rides endpoint not available');
+                  return;
+                }
+
                 setError(`Failed to fetch pending rides (${response.status}) ${text}`);
                 return;
             }
+
+            // On success mark endpoint available (in case it was unknown)
+            pendingRidesAvailable = true;
 
             const payload = await response.json();
             const rides = Array.isArray(payload?.rides) ? payload.rides : Array.isArray(payload) ? payload : [];
@@ -86,6 +102,8 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
             }
         } catch (err) {
             console.error('Error fetching pending rides:', err);
+            // Network / connection errors — disable further attempts to avoid console spam while backend is down
+            pendingRidesAvailable = false;
             setError(err instanceof Error ? err.message : 'Error fetching pending rides');
         }
     }, [driverId, enabled]);

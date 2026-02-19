@@ -196,19 +196,50 @@ export const DriverProfile = () => {
             },
           });
           setLoading(false);
-        } catch (backendError: unknown) {
-          const error = backendError as { response?: { status: number } };
-          console.error("Failed to fetch driver profile:", error);
+        } catch (backendError: any) {
+          console.error("Failed to fetch driver profile:", backendError);
 
+          // 401 = unauthorized, logout and redirect
           if (backendError.response?.status === 401) {
+            console.log('🔴 [DRIVER PROFILE] Unauthorized, logging out');
             authService.logout();
             message.error("Session expired. Please login again.");
             navigate("/driver/login");
-          } else {
+          } 
+          // 403/404 = profile doesn't exist yet (new driver)
+          else if (backendError.response?.status === 403 || backendError.response?.status === 404) {
+            console.log('🟡 [DRIVER PROFILE] No profile found, using account data');
+            // Use basic account data from currentUser
+            const storedUser = localStorage.getItem('userData');
+            const accountData = storedUser ? JSON.parse(storedUser) : currentUser;
+            
+            setDriverData({
+              fullName: accountData.fullName || "",
+              email: accountData.email || "",
+              phoneNumber: accountData.phoneNumber || "",
+              driverLicenseNumber: "",
+              address: "",
+              profileImage: null,
+              personalInfo: {
+                bloodGroup: "",
+                dob: "",
+                languages: [],
+                certificates: [],
+                emergencyContact: {
+                  name: "",
+                  phone: "",
+                  relationship: "",
+                },
+              },
+            });
+            setLoading(false);
+          } 
+          // Other errors - show error but don't redirect
+          else {
+            console.error('❌ [DRIVER PROFILE] Unexpected error:', backendError);
             message.error("Failed to load profile. Please try again.");
-            navigate("/driver/login");
+            setLoading(false);
           }
-          setLoading(false);
         }
       } catch (error) {
         console.error("Error in loadDriverData:", error);
@@ -303,31 +334,68 @@ export const DriverProfile = () => {
     };
 
     try {
-      const res = await authService.updateDriverProfile(payload);
-      const updated = res?.driver || res || payload;
+      // Check if this is first-time profile creation (no license number exists)
+      const hasNoProfile = !driverData.driverLicenseNumber && values.driverLicenseNumber;
+      
+      if (hasNoProfile) {
+        // First time: Create driver profile with license number
+        console.log('🔵 Creating driver profile for first time');
+        const profilePayload = {
+          licenseNumber: values.driverLicenseNumber,
+          bloodGroup: values.bloodGroup,
+          dob: values.dateOfBirth,
+          languages: values.languages || [],
+        };
+        
+        const res = await authService.createDriverProfile(profilePayload);
+        const updated = res?.driver || res || payload;
 
-      setDriverData((prev) => ({
-        ...prev,
-        fullName: updated.fullName ?? payload.fullName ?? prev.fullName,
-        email: updated.email ?? payload.email ?? prev.email,
-        phoneNumber: updated.phoneNumber ?? payload.phoneNumber ?? prev.phoneNumber,
-        driverLicenseNumber: updated.driverLicenseNumber ?? payload.driverLicenseNumber ?? prev.driverLicenseNumber,
-        address: updated.address ?? payload.address ?? prev.address,
-        profileImage: updated.profileImage ?? prev.profileImage,
-        personalInfo: {
-          bloodGroup: updated.personalInfo?.bloodGroup ?? payload.personalInfo?.bloodGroup ?? prev.personalInfo?.bloodGroup ?? "",
-          dob: updated.personalInfo?.dob ?? payload.personalInfo?.dob ?? prev.personalInfo?.dob ?? "",
-          languages: updated.personalInfo?.languages ?? payload.personalInfo?.languages ?? prev.personalInfo?.languages ?? [],
-          certificates: updated.personalInfo?.certificates ?? payload.personalInfo?.certificates ?? prev.personalInfo?.certificates ?? [],
-          emergencyContact: updated.personalInfo?.emergencyContact ?? payload.personalInfo?.emergencyContact ?? prev.personalInfo?.emergencyContact ?? {
-            name: "",
-            phone: "",
-            relationship: "",
+        setDriverData((prev) => ({
+          ...prev,
+          driverLicenseNumber: values.driverLicenseNumber,
+          personalInfo: {
+            bloodGroup: updated.personalInfo?.bloodGroup ?? values.bloodGroup ?? "",
+            dob: updated.personalInfo?.dob ?? values.dateOfBirth ?? "",
+            languages: updated.personalInfo?.languages ?? values.languages ?? [],
+            certificates: [],
+            emergencyContact: {
+              name: "",
+              phone: "",
+              relationship: "",
+            },
           },
-        },
-      }));
+        }));
 
-      message.success("Personal information updated");
+        message.success("Driver profile created successfully!");
+      } else {
+        // Update existing profile
+        const res = await authService.updateDriverProfile(payload);
+        const updated = res?.driver || res || payload;
+
+        setDriverData((prev) => ({
+          ...prev,
+          fullName: updated.fullName ?? payload.fullName ?? prev.fullName,
+          email: updated.email ?? payload.email ?? prev.email,
+          phoneNumber: updated.phoneNumber ?? payload.phoneNumber ?? prev.phoneNumber,
+          driverLicenseNumber: updated.driverLicenseNumber ?? payload.driverLicenseNumber ?? prev.driverLicenseNumber,
+          address: updated.address ?? payload.address ?? prev.address,
+          profileImage: updated.profileImage ?? prev.profileImage,
+          personalInfo: {
+            bloodGroup: updated.personalInfo?.bloodGroup ?? payload.personalInfo?.bloodGroup ?? prev.personalInfo?.bloodGroup ?? "",
+            dob: updated.personalInfo?.dob ?? payload.personalInfo?.dob ?? prev.personalInfo?.dob ?? "",
+            languages: updated.personalInfo?.languages ?? payload.personalInfo?.languages ?? prev.personalInfo?.languages ?? [],
+            certificates: updated.personalInfo?.certificates ?? payload.personalInfo?.certificates ?? prev.personalInfo?.certificates ?? [],
+            emergencyContact: updated.personalInfo?.emergencyContact ?? payload.personalInfo?.emergencyContact ?? prev.personalInfo?.emergencyContact ?? {
+              name: "",
+              phone: "",
+              relationship: "",
+            },
+          },
+        }));
+
+        message.success("Personal information updated");
+      }
+      
       setPersonalInfoModalOpen(false);
     } catch (err) {
       console.error("Failed to update personal info:", err);

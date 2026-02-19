@@ -364,9 +364,9 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
                 </div>
               </div>
 
-              {/* Telephone */}
+              {/* Phone Number */}
               <div>
-                <p className="text-xs text-gray-500 uppercase mb-2">Telephone</p>
+                <p className="text-xs text-gray-500 uppercase mb-2">Phone Number</p>
                 <div className="flex items-center gap-3">
                   <PhoneOutlined className="text-xl text-green-600" />
                   <span className="text-gray-800 font-medium">{userData.phoneNumber || "Not provided"}</span>

@@ -100,7 +100,7 @@ const DriverPersonalInfoModal = ({
       phoneNumber: values.phoneNumber,
       driverLicenseNumber: values.driverLicenseNumber,
       dateOfBirth: values.dateOfBirth
-        ? dayjs(values.dateOfBirth).format("DD/MM/YYYY")
+        ? dayjs(values.dateOfBirth).toISOString()
         : undefined,
       languages: values.languages || [],
       certificates: values.certificates || [],
@@ -129,6 +129,12 @@ const DriverPersonalInfoModal = ({
       width={720}
       destroyOnClose
     >
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-700">
+          ℹ️ <strong>Note:</strong> Name, email, phone, and license number cannot be changed. Only personal information fields can be updated.
+        </p>
+      </div>
+
       <Form
         layout="vertical"
         form={form}
@@ -140,46 +146,54 @@ const DriverPersonalInfoModal = ({
           <Col xs={24} md={12}>
             <Form.Item
               name="fullName"
-              label="Name"
-              rules={[{ required: true, message: "Please enter name" }]}
+              label="Name (Read-only)"
             >
-              <Input placeholder="Full name" />
+              <Input placeholder="Full name" disabled className="bg-gray-100" />
             </Form.Item>
           </Col>
 
           <Col xs={24} md={12}>
             <Form.Item
               name="email"
-              label="Email"
-              rules={[{ required: true, type: "email", message: "Please enter a valid email" }]}
+              label="Email (Read-only)"
             >
-              <Input placeholder="Email address" />
+              <Input placeholder="Email address" disabled className="bg-gray-100" />
             </Form.Item>
           </Col>
 
           <Col xs={24} md={12}>
             <Form.Item
               name="phoneNumber"
-              label="Telephone"
-              rules={[
-                { required: true, message: "Enter phone number" },
-                {
-                  pattern: /^\d{10}$/,
-                  message: "Enter a 10-digit phone number (digits only)",
-                },
-              ]}
+              label="Phone Number (Read-only)"
             >
-              <Input placeholder="e.g. 9876543210" />
+              <Input placeholder="Phone number" disabled className="bg-gray-100" />
             </Form.Item>
           </Col>
 
           <Col xs={24} md={12}>
             <Form.Item
               name="driverLicenseNumber"
-              label="Driving Licence"
-              rules={[{ required: true, message: "Enter driving licence number" }]}
+              label={
+                initialValues?.driverLicenseNumber 
+                  ? "Driving Licence (Cannot be changed)" 
+                  : "Driving Licence (Required)"
+              }
+              rules={
+                !initialValues?.driverLicenseNumber 
+                  ? [{ required: true, message: 'Please enter your driving license number' }] 
+                  : []
+              }
+              tooltip={
+                initialValues?.driverLicenseNumber
+                  ? "License number cannot be changed once set"
+                  : "Enter your driving license number (e.g., KL-1234567890123)"
+              }
             >
-              <Input placeholder="Licence number" />
+              <Input 
+                placeholder="Licence number" 
+                disabled={!!initialValues?.driverLicenseNumber} 
+                className={initialValues?.driverLicenseNumber ? "bg-gray-100" : ""}
+              />
             </Form.Item>
           </Col>
         </Row>
@@ -209,12 +223,18 @@ const DriverPersonalInfoModal = ({
           </Col>
         </Row>
 
+        {/* Address - Disabled for now */}
         <Form.Item
           name="address"
-          label="Address"
-          rules={[{ required: true, message: "Please enter your address" }]}
+          label="Address (Coming in Sprint 2)"
+          tooltip="Address field is not yet supported by the backend"
         >
-          <Input.TextArea rows={3} placeholder="House number, street, city, state" />
+          <Input.TextArea 
+            rows={3} 
+            placeholder="Will be available in the next update" 
+            disabled 
+            className="bg-gray-100" 
+          />
         </Form.Item>
 
         <Row gutter={[16, 12]}>
@@ -236,37 +256,35 @@ const DriverPersonalInfoModal = ({
           <Col xs={24} md={12}>
             <Form.Item
               name="certificates"
-              label="Certifications"
-              rules={[{ required: true, message: "Please select certifications" }]}
+              label="Certifications (Coming in Sprint 2)"
+              tooltip="Certificates field is not yet supported by the backend"
             >
               <Select
                 mode="multiple"
                 allowClear
-                showSearch
-                placeholder="Select or enter certifications"
+                disabled
+                className="bg-gray-100"
+                placeholder="Will be available in the next update"
                 options={certificationOptions.map((cert) => ({ label: cert, value: cert }))}
-                filterOption={(input, option) =>
-                  (option?.label as string).toLowerCase().includes(input.toLowerCase())
-                }
               />
             </Form.Item>
           </Col>
         </Row>
 
-        <Form.Item
-          label="Emergency Contact"
-          required
-          style={{ marginBottom: 8 }}
-        />
+        {/* Emergency Contact - Disabled for now */}
+        <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800">
+            ⚠️ <strong>Emergency Contact</strong> feature is coming in Sprint 2. Currently not supported by backend.
+          </p>
+        </div>
 
         <Row gutter={[16, 12]}>
           <Col xs={24} md={8}>
             <Form.Item
               name={["emergencyContact", "name"]}
               label="Name"
-              rules={[{ required: true, message: "Enter contact name" }]}
             >
-              <Input placeholder="Contact person name" />
+              <Input placeholder="Not available yet" disabled className="bg-gray-100" />
             </Form.Item>
           </Col>
 
@@ -274,15 +292,8 @@ const DriverPersonalInfoModal = ({
             <Form.Item
               name={["emergencyContact", "phone"]}
               label="Contact Number"
-              rules={[
-                { required: true, message: "Enter contact number" },
-                {
-                  pattern: /^\d{10}$/,
-                  message: "Enter a 10-digit phone number (digits only)",
-                },
-              ]}
             >
-              <Input placeholder="e.g. 9876543210" />
+              <Input placeholder="Not available yet" disabled className="bg-gray-100" />
             </Form.Item>
           </Col>
 
@@ -290,9 +301,8 @@ const DriverPersonalInfoModal = ({
             <Form.Item
               name={["emergencyContact", "relation"]}
               label="Relation"
-              rules={[{ required: true, message: "Enter relation" }]}
             >
-              <Input placeholder="Relation to you" />
+              <Input placeholder="Not available yet" disabled className="bg-gray-100" />
             </Form.Item>
           </Col>
         </Row>
