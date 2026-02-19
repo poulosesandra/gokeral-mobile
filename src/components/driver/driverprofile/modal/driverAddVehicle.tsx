@@ -160,7 +160,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
           setYear(String(full?.year || passed.year || passed.vehicleYear || ""));
           setSeats(
             String(
-              full?.seatsNo ||
+              full?.seatingCapacity ||
               passed.seatsNo ||
               passed.seats ||
               passed.seatingCapacity ||
@@ -168,19 +168,19 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
             )
           );
           setLicensePlate(
-            full?.licensePlate ||
+            full?.registrationNumber ||
             passed.licensePlate ||
             passed.licensePlateNumber ||
             passed.vehicleNumber ||
             ""
           );
-          setVehicleType(full?.vehicleType || passed.vehicleType || passed.vehicleClass || "");
-          setVehicleClass(full?.vehicleClass || passed.vehicleClass || passed.vehicleType || "");
+          setVehicleType(full?.type || passed.vehicleType || passed.vehicleClass || "");
+          setVehicleClass(full?.type || passed.vehicleClass || passed.vehicleType || "");
 
-          const fullImg = (full?.vehicleImages && full.vehicleImages[0]) || null;
-          if (fullImg) setImagePreview(fullImg);
-
-          applyFareToState(full?.fareStructure || null);
+          // Images and fare not supported in microservices yet
+          // const fullImg = (full?.vehicleImages && full.vehicleImages[0]) || null;
+          // if (fullImg) setImagePreview(fullImg);
+          // applyFareToState(full?.fareStructure || null);
         } catch (fetchErr) {
           console.warn("Failed to fetch full vehicle for edit prefill:", fetchErr);
         }
@@ -219,16 +219,17 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const uploadAndRegisterDoc = async (
-    targetId: string,
-    file: File | null,
-    docType: string
-  ) => {
-    if (!file) return;
-    const uploadRes = await vehicleService.uploadVehicleDocument(targetId, file);
-    const fileUrl = uploadRes?.url || uploadRes?.data?.url || null;
-    if (fileUrl) await vehicleService.addVehicleDocument(targetId, docType, fileUrl);
-  };
+  // ⚠️ Document upload not supported in microservices yet (Sprint 2 feature)
+  // const uploadAndRegisterDoc = async (
+  //   targetId: string,
+  //   file: File | null,
+  //   docType: string
+  // ) => {
+  //   if (!file) return;
+  //   const uploadRes = await vehicleService.uploadVehicleDocument(targetId, file);
+  //   const fileUrl = uploadRes?.url || uploadRes?.data?.url || null;
+  //   if (fileUrl) await vehicleService.addVehicleDocument(targetId, docType, fileUrl);
+  // };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -241,36 +242,28 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         return;
       }
 
-      // Create payload
+      // Create payload (match backend CreateVehicleDto)
       const vehiclePayload = {
         make,
-        vehicleModel: model,
+        vehicleModel: model,                    // ✅ Backend expects "vehicleModel"
         year: parseInt(year, 10),
-        seatsNo: parseInt(seats, 10),
-        licensePlate,
-        vehicleType,
-        vehicleClass,
-        fareStructure: {
-          minimumFare: minimumFare ? parseFloat(minimumFare) : 0,
-          perKilometerRate: perKmRate ? parseFloat(perKmRate) : 0,
-          waitingChargePerMinute: waitingCharge ? parseFloat(waitingCharge) : 0,
-        },
+        registrationNumber: licensePlate,       // ✅ Backend expects "registrationNumber"
+        type: vehicleType,                      // ✅ Backend expects "type" (HATCHBACK|SEDAN|SUV|VAN)
+        seatingCapacity: parseInt(seats, 10),   // ✅ Backend expects "seatingCapacity"
+        color: "",                              // Optional
+        // Note: fareStructure is not supported by backend yet
       };
 
-      // Update payload (backend UpdateVehicleDto naming)
+      // Update payload (same structure)
       const updatePayload = {
         make,
         vehicleModel: model,
         year: parseInt(year, 10),
-        seatsNo: parseInt(seats, 10),
-        licensePlate,
-        vehicleType,
-        vehicleClass,
-        fareStructure: {
-          minimumFare: minimumFare ? parseFloat(minimumFare) : 0,
-          perKilometerRate: perKmRate ? parseFloat(perKmRate) : 0,
-          waitingChargePerMinute: waitingCharge ? parseFloat(waitingCharge) : 0,
-        },
+        registrationNumber: licensePlate,
+        type: vehicleType,
+        seatingCapacity: parseInt(seats, 10),
+        color: "",
+        // Note: fareStructure is not supported by backend yet
       };
 
       // EDIT FLOW
@@ -278,29 +271,8 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         const updated = await vehicleService.updateVehicle(vehicleId, updatePayload as any);
         const targetId = updated?._id || vehicleId;
 
-        try {
-          await uploadAndRegisterDoc(targetId, licenseFile, "Driving_Licence");
-          await uploadAndRegisterDoc(targetId, insuranceFile, "Vehicle_Insurance_Proof");
-          await uploadAndRegisterDoc(targetId, addressProofFile, "Proof_Of_Address");
-          await uploadAndRegisterDoc(targetId, policeCertFile, "Police_Clearance_Certificate");
-        } catch (uploadErr) {
-          console.warn("Some documents failed to upload:", uploadErr);
-        }
-
-        if (vehicleImage) {
-          try {
-            const imgRes = await vehicleService.uploadVehicleImage(targetId, vehicleImage);
-            const imgUrl = imgRes?.url || imgRes?.data?.url || null;
-
-            if (imgUrl) {
-              // Replace image (not add)
-              await vehicleService.updateVehicle(targetId, { vehicleImages: [imgUrl] } as any);
-              setImagePreview(imgUrl);
-            }
-          } catch (imgErr) {
-            console.warn("Vehicle image upload failed:", imgErr);
-          }
-        }
+        // ⚠️ Document/image upload not supported yet (Sprint 2)
+        // Document and image upload will be implemented in Sprint 2
 
         setVehicleId(targetId);
         setCurrentStep("fare");
@@ -325,28 +297,8 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         console.warn("Backfill update failed (create succeeded):", err);
       }
 
-      try {
-        await uploadAndRegisterDoc(createdId, licenseFile, "Driving_Licence");
-        await uploadAndRegisterDoc(createdId, insuranceFile, "Vehicle_Insurance_Proof");
-        await uploadAndRegisterDoc(createdId, addressProofFile, "Proof_Of_Address");
-        await uploadAndRegisterDoc(createdId, policeCertFile, "Police_Clearance_Certificate");
-      } catch (uploadErr) {
-        console.warn("Some documents failed to upload:", uploadErr);
-      }
-
-      if (vehicleImage) {
-        try {
-          const imgRes = await vehicleService.uploadVehicleImage(createdId, vehicleImage);
-          const imgUrl = imgRes?.url || imgRes?.data?.url || null;
-
-          if (imgUrl) {
-            await vehicleService.updateVehicle(createdId, { vehicleImages: [imgUrl] } as any);
-            setImagePreview(imgUrl);
-          }
-        } catch (imgErr) {
-          console.warn("Vehicle image upload failed:", imgErr);
-        }
-      }
+      // ⚠️ Document/image upload not supported yet (Sprint 2)
+      // Document and image upload will be implemented in Sprint 2
 
       setCurrentStep("fare");
     } catch (err: any) {

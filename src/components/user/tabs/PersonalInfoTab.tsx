@@ -29,17 +29,16 @@ export const PersonalInfoTab = ({ userData, loading, updateUserData }: PersonalI
   const handleSave = async (values: any) => {
     try {
       if (typeof updateUserData === 'function') {
+        // Only send editable fields (backend cannot update name/email/phone)
         await updateUserData({
-          fullName: values.fullName,
-          email: values.email,
-          phoneNumber: values.phoneNumber,
           address: values.address,
+          // fullName, email, phoneNumber are NOT sent (backend ignores them)
         });
       }
-      message.success("Personal information updated successfully");
+      message.success("Address updated successfully");
       setEditing(false);
     } catch (error) {
-      message.error("Failed to update personal information");
+      message.error("Failed to update information");
       console.error('Full error:', error);
       if (error && typeof error === 'object' && 'response' in error) {
         console.error('Backend error:', (error as any).response?.data);
@@ -121,6 +120,12 @@ export const PersonalInfoTab = ({ userData, loading, updateUserData }: PersonalI
       {/* EDIT MODE: form */}
       {editing && (
         <Card className="shadow-md rounded-2xl">
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-700">
+              ℹ️ <strong>Note:</strong> Name, email, and phone number cannot be changed. Contact support if you need to update these details.
+            </p>
+          </div>
+
           <Form
             form={form}
             layout="vertical"
@@ -133,30 +138,39 @@ export const PersonalInfoTab = ({ userData, loading, updateUserData }: PersonalI
             onFinish={handleSave}
           >
             <Form.Item
-              label="Full Name"
+              label="Full Name (Read-only)"
               name="fullName"
-              rules={[{ required: true, message: "Please enter your name" }]}
             >
-              <Input prefix={<UserOutlined />} size="large" placeholder="Enter your full name" />
+              <Input 
+                prefix={<UserOutlined />} 
+                size="large" 
+                disabled 
+                className="bg-gray-100"
+              />
             </Form.Item>
 
             <Form.Item
-              label="Email Address"
+              label="Email Address (Read-only)"
               name="email"
-              rules={[
-                { required: true, message: "Please enter your email" },
-                { type: "email", message: "Please enter a valid email" },
-              ]}
             >
-              <Input prefix={<MailOutlined />} size="large" placeholder="Enter your email" />
+              <Input 
+                prefix={<MailOutlined />} 
+                size="large" 
+                disabled 
+                className="bg-gray-100"
+              />
             </Form.Item>
 
             <Form.Item
-              label="Phone Number"
+              label="Phone Number (Read-only)"
               name="phoneNumber"
-              rules={[{ required: true, message: "Please enter your phone number" }]}
             >
-              <Input prefix={<PhoneOutlined />} size="large" placeholder="Enter your phone number" />
+              <Input 
+                prefix={<PhoneOutlined />} 
+                size="large" 
+                disabled 
+                className="bg-gray-100"
+              />
             </Form.Item>
 
             <Form.Item label="Address" name="address">

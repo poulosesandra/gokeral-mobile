@@ -100,7 +100,12 @@ export const Header = ({
 
       setCount(cnt);
       return cnt;
-    } catch (err) {
+    } catch (err: any) {
+      // Suppress noisy errors when backend endpoints are not implemented yet (Sprint-2).
+      if (err?.response?.status === 404) {
+        // endpoint not ready — return 0 silently
+        return 0;
+      }
       console.error('Failed to fetch notification count', err);
       return 0;
     }
@@ -159,8 +164,14 @@ export const Header = ({
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await api.get('/user/profile');
-        setUser(response.data);
+        // Get user data from authService (already in localStorage)
+        const currentUser = authService.getCurrentUser();
+        if (currentUser) {
+          setUser({
+            username: currentUser.fullName || currentUser.name || 'User',
+            profileImage: currentUser.profileImage || null,
+          });
+        }
       } catch (error) {
         console.error("Error fetching user data:", error);
       }

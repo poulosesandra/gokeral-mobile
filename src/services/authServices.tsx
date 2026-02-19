@@ -124,15 +124,29 @@ export const authService = {
     if (token) {
       this.setToken(token);
       try {
-        // attempt to fetch driver profile first
-        const driver = await this.fetchDriverProfile().catch(() => null);
-        if (driver) {
-          this.setCurrentUser(driver);
-        } else {
-          const user = await this.fetchUserProfile().catch(() => null);
+        // Check user role first, then fetch appropriate profile
+        const userData = localStorage.getItem('userData');
+        const userRole = userData ? JSON.parse(userData).role : null;
+        
+        if (userRole === 'DRIVER') {
+          console.log('🔵 [INIT AUTH] Fetching driver profile');
+          const driver = await this.fetchDriverProfile().catch((err) => {
+            console.warn('⚠️ [INIT AUTH] Driver profile fetch failed:', err.response?.status);
+            return null;
+          });
+          if (driver) this.setCurrentUser(driver);
+        } else if (userRole === 'USER') {
+          console.log('🔵 [INIT AUTH] Fetching user profile');
+          const user = await this.fetchUserProfile().catch((err) => {
+            console.warn('⚠️ [INIT AUTH] User profile fetch failed:', err.response?.status);
+            return null;
+          });
           if (user) this.setCurrentUser(user);
+        } else {
+          console.warn('⚠️ [INIT AUTH] Unknown role, skipping profile fetch');
         }
       } catch (err) {
+        console.error('❌ [INIT AUTH] Error:', err);
         // ignore - not authenticated or token invalid
       }
     }
@@ -179,7 +193,14 @@ export const authService = {
 
       if (response.data.accessToken) {
         authService.setToken(response.data.accessToken);
-        authService.setCurrentUser(response.data.user || null);
+        // Save user data and fallback to request data when backend omits phoneNumber
+        const userData = {
+          ...response.data.user,
+          fullName: response.data.user.fullName || data.fullName || '',
+          phoneNumber: response.data.user.phoneNumber || data.phoneNumber || '',
+        };
+        authService.setCurrentUser(userData);
+        console.log('💾 [USER REGISTER] Saved user data:', userData);
       }
       return response.data;
     } catch (error: any) {
@@ -199,7 +220,27 @@ export const authService = {
 
       if (response.data.accessToken) {
         authService.setToken(response.data.accessToken);
-        authService.setCurrentUser(response.data.user || null);
+        // Merge with any existing stored account data so phoneNumber isn't lost when backend omits it
+        const existing = authService.getCurrentUser() || {};
+        const userData = {
+          ...existing,
+          ...response.data.user,
+          fullName: response.data.user.fullName || existing.fullName || '',
+          phoneNumber: response.data.user.phoneNumber || existing.phoneNumber || '',
+        };
+        authService.setCurrentUser(userData);
+        console.log('💾 [USER LOGIN] Saved user data:', userData);
+
+        // Enrich account data from profile service if available
+        try {
+          const merged = await authService.fetchUserProfile().catch(() => null);
+          if (merged) {
+            authService.setCurrentUser(merged);
+            console.log('🔁 [USER LOGIN] Merged profile data into userData');
+          }
+        } catch (e) {
+          /* ignore */
+        }
       }
       return response.data;
     } catch (error: any) {
@@ -210,11 +251,11 @@ export const authService = {
 
   // ==================== DRIVER METHODS ====================
 
-  // Driver Registration
+  // Driver Registration (Account creation only - profile completion happens later)
   driverRegister: async (data: DriverSignupData): Promise<AuthResponse> => {
     try {
-      // Build a sanitized payload (do NOT send client-only props like agreement/role)
-      const payload: any = {
+      // STEP 1: Create driver account (basic info only)
+      const accountPayload = {
         fullName: data.fullName,
         email: data.email,
         phoneNumber: data.phoneNumber,
@@ -222,21 +263,23 @@ export const authService = {
         role: 'DRIVER',
       };
 
-      if (data.address !== undefined) payload.address = data.address;
-      if (data.location !== undefined) payload.location = data.location;
-      if (data.driverLicenseNumber) payload.licenseNumber = data.driverLicenseNumber;
-      if (data.personalInfo) payload.personalInfo = data.personalInfo;
-      if (data.drivingExperience) payload.drivingExperience = data.drivingExperience;
+      console.log('🔵 [DRIVER REGISTER] Creating driver account:', accountPayload);
 
-      console.log('🔵 [DRIVER REGISTER] Sending request (sanitized):', payload);
+      const response = await api.post<AuthResponse>('/auth/register', accountPayload);
 
-      const response = await api.post<AuthResponse>('/auth/register', payload);
-
-      console.log('✅ [DRIVER REGISTER] Response:', response.data);
+      console.log('✅ [DRIVER REGISTER] Account created successfully');
+      console.log('ℹ️  [DRIVER REGISTER] Driver will complete profile (license number) later');
 
       if (response.data.accessToken) {
         authService.setToken(response.data.accessToken);
-        authService.setCurrentUser(response.data.user || null);
+        // Save user data and fallback to request data when backend omits phoneNumber
+        const userData = {
+          ...response.data.user,
+          fullName: response.data.user.fullName || data.fullName || '',
+          phoneNumber: response.data.user.phoneNumber || data.phoneNumber || '',
+        };
+        authService.setCurrentUser(userData);
+        console.log('💾 [DRIVER REGISTER] Saved user data:', userData);
       }
 
       return response.data;
@@ -261,7 +304,27 @@ export const authService = {
 
       if (response.data.accessToken) {
         authService.setToken(response.data.accessToken);
-        authService.setCurrentUser(response.data.user || null);
+        // Merge with any existing stored account data so phoneNumber isn't lost when backend omits it
+        const existing = authService.getCurrentUser() || {};
+        const userData = {
+          ...existing,
+          ...response.data.user,
+          fullName: response.data.user.fullName || existing.fullName || '',
+          phoneNumber: response.data.user.phoneNumber || existing.phoneNumber || '',
+        };
+        authService.setCurrentUser(userData);
+        console.log('💾 [DRIVER LOGIN] Saved user data:', userData);
+
+        // Enrich account data from driver-profile service if available
+        try {
+          const merged = await authService.fetchDriverProfile().catch(() => null);
+          if (merged) {
+            authService.setCurrentUser(merged);
+            console.log('🔁 [DRIVER LOGIN] Merged driver profile data into userData');
+          }
+        } catch (e) {
+          /* ignore */
+        }
       }
 
       return response.data;
@@ -277,46 +340,220 @@ export const authService = {
   // ==================== PROFILE METHODS ====================
 
   fetchUserProfile: async () => {
-    const res = await userApi.get('/profiles/me');
-    return res.data;
+    // Get account data from localStorage (from login)
+    const currentUser = authService.getCurrentUser();
+    
+    try {
+      // Fetch profile data from backend
+      const profileRes = await userApi.get('/profiles/me');
+      const profileData = profileRes.data;
+      
+      // Merge account data with profile data
+      return {
+        ...currentUser,           // fullName, email, phoneNumber, role from login
+        ...profileData,           // address, image, preferences from profile
+        id: currentUser?.id || currentUser?._id,
+        profileImage: profileData.image || null,
+      };
+    } catch (error: any) {
+      // If profile doesn't exist (404), return just account data
+      if (error.response?.status === 404) {
+        return currentUser;
+      }
+      throw error;
+    }
   },
 
   fetchDriverProfile: async () => {
-    const res = await driverApi.get('/driver-profiles/me');
-    return res.data;
+    // Get account data from localStorage (from login)
+    const currentUser = authService.getCurrentUser();
+    
+    try {
+      // Fetch driver profile data from backend
+      const profileRes = await driverApi.get('/driver-profiles/me');
+      const profileData = profileRes.data;
+      
+      // Merge account data with profile data
+      return {
+        ...currentUser,                           // fullName, email, phoneNumber, role from login
+        licenseNumber: profileData.licenseNumber, // From driver profile
+        driverLicenseNumber: profileData.licenseNumber, // Alias for frontend compatibility
+        bloodGroup: profileData.bloodGroup,
+        dob: profileData.dob,
+        languages: profileData.languages || [],
+        licensedSince: profileData.licensedSince,
+        experienceYears: profileData.experienceYears,
+        isOnline: profileData.isOnline || false,
+        // Map nested structure for frontend compatibility
+        personalInfo: {
+          bloodGroup: profileData.bloodGroup,
+          dob: profileData.dob,
+          languages: profileData.languages || [],
+          certificates: [], // Not supported yet
+          emergencyContact: { name: "", phone: "", relationship: "" }, // Not supported yet
+        },
+      };
+    } catch (error: any) {
+      // If profile doesn't exist (404), return just account data
+      if (error.response?.status === 404) {
+        return currentUser;
+      }
+      throw error;
+    }
   },
 
   updateUserProfile: async (data: Partial<UserSignupData>) => {
-    const payload = {
-      fullName: data.fullName,
-      email: data.email,
-      phoneNumber: data.phoneNumber,
-      address: data.address,
-    };
-    const res = await userApi.put('/profiles/me', payload);
-    if (res.data) {
-      authService.setCurrentUser(res.data);
+    const payload: any = {};
+    
+    // Only include fields that backend accepts
+    if (data.address !== undefined) payload.address = data.address;
+    if ((data as any).profileImage !== undefined) payload.image = (data as any).profileImage; // Rename to 'image'
+    
+    // Add preferences and addressDetails if available
+    if ((data as any).preferences !== undefined) {
+      const p = (data as any).preferences;
+      if (Array.isArray(p)) payload.preferences = p;
+      else if (typeof p === 'string') payload.preferences = [p];
+      else {
+        // ignore unexpected shapes (avoid backend validation 400) — log for visibility
+        console.warn('[UPDATE USER PROFILE] Ignoring preferences with unexpected shape:', p);
+      }
     }
-    return res.data;
+    if ((data as any).addressDetails !== undefined) payload.addressDetails = (data as any).addressDetails;
+    
+    console.log('🔵 [UPDATE USER PROFILE] Sending:', payload);
+    
+    try {
+      const res = await userApi.put('/profiles/me', payload);
+      
+      // Merge updated profile with current user data
+      const currentUser = authService.getCurrentUser();
+      const updatedData = {
+        ...currentUser,
+        ...res.data,
+        profileImage: res.data.image || null,
+      };
+      
+      authService.setCurrentUser(updatedData);
+      return updatedData;
+    } catch (error: any) {
+      // If profile doesn't exist (404), create it first
+      if (error.response?.status === 404) {
+        console.log('⚠️ [UPDATE USER PROFILE] Profile not found, creating new profile');
+        return await authService.createUserProfile(data);
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Create user profile (first time)
+   */
+  createUserProfile: async (data: Partial<UserSignupData>) => {
+    const payload: any = {};
+    
+    // Only include fields that backend accepts
+    if (data.address !== undefined) payload.address = data.address;
+    if ((data as any).profileImage !== undefined) payload.image = (data as any).profileImage;
+    if ((data as any).preferences !== undefined) {
+      const p = (data as any).preferences;
+      if (Array.isArray(p)) payload.preferences = p;
+      else if (typeof p === 'string') payload.preferences = [p];
+      else console.warn('[CREATE USER PROFILE] Ignoring preferences with unexpected shape:', p);
+    }
+    if ((data as any).addressDetails !== undefined) payload.addressDetails = (data as any).addressDetails;
+    
+    console.log('🔵 [CREATE USER PROFILE] Creating profile:', payload);
+    
+    const res = await userApi.post('/profiles', payload);
+    
+    console.log('✅ [CREATE USER PROFILE] Profile created:', res.data);
+    
+    // Merge new profile with current user data
+    const currentUser = authService.getCurrentUser();
+    const updatedData = {
+      ...currentUser,
+      ...res.data,
+      profileImage: res.data.image || null,
+    };
+    
+    authService.setCurrentUser(updatedData);
+    return updatedData;
+  },
+
+  /**
+   * Create driver profile (first time - must include license number)
+   */
+  createDriverProfile: async (data: {
+    licenseNumber: string;
+    bloodGroup?: string;
+    dob?: string;
+    languages?: string[];
+    licensedSince?: string;
+    experienceYears?: number;
+  }) => {
+    console.log('🔵 [CREATE DRIVER PROFILE] Creating profile with license:', data.licenseNumber);
+    
+    const res = await driverApi.post('/driver-profiles', data);
+    
+    console.log('✅ [CREATE DRIVER PROFILE] Profile created:', res.data);
+    
+    // Merge new profile data with current user data
+    const currentUser = authService.getCurrentUser();
+    const updatedData = {
+      ...currentUser,
+      licenseNumber: data.licenseNumber,
+      driverLicenseNumber: data.licenseNumber,
+      personalInfo: {
+        bloodGroup: res.data.bloodGroup || data.bloodGroup,
+        dob: res.data.dob || data.dob,
+        languages: res.data.languages || data.languages || [],
+        certificates: [],
+        emergencyContact: { name: "", phone: "", relationship: "" },
+      },
+    };
+    
+    authService.setCurrentUser(updatedData);
+    return updatedData;
   },
 
   updateDriverProfile: async (data: Partial<DriverSignupData>) => {
-    const payload: any = {
-      fullName: data.fullName,
-      email: data.email,
-      phoneNumber: data.phoneNumber,
-    };
-    if (data.address !== undefined) payload.address = data.address;
-    if (data.driverLicenseNumber !== undefined) payload.licenseNumber = data.driverLicenseNumber;
-    if (data.profileImage !== undefined) payload.profileImage = data.profileImage;
-    if (data.personalInfo !== undefined) payload.personalInfo = data.personalInfo;
-    if (data.drivingExperience !== undefined) payload.drivingExperience = data.drivingExperience;
-
-    const res = await driverApi.put('/driver-profiles/me', payload);
-    if (res.data) {
-      authService.setCurrentUser(res.data);
+    const payload: any = {};
+    
+    // Map personalInfo fields to root level (backend structure)
+    if (data.personalInfo?.bloodGroup) payload.bloodGroup = data.personalInfo.bloodGroup;
+    if (data.personalInfo?.dob) payload.dob = data.personalInfo.dob;
+    if (data.personalInfo?.languages) payload.languages = data.personalInfo.languages;
+    
+    // Map drivingExperience fields
+    if ((data as any).drivingExperience?.licensedSince) {
+      payload.licensedSince = (data as any).drivingExperience.licensedSince;
     }
-    return res.data;
+    if ((data as any).drivingExperience?.yearsOfExperience) {
+      payload.experienceYears = (data as any).drivingExperience.yearsOfExperience;
+    }
+    
+    console.log('🔵 [UPDATE DRIVER PROFILE] Sending:', payload);
+    
+    const res = await driverApi.put('/driver-profiles/me', payload);
+    
+    // Merge updated profile with current user data
+    const currentUser = authService.getCurrentUser();
+    const updatedData = {
+      ...currentUser,
+      ...res.data,
+      driverLicenseNumber: res.data.licenseNumber,
+      personalInfo: {
+        bloodGroup: res.data.bloodGroup,
+        dob: res.data.dob,
+        languages: res.data.languages || [],
+        certificates: [],
+        emergencyContact: { name: "", phone: "", relationship: "" },
+      },
+    };
+    
+    authService.setCurrentUser(updatedData);
+    return updatedData;
   },
 
   // ==================== LOCATION METHODS ====================

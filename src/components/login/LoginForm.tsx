@@ -63,14 +63,16 @@ const LoginForm = ({
         ? authService.driverLogin(formData)
         : authService.userLogin(formData));
 
-      // navigation after successful login
-      if (res && (res.token)) {
-        // use navigateTo prop or a default driver route
-        navigate(navigateTo || (userType === "driver" ? "/driver/profile" : "/"));
+      // Check for accessToken (new backend structure)
+      if (res && res.accessToken) {
+        console.log('✅ Login successful, navigating to:', navigateTo);
+        navigate(navigateTo || (userType === "driver" ? "/driver/profile" : "/map"));
       } else {
-        setError("Login failed");
+        console.error('❌ Login response missing accessToken:', res);
+        setError("Login failed - invalid response from server");
       }
     } catch (err: any) {
+      console.error('❌ Login error:', err);
       setError(err?.response?.data?.message || err?.message || "Login failed");
     } finally {
       setLoading(false);

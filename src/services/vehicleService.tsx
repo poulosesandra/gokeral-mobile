@@ -1,101 +1,90 @@
-import api from './api';
+import { driverApi } from './api';
 
+// Backend DTO structure (matches Kerides_Backend_V1/services/driver-service)
 export interface VehicleData {
-  make: string;
-  vehicleModel: string;
-  year: number;
-  seatsNo: number;
-  licensePlate: string;
-  vehicleType: string;
-  vehicleClass: string;
-  fareStructure: {
-    minimumFare: number;
-    perKilometerRate: number;
-    waitingChargePerMinute: number;
-  };
-  vehicleImages?: string[];
-  documents?: Record<string, string>;
+  make: string;                      // Toyota, Honda, etc.
+  vehicleModel: string;              // Camry, Civic, etc. (NOT "model")
+  year: number;                      // 1990 - current year
+  registrationNumber: string;        // License plate (NOT "licensePlate")
+  type: 'HATCHBACK' | 'SEDAN' | 'SUV' | 'VAN'; // Vehicle type (NOT "vehicleType")
+  seatingCapacity: number;           // 1-8 passengers (NOT "seatsNo")
+  color?: string;                    // Optional: White, Black, etc.
+  insuranceExpiryDate?: string;      // Optional: ISO date
+  rcExpiryDate?: string;             // Optional: ISO date
 }
 
 export interface Vehicle extends VehicleData {
   _id: string;
-  driverId?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  accountId: string;                 // Driver's account ID
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
-// Vehicle Service (backend routes under /drivers/vehicles)
+/**
+ * Vehicle Service - Microservices Architecture
+ * Uses driverApi (http://localhost:3003)
+ * All endpoints under /vehicles
+ */
 export const vehicleService = {
+  /**
+   * Add new vehicle
+   * POST /vehicles
+   */
   addVehicle: async (vehicleData: VehicleData): Promise<Vehicle> => {
-    const response = await api.post('/drivers/vehicles', vehicleData);
+    console.log('🔵 [VEHICLE SERVICE] Adding vehicle:', vehicleData);
+    const response = await driverApi.post('/vehicles', vehicleData);
+    console.log('✅ [VEHICLE SERVICE] Vehicle added:', response.data);
     return response.data;
   },
 
+  /**
+   * Get driver's own vehicles
+   * GET /vehicles/my-vehicles
+   */
   getVehicles: async (): Promise<Vehicle[]> => {
-    const response = await api.get('/drivers/vehicles');
+    console.log('🔵 [VEHICLE SERVICE] Fetching my vehicles');
+    const response = await driverApi.get('/vehicles/my-vehicles');
+    console.log('✅ [VEHICLE SERVICE] Vehicles fetched:', response.data);
     return response.data;
   },
 
-  // Public listing for users — returns empty array if API fails
-  getAvailableVehicles: async (): Promise<any[]> => {
-    try {
-      const response = await api.get('/drivers/vehicles/public');
-      const data = response.data;
-      if (Array.isArray(data)) return data;
-      return [];
-    } catch (err) {
-      // Log error but return empty array - no more hardcoded fallback data
-      // eslint-disable-next-line no-console
-      console.warn('vehicles API failed:', err);
-      return [];
-    }
-  },
-
+  /**
+   * Get specific vehicle by ID
+   * GET /vehicles/:id
+   */
   getVehicleById: async (id: string): Promise<Vehicle> => {
-    const response = await api.get(`/drivers/vehicles/${id}`);
+    console.log('🔵 [VEHICLE SERVICE] Fetching vehicle:', id);
+    const response = await driverApi.get(`/vehicles/${id}`);
+    console.log('✅ [VEHICLE SERVICE] Vehicle fetched:', response.data);
     return response.data;
   },
 
+  /**
+   * Update vehicle
+   * PUT /vehicles/:id
+   */
   updateVehicle: async (id: string, vehicleData: Partial<VehicleData>): Promise<Vehicle> => {
-    const response = await api.patch(`/drivers/vehicles/${id}`, vehicleData);
+    console.log('🔵 [VEHICLE SERVICE] Updating vehicle:', id, vehicleData);
+    const response = await driverApi.put(`/vehicles/${id}`, vehicleData);
+    console.log('✅ [VEHICLE SERVICE] Vehicle updated:', response.data);
     return response.data;
   },
 
-  deleteVehicle: async (id: string): Promise<void> => {
-    const response = await api.delete(`/drivers/vehicles/${id}`);
+  /**
+   * Deactivate vehicle (soft delete)
+   * PATCH /vehicles/:id/deactivate
+   */
+  deactivateVehicle: async (id: string): Promise<Vehicle> => {
+    console.log('🔵 [VEHICLE SERVICE] Deactivating vehicle:', id);
+    const response = await driverApi.patch(`/vehicles/${id}/deactivate`);
+    console.log('✅ [VEHICLE SERVICE] Vehicle deactivated:', response.data);
     return response.data;
   },
 
-  // Upload a single document file (multipart form)
-  uploadVehicleDocument: async (vehicleId: string, file: File) => {
-    const form = new FormData();
-    form.append('file', file);
-    const response = await api.post(`/drivers/vehicles/${vehicleId}/upload-document`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data; // { url, key, ... }
-  },
-
-  // Register a document URL under vehicle (documentType should match DTO keys)
-  addVehicleDocument: async (vehicleId: string, documentType: string, documentUrl: string) => {
-    const response = await api.post(`/drivers/vehicles/${vehicleId}/documents/${documentType}`, { documentUrl });
-    return response.data;
-  },
-
-  // Upload a vehicle image file
-  uploadVehicleImage: async (vehicleId: string, file: File) => {
-    const form = new FormData();
-    form.append('file', file);
-    const response = await api.post(`/drivers/vehicles/${vehicleId}/upload-image`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data; // { url, key, ... }
-  },
-
-  // Attach image URLs to vehicle
-  addVehicleImages: async (vehicleId: string, imageUrls: string[]) => {
-    const response = await api.post(`/drivers/vehicles/${vehicleId}/images`, { imageUrls });
-    return response.data;
+  // Legacy method names for backward compatibility
+  deleteVehicle: async (id: string): Promise<Vehicle> => {
+    return vehicleService.deactivateVehicle(id);
   },
 };
 

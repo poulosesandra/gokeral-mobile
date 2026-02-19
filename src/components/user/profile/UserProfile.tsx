@@ -63,15 +63,36 @@ export const UserProfile = () => {
       } catch (backendError: any) {
         console.error("Failed to fetch user profile:", backendError);
 
+        // 401 = unauthorized, logout and redirect
         if (backendError.response?.status === 401) {
+          console.log('🔴 [USER PROFILE] Unauthorized, logging out');
           authService.logout();
           window.location.href = "/user/login";
-        } else {
-          console.error("Error fetching user data:", backendError);
-          window.location.href = "/user/login";
+        } 
+        // 404 = profile doesn't exist yet (new user)
+        else if (backendError.response?.status === 404) {
+          console.log('🟡 [USER PROFILE] No profile found, using account data');
+          // Use basic account data from localStorage/authService
+          const storedUser = localStorage.getItem('userData');
+          const accountData = storedUser ? JSON.parse(storedUser) : {};
+          
+          const userData: UserData = {
+            fullName: accountData.fullName || "User",
+            email: accountData.email || "",
+            phoneNumber: accountData.phoneNumber || "",
+            address: "",
+            profileImage: null,
+            location: null,
+          };
+          
+          setUserData(userData);
+          setLoading(false);
+        } 
+        // Other errors - show error but don't redirect
+        else {
+          console.error('❌ [USER PROFILE] Unexpected error:', backendError);
+          setLoading(false);
         }
-
-        setLoading(false);
       }
     } catch (error) {
       setLoading(false);

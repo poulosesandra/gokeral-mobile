@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Car, Mail, Lock, Eye, EyeOff, ArrowLeft, User, Phone, FileText, CheckCircle, AlertCircle } from "lucide-react";
+import { Car, Mail, Lock, Eye, EyeOff, ArrowLeft, User, Phone, CheckCircle, AlertCircle } from "lucide-react";
 import authService from "../../services/authServices";
 
 interface RegistrationFormProps {
@@ -8,7 +8,6 @@ interface RegistrationFormProps {
   loginLink: string;
   title: string;
   subtitle: string;
-  includeDriverFields?: boolean;
 }
 
 interface FormData {
@@ -17,7 +16,6 @@ interface FormData {
   phoneNumber: string;
   password: string;
   confirmPassword: string;
-  driverLicenseNumber?: string;
   agreement?: boolean;
 } 
 
@@ -26,7 +24,6 @@ const RegistrationForm = ({
   loginLink,
   title,
   subtitle,
-  includeDriverFields = false,
 }: RegistrationFormProps) => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -37,9 +34,6 @@ const RegistrationForm = ({
     phoneNumber: "",
     password: "",
     confirmPassword: "",
-    // keep driverLicenseNumber always defined to keep input controlled
-    driverLicenseNumber: "",
-    // agreement is required for UI only (not sent to server)
     agreement: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -99,11 +93,7 @@ const RegistrationForm = ({
       isValid = false;
     }
 
-    // Driver license validation (if applicable)
-    if (includeDriverFields && !formData.driverLicenseNumber?.trim()) {
-      newErrors.driverLicenseNumber = "Driving license number is required for drivers";
-      isValid = false;
-    }
+    // Driver license will be added during profile completion (not required at registration)
 
     // Agreement validation
     if (!formData.agreement) {
@@ -128,14 +118,12 @@ const RegistrationForm = ({
 
     try {
       if (userType === "driver") {
-        const { fullName, email, phoneNumber, password, driverLicenseNumber } = formData;
+        const { fullName, email, phoneNumber, password } = formData;
         const driverData = {
           fullName,
           email,
           phoneNumber,
           password,
-          // backend key
-          driverLicenseNumber: driverLicenseNumber || '',
           agreement: formData.agreement || false,
         } as any;
         await authService.driverRegister(driverData);
@@ -296,33 +284,6 @@ const RegistrationForm = ({
                 <p className="mt-2 text-sm text-red-600">{errors.phoneNumber}</p>
               )}
             </div>
-
-            {/* Driver License (conditional) */}
-            {includeDriverFields && (
-              <div>
-                <label htmlFor="drivinglicenseNo" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Driving License Number
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <FileText className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="driverLicenseNumber"
-                    name="driverLicenseNumber"
-                    type="text"
-                    value={formData.driverLicenseNumber || ""}
-                    onChange={handleInputChange}
-                    className={`block w-full pl-12 pr-4 py-3 border ${errors.driverLicenseNumber ? "border-red-300" : "border-gray-300"
-                      } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
-                    placeholder="KL-1234567890123"
-                  />
-                </div>
-                {errors.driverLicenseNumber && (
-                  <p className="mt-2 text-sm text-red-600">{errors.driverLicenseNumber}</p>
-                )}
-              </div>
-            )}
 
             {/* Password Input */}
             <div>

@@ -27,15 +27,15 @@ export const useNotifications = (intervalMs = 10000) => {
   }, []);
 
   useEffect(() => {
+    // Polling disabled: do a one-off fetch on mount and refresh on window focus.
+    // Use the returned `refresh()` to request updates manually.
     fetchCount();
-    const id = setInterval(fetchCount, intervalMs);
     const onFocus = () => fetchCount();
     window.addEventListener('focus', onFocus);
     return () => {
-      clearInterval(id);
       window.removeEventListener('focus', onFocus);
     };
-  }, [fetchCount, intervalMs]);
+  }, [fetchCount]);
 
   return { count, loading, refresh: fetchCount };
 };
