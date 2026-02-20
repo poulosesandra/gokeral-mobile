@@ -1,68 +1,215 @@
-import api from './api';
+import { bookingApi } from './api';
 
 /**
- * ⚠️ BOOKING SERVICE - SPRINT 2 FEATURE
+ * ✅ BOOKING SERVICE - SPRINT 2 MICROSERVICE
  * 
- * This service uses the OLD monolithic backend (Gokeral_Backend).
- * Booking functionality has NOT been migrated to microservices yet.
+ * This service connects to the new Kerides Booking Service microservice.
+ * Port: 3004 (http://localhost:3004)
  * 
- * Current status:
- * - These endpoints exist in Gokeral_Backend/src/booking/
- * - NOT in Kerides_Backend_V1 microservices
- * - Will be migrated to a separate Booking Service in Sprint 2
+ * Features:
+ * - Ride booking creation
+ * - Fare estimation with dynamic pricing
+ * - Driver matching (geospatial)
+ * - OTP verification for ride completion
+ * - Real-time ride requests (SSE)
+ * - Booking status management
+ * - Rating system
  * 
- * For now, these endpoints will return errors unless you:
- * 1. Run the old Gokeral_Backend alongside microservices, OR
- * 2. Wait for Sprint 2 booking microservice implementation
+ * Microservice Architecture:
+ * - Auth: Port 3001 (JWT authentication)
+ * - User: Port 3002 (User management)
+ * - Driver: Port 3003 (Driver management)
+ * - Booking: Port 3004 (Ride booking - Sprint 2) ✨
  */
 
+// TypeScript Interfaces
+interface Location {
+  type: 'Point';
+  coordinates: [number, number]; // [longitude, latitude]
+  address?: string;
+}
+
 interface CreateBookingData {
-  [key: string]: unknown;
+  pickupLocation: Location;
+  dropoffLocation: Location;
+  vehicleType: 'motorcycle' | 'auto' | 'sedan' | 'suv';
+  pickupTime?: Date;
+}
+
+interface EstimateFareData {
+  pickupLocation: Location;
+  dropoffLocation: Location;
+  vehicleType: 'motorcycle' | 'auto' | 'sedan' | 'suv';
+}
+
+interface RateBookingData {
+  rating: number; // 1-5
+  review?: string;
+}
+
+interface VerifyOtpData {
+  otp: string;
 }
 
 const bookingService = {
-
-  async findNearestDrivers(pickupLatitude: number, pickupLongitude: number, vehicleType: string) {
-    const body = {
-      pickupLatitude,
-      pickupLongitude,
-      vehicleType,
-    };
-
-    const res = await api.post('/bookings/find-nearest-drivers', body);
+  /**
+   * Estimate fare for a trip
+   * Endpoint: POST /bookings/estimate-fare
+   * Auth: Required (USER or DRIVER role)
+   */
+  async estimateFare(estimateFareData: EstimateFareData) {
+    const res = await bookingApi.post('/bookings/estimate-fare', estimateFareData);
     return res.data;
   },
 
+  /**
+   * Find nearby available drivers
+   * Endpoint: GET /bookings/nearby-drivers
+   * Auth: Required (USER role)
+   */
+  async findNearbyDrivers(latitude: number, longitude: number, vehicleType: string, radius: number = 5) {
+    const res = await bookingApi.get('/bookings/nearby-drivers', {
+      params: { latitude, longitude, vehicleType, radius }
+    });
+    return res.data;
+  },
+
+  /**
+   * Create a new booking (ride request)
+   * Endpoint: POST /bookings
+   * Auth: Required (USER role)
+   */
   async createBooking(createBookingData: CreateBookingData) {
-    const res = await api.post('/bookings/create', createBookingData);
+    const res = await bookingApi.post('/bookings', createBookingData);
     return res.data;
   },
 
-  // User booking endpoints
+  /**
+   * Get all bookings for the authenticated user
+   * Endpoint: GET /bookings/my-bookings
+   * Auth: Required (USER role)
+   */
   async getUserBookings() {
-    const res = await api.get('/bookings/my-bookings');
+    const res = await bookingApi.get('/bookings/my-bookings');
     return res.data;
   },
 
-  async getUserPendingBookings() {
-    const res = await api.get('/bookings/my-bookings/pending');
+  /**
+   * Get all bookings for the authenticated driver
+   * Endpoint: GET /bookings/driver/my-bookings
+   * Auth: Required (DRIVER role)
+   */
+  async getDriverBookings() {
+    const res = await bookingApi.get('/bookings/driver/my-bookings');
     return res.data;
   },
 
+  /**
+   * Get all pending bookings (available rides for drivers)
+   * Endpoint: GET /bookings/pending
+   * Auth: Required (DRIVER role)
+   */
+  async getPendingBookings() {
+    const res = await bookingApi.get('/bookings/pending');
+    return res.data;
+  },
+
+  /**
+   * Get booking details by ID
+   * Endpoint: GET /bookings/:bookingId
+   * Auth: Required (USER or DRIVER role)
+   */
   async getBookingById(bookingId: string) {
-    const res = await api.get(`/bookings/${bookingId}`);
+    const res = await bookingApi.get(`/bookings/${bookingId}`);
     return res.data;
   },
 
-  async cancelBooking(bookingId: string) {
-    const res = await api.patch(`/bookings/${bookingId}/cancel`);
+  /**
+   * Accept a booking (driver only)
+   * Endpoint: POST /bookings/:bookingId/accept
+   * Auth: Required (DRIVER role)
+   */
+  async acceptBooking(bookingId: string) {
+    const res = await bookingApi.post(`/bookings/${bookingId}/accept`);
     return res.data;
   },
 
-  async rateBooking(bookingId: string, rateBookingDto: { rating: number; review?: string }) {
-    const res = await api.post(`/bookings/${bookingId}/rate`, rateBookingDto);
+  /**
+   * Reject a booking (driver only)
+   * Endpoint: POST /bookings/:bookingId/reject
+   * Auth: Required (DRIVER role)
+   */
+  async rejectBooking(bookingId: string) {
+    const res = await bookingApi.post(`/bookings/${bookingId}/reject`);
+    return res.data;
+  },
+
+  /**
+   * Generate OTP for ride completion (user only)
+   * Endpoint: POST /bookings/:bookingId/generate-otp
+   * Auth: Required (USER role)
+   */
+  async generateOtp(bookingId: string) {
+    const res = await bookingApi.post(`/bookings/${bookingId}/generate-otp`);
+    return res.data;
+  },
+
+  /**
+   * Verify OTP and complete ride (driver only)
+   * Endpoint: POST /bookings/:bookingId/verify-otp
+   * Auth: Required (DRIVER role)
+   */
+  async verifyOtpAndComplete(bookingId: string, verifyOtpData: VerifyOtpData) {
+    const res = await bookingApi.post(`/bookings/${bookingId}/verify-otp`, verifyOtpData);
+    return res.data;
+  },
+
+  /**
+   * Rate a completed booking (user only)
+   * Endpoint: POST /bookings/:bookingId/rate
+   * Auth: Required (USER role)
+   */
+  async rateBooking(bookingId: string, rateBookingData: RateBookingData) {
+    const res = await bookingApi.post(`/bookings/${bookingId}/rate`, rateBookingData);
+    return res.data;
+  },
+
+  /**
+   * Update booking status
+   * Endpoint: PATCH /bookings/:bookingId/status
+   * Auth: Required (USER or DRIVER role)
+   */
+  async updateBookingStatus(bookingId: string, status: string) {
+    const res = await bookingApi.patch(`/bookings/${bookingId}/status`, { status });
+    return res.data;
+  },
+
+  /**
+   * Stream real-time ride requests for driver (SSE)
+   * Endpoint: GET /ride-requests/stream
+   * Auth: Required (DRIVER role)
+   * Returns: EventSource for Server-Sent Events
+   */
+  createRideRequestStream() {
+    const token = localStorage.getItem('token');
+    const url = `${import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:3004'}/ride-requests/stream`;
+    
+    // Create EventSource with authentication header (via query param as EventSource doesn't support custom headers)
+    const eventSource = new EventSource(`${url}?token=${token}`);
+    
+    return eventSource;
+  },
+
+  /**
+   * Get pending ride requests for driver
+   * Endpoint: GET /ride-requests/pending
+   * Auth: Required (DRIVER role)
+   */
+  async getPendingRideRequests() {
+    const res = await bookingApi.get('/ride-requests/pending');
     return res.data;
   },
 };
 
 export default bookingService;
+export type { CreateBookingData, EstimateFareData, RateBookingData, VerifyOtpData, Location };
