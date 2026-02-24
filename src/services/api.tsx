@@ -93,7 +93,13 @@ const responseErrorInterceptor = (error: any) => {
   const isAuthEndpoint = error.config?.url?.includes('/login') || 
                         error.config?.url?.includes('/register');
   
-  if (error.response?.status === 401 && !isAuthEndpoint) {
+  // Don't redirect on profile/data endpoints - let components handle 401
+  const isProfileEndpoint = error.config?.url?.includes('/profiles/') ||
+                           error.config?.url?.includes('/driver-profiles/') ||
+                           error.config?.url?.includes('/bookings') ||
+                           error.config?.url?.includes('/vehicles');
+  
+  if (error.response?.status === 401 && !isAuthEndpoint && !isProfileEndpoint) {
     console.warn('⚠️ [UNAUTHORIZED] Clearing localStorage and redirecting');
     localStorage.clear();
     window.location.href = '/';

@@ -4,12 +4,15 @@ import { MapPin, Phone, Star } from 'lucide-react';
 import { useCustomerRideListener } from '../../hooks/useCustomerRideListener';
 
 const mapVehicleType = (t?: string) => {
-  if (!t) return 'Auto';
-  const s = String(t).toLowerCase();
-  if (s.includes('auto')) return 'Auto';
-  if (s.includes('suv')) return 'Seven Seater';
-  if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
-  return t;
+  if (!t) return 'Auto Rickshaw';
+  const vehicleTypeLabels: Record<string, string> = {
+    'AUTO': 'Auto Rickshaw',
+    'BIKE': 'Bike/Motorcycle',
+    'HATCHBACK': 'Hatchback',
+    'SEDAN': 'Sedan',
+    'SUV': 'SUV',
+  };
+  return vehicleTypeLabels[t] || t;
 };
 
 interface RideAcceptanceCardProps {

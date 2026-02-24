@@ -43,8 +43,16 @@ interface BookingPanelProps {
   pickupLocation?: { lat: number; lng: number } | null;
 }
 
-type VehicleType = 'Auto' | 'Five Seater' | 'Seven Seater';
-const vehicleTypes: VehicleType[] = ['Auto', 'Five Seater', 'Seven Seater'];
+type VehicleType = 'AUTO' | 'BIKE' | 'HATCHBACK' | 'SEDAN' | 'SUV';
+const vehicleTypes: VehicleType[] = ['AUTO', 'BIKE', 'HATCHBACK', 'SEDAN', 'SUV'];
+
+const vehicleTypeLabels: Record<VehicleType, string> = {
+  'AUTO': 'Auto Rickshaw',
+  'BIKE': 'Bike',
+  'HATCHBACK': 'Hatchback',
+  'SEDAN': 'Sedan (4-5 Seater)',
+  'SUV': 'SUV (6-7 Seater)',
+};
 
 const VehicleTypeSelector: React.FC<{ value: VehicleType; onChange: (v: VehicleType) => void }> = React.memo(({ value, onChange }) => {
   return (
@@ -68,7 +76,7 @@ const VehicleTypeSelector: React.FC<{ value: VehicleType; onChange: (v: VehicleT
             className="hidden"
             aria-hidden="true"
           />
-          <span className="text-sm sm:text-base text-center flex-1">{t}</span>
+          <span className="text-sm sm:text-base text-center flex-1">{vehicleTypeLabels[t]}</span>
         </label>
       ))}
     </div>
