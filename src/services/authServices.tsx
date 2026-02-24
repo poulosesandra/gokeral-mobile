@@ -251,7 +251,7 @@ export const authService = {
 
   // ==================== DRIVER METHODS ====================
 
-  // Driver Registration (Account creation only - profile completion happens later)
+  // Driver Registration (Two-step: Account creation + Driver Profile creation)
   driverRegister: async (data: DriverSignupData): Promise<AuthResponse> => {
     try {
       // STEP 1: Create driver account (basic info only)
@@ -263,12 +263,11 @@ export const authService = {
         role: 'DRIVER',
       };
 
-      console.log('🔵 [DRIVER REGISTER] Creating driver account:', accountPayload);
+      console.log('🔵 [DRIVER REGISTER] Step 1: Creating driver account:', accountPayload);
 
       const response = await api.post<AuthResponse>('/auth/register', accountPayload);
 
-      console.log('✅ [DRIVER REGISTER] Account created successfully');
-      console.log('ℹ️  [DRIVER REGISTER] Driver will complete profile (license number) later');
+      console.log('✅ [DRIVER REGISTER] Step 1: Account created successfully');
 
       if (response.data.accessToken) {
         authService.setToken(response.data.accessToken);
@@ -280,6 +279,42 @@ export const authService = {
         };
         authService.setCurrentUser(userData);
         console.log('💾 [DRIVER REGISTER] Saved user data:', userData);
+
+        // STEP 2: Create driver profile with additional information
+        if (data.personalInfo || data.drivingExperience || data.driverLicenseNumber) {
+          console.log('🔵 [DRIVER REGISTER] Step 2: Creating driver profile...');
+          
+          try {
+            const profilePayload: any = {};
+
+            // Add personal info if provided
+            if (data.personalInfo) {
+              if (data.personalInfo.bloodGroup) profilePayload.bloodGroup = data.personalInfo.bloodGroup;
+              if (data.personalInfo.dob) profilePayload.dateOfBirth = data.personalInfo.dob;
+              if (data.personalInfo.languages) profilePayload.languages = data.personalInfo.languages;
+              if (data.personalInfo.certificates) profilePayload.certificates = data.personalInfo.certificates;
+              if (data.personalInfo.emergencyContact) profilePayload.emergencyContact = data.personalInfo.emergencyContact;
+            }
+
+            // Add driving experience if provided
+            if (data.drivingExperience) {
+              if (data.drivingExperience.yearsOfExperience) profilePayload.experienceYears = data.drivingExperience.yearsOfExperience;
+              if (data.drivingExperience.licensedSince) profilePayload.licensedSince = data.drivingExperience.licensedSince;
+            }
+
+            // Only create profile if we have data to send
+            if (Object.keys(profilePayload).length > 0) {
+              await driverApi.post('/driver-profiles', profilePayload);
+              console.log('✅ [DRIVER REGISTER] Step 2: Driver profile created successfully');
+            } else {
+              console.log('ℹ️  [DRIVER REGISTER] Step 2: Skipped (no profile data provided)');
+            }
+          } catch (profileError: any) {
+            console.warn('⚠️ [DRIVER REGISTER] Step 2: Driver profile creation failed:', profileError.response?.data || profileError.message);
+            console.log('ℹ️  Driver can complete profile later from dashboard');
+            // Don't throw error - account was created successfully, profile can be added later
+          }
+        }
       }
 
       return response.data;

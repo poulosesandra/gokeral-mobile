@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Modal, Form, Input, DatePicker, Select, Row, Col } from "antd";
 import dayjs from "dayjs";
+
 const parseDobToDayjs = (value?: string) => {
   if (!value) return undefined;
   const raw = String(value).trim();
@@ -12,14 +13,8 @@ const parseDobToDayjs = (value?: string) => {
   }
 
   const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return undefined;
+  if (Number.isNaN(date.getTime())) return undefined
   return dayjs(date);
-};
-
-type EmergencyContact = {
-  name: string;
-  phone: string;
-  relation: string;
 };
 
 export type DriverPersonalInfoValues = {
@@ -29,10 +24,9 @@ export type DriverPersonalInfoValues = {
   driverLicenseNumber?: string;
   dateOfBirth?: string;
   bloodGroup?: string;
-  address?: string;
   languages?: string[];
-  certificates?: string[];
-  emergencyContact?: EmergencyContact;
+  licensedSince?: string; // Sprint 2: When driver got their license
+  experienceYears?: number; // Sprint 2: Years of driving experience
 };
 
 type DriverPersonalInfoModalProps = {
@@ -52,14 +46,6 @@ const bloodGroups = [
   "AB-",
   "O+",
   "O-",
-];
-
-const certificationOptions = [
-  "Defensive Driving Certified",
-  "First Aid Certified",
-  "Hazardous Materials Endorsement",
-  "Commercial Driving License",
-  "Customer Service Training",
 ];
 
 const languageOptions = [
@@ -87,13 +73,16 @@ const DriverPersonalInfoModal = ({
         dateOfBirth: initialValues.dateOfBirth
           ? parseDobToDayjs(initialValues.dateOfBirth)
           : undefined,
+        licensedSince: initialValues.licensedSince
+          ? parseDobToDayjs(initialValues.licensedSince)
+          : undefined,
       });
     } else {
       form.resetFields();
     }
   }, [form, initialValues, open]);
 
-  const handleFinish = (values: DriverPersonalInfoValues & { dateOfBirth?: dayjs.Dayjs }) => {
+  const handleFinish = (values: DriverPersonalInfoValues & { dateOfBirth?: dayjs.Dayjs; licensedSince?: dayjs.Dayjs }) => {
     const payload: DriverPersonalInfoValues = {
       fullName: values.fullName,
       email: values.email,
@@ -102,11 +91,12 @@ const DriverPersonalInfoModal = ({
       dateOfBirth: values.dateOfBirth
         ? dayjs(values.dateOfBirth).toISOString()
         : undefined,
-      languages: values.languages || [],
-      certificates: values.certificates || [],
-      address: values.address,
-      emergencyContact: values.emergencyContact || undefined,
       bloodGroup: values.bloodGroup,
+      languages: values.languages || [],
+      licensedSince: values.licensedSince
+        ? dayjs(values.licensedSince).toISOString()
+        : undefined,
+      experienceYears: values.experienceYears,
     };
 
     onSave(payload);
@@ -131,7 +121,7 @@ const DriverPersonalInfoModal = ({
     >
       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
         <p className="text-sm text-blue-700">
-          ℹ️ <strong>Note:</strong> Name, email, phone, and license number cannot be changed. Only personal information fields can be updated.
+          ℹ️ <strong>Note:</strong> Name, email, phone, and license number (once set) cannot be changed. You can update your date of birth, blood group, languages, license date, and experience.
         </p>
       </div>
 
@@ -223,19 +213,7 @@ const DriverPersonalInfoModal = ({
           </Col>
         </Row>
 
-        {/* Address - Disabled for now */}
-        <Form.Item
-          name="address"
-          label="Address (Coming in Sprint 2)"
-          tooltip="Address field is not yet supported by the backend"
-        >
-          <Input.TextArea 
-            rows={3} 
-            placeholder="Will be available in the next update" 
-            disabled 
-            className="bg-gray-100" 
-          />
-        </Form.Item>
+
 
         <Row gutter={[16, 12]}>
           <Col xs={24} md={12}>
@@ -255,54 +233,33 @@ const DriverPersonalInfoModal = ({
 
           <Col xs={24} md={12}>
             <Form.Item
-              name="certificates"
-              label="Certifications (Coming in Sprint 2)"
-              tooltip="Certificates field is not yet supported by the backend"
+              name="experienceYears"
+              label="Years of Driving Experience"
+              rules={[
+                { required: true, message: "Please enter your experience in years" },
+                { type: 'number', min: 0, max: 50, message: "Experience must be between 0 and 50 years" }
+              ]}
+              tooltip="Total years of professional driving experience"
             >
-              <Select
-                mode="multiple"
-                allowClear
-                disabled
-                className="bg-gray-100"
-                placeholder="Will be available in the next update"
-                options={certificationOptions.map((cert) => ({ label: cert, value: cert }))}
+              <Input 
+                type="number" 
+                placeholder="e.g., 5" 
+                min={0} 
+                max={50}
               />
             </Form.Item>
           </Col>
         </Row>
 
-        {/* Emergency Contact - Disabled for now */}
-        <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-sm text-yellow-800">
-            ⚠️ <strong>Emergency Contact</strong> feature is coming in Sprint 2. Currently not supported by backend.
-          </p>
-        </div>
-
         <Row gutter={[16, 12]}>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={12}>
             <Form.Item
-              name={["emergencyContact", "name"]}
-              label="Name"
+              name="licensedSince"
+              label="License Issued Date"
+              rules={[{ required: true, message: "Please select when you received your license" }]}
+              tooltip="Date when your driving license was first issued"
             >
-              <Input placeholder="Not available yet" disabled className="bg-gray-100" />
-            </Form.Item>
-          </Col>
-
-          <Col xs={24} md={8}>
-            <Form.Item
-              name={["emergencyContact", "phone"]}
-              label="Contact Number"
-            >
-              <Input placeholder="Not available yet" disabled className="bg-gray-100" />
-            </Form.Item>
-          </Col>
-
-          <Col xs={24} md={8}>
-            <Form.Item
-              name={["emergencyContact", "relation"]}
-              label="Relation"
-            >
-              <Input placeholder="Not available yet" disabled className="bg-gray-100" />
+              <DatePicker className="w-full" format="DD/MM/YYYY" />
             </Form.Item>
           </Col>
         </Row>

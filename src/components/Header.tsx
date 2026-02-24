@@ -6,7 +6,7 @@ import { BellOutlined, UserOutlined, LogoutOutlined, DownOutlined, LeftOutlined,
 import { Link, useNavigate } from "react-router-dom";
 import type { MenuProps } from "antd";
 import { authService } from '../services/authServices';
-import api from '../services/api';
+import api, { bookingApi } from '../services/api';
 
 interface HeaderProps {
   navigate?: (path: string) => void;
@@ -89,7 +89,7 @@ export const Header = ({
       if (!currentUser) return 0;
 
       const url = role === 'DRIVER' ? '/bookings/pending-for-driver' : '/bookings/my-bookings/pending';
-      const res = await api.get(url);
+      const res = await bookingApi.get(url);
       const d = res.data;
 
       let cnt = 0;
@@ -130,7 +130,7 @@ export const Header = ({
       if (!currentUser) return [];
 
       const url = role === 'DRIVER' ? '/bookings/pending-for-driver' : '/bookings/my-bookings/pending';
-      const res = await api.get(url);
+      const res = await bookingApi.get(url);
       const d = res.data;
 
       const arr = Array.isArray(d) ? d : Array.isArray(d?.bookings) ? d.bookings : Array.isArray(d?.data) ? d.data : [];

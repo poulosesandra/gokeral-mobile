@@ -23,18 +23,13 @@ export type DriverData = {
   email: string;
   phoneNumber: string;
   driverLicenseNumber: string;
-  address?: string;
   profileImage: string | null;
   personalInfo?: {
     bloodGroup?: string;
     dob?: string;
     languages?: string[];
-    certificates?: string[];
-    emergencyContact?: {
-      name?: string;
-      phone?: string;
-      relationship?: string;
-    };
+    licensedSince?: string;
+    experienceYears?: number;
   };
 };
 
@@ -54,18 +49,13 @@ export const DriverProfile = () => {
     email: "",
     phoneNumber: "",
     driverLicenseNumber: "",
-    address: "",
     profileImage: null,
     personalInfo: {
       bloodGroup: "",
       dob: "",
       languages: [],
-      certificates: [],
-      emergencyContact: {
-        name: "",
-        phone: "",
-        relationship: "",
-      },
+      licensedSince: "",
+      experienceYears: 0,
     },
   });
   const [vehicleToEdit, setVehicleToEdit] = useState<{ id?: string; make?: string; model?: string; year?: number; licensePlate?: string; color?: string; [key: string]: string | number | undefined } | null>(null);
@@ -181,18 +171,13 @@ export const DriverProfile = () => {
             email: backendData.email || "",
             phoneNumber: backendData.phoneNumber || "",
             driverLicenseNumber: backendData.driverLicenseNumber || "",
-            address: backendData.address || "",
             profileImage: backendData.profileImage || null,
             personalInfo: {
-              bloodGroup: backendData.personalInfo?.bloodGroup || "",
-              dob: backendData.personalInfo?.dob || "",
-              languages: backendData.personalInfo?.languages || [],
-              certificates: backendData.personalInfo?.certificates || [],
-              emergencyContact: backendData.personalInfo?.emergencyContact || {
-                name: "",
-                phone: "",
-                relationship: "",
-              },
+              bloodGroup: backendData.personalInfo?.bloodGroup || backendData.bloodGroup || "",
+              dob: backendData.personalInfo?.dob || backendData.dob || "",
+              languages: backendData.personalInfo?.languages || backendData.languages || [],
+              licensedSince: backendData.personalInfo?.licensedSince || backendData.licensedSince || "",
+              experienceYears: backendData.personalInfo?.experienceYears || backendData.experienceYears || 0,
             },
           });
           setLoading(false);
@@ -218,18 +203,13 @@ export const DriverProfile = () => {
               email: accountData.email || "",
               phoneNumber: accountData.phoneNumber || "",
               driverLicenseNumber: "",
-              address: "",
               profileImage: null,
               personalInfo: {
                 bloodGroup: "",
                 dob: "",
                 languages: [],
-                certificates: [],
-                emergencyContact: {
-                  name: "",
-                  phone: "",
-                  relationship: "",
-                },
+                licensedSince: "",
+                experienceYears: 0,
               },
             });
             setLoading(false);
@@ -306,31 +286,12 @@ export const DriverProfile = () => {
   const handleSavePersonalInfo = async (values: DriverPersonalInfoValues) => {
     setPersonalInfoSaving(true);
 
-    const emergencyContact = values.emergencyContact
-      ? {
-          name: values.emergencyContact.name || "",
-          phone: values.emergencyContact.phone || "",
-          relationship: values.emergencyContact.relation || "",
-        }
-      : driverData.personalInfo?.emergencyContact || {
-          name: "",
-          phone: "",
-          relationship: "",
-        };
-
     const payload = {
-      fullName: values.fullName ?? driverData.fullName,
-      email: values.email ?? driverData.email,
-      phoneNumber: values.phoneNumber ?? driverData.phoneNumber,
-      driverLicenseNumber: values.driverLicenseNumber ?? driverData.driverLicenseNumber,
-      address: values.address ?? driverData.address,
-      personalInfo: {
-        bloodGroup: values.bloodGroup ?? driverData.personalInfo?.bloodGroup ?? "",
-        dob: values.dateOfBirth ?? driverData.personalInfo?.dob ?? "",
-        languages: values.languages ?? driverData.personalInfo?.languages ?? [],
-        certificates: values.certificates ?? driverData.personalInfo?.certificates ?? [],
-        emergencyContact,
-      },
+      bloodGroup: values.bloodGroup ?? driverData.personalInfo?.bloodGroup,
+      dob: values.dateOfBirth ?? driverData.personalInfo?.dob,
+      languages: values.languages ?? driverData.personalInfo?.languages ?? [],
+      licensedSince: values.licensedSince,
+      experienceYears: values.experienceYears,
     };
 
     try {
@@ -345,24 +306,22 @@ export const DriverProfile = () => {
           bloodGroup: values.bloodGroup,
           dob: values.dateOfBirth,
           languages: values.languages || [],
+          licensedSince: values.licensedSince,
+          experienceYears: values.experienceYears,
         };
         
         const res = await authService.createDriverProfile(profilePayload);
-        const updated = res?.driver || res || payload;
+        const updated = res?.driverProfile || res || {};
 
         setDriverData((prev) => ({
           ...prev,
           driverLicenseNumber: values.driverLicenseNumber,
           personalInfo: {
-            bloodGroup: updated.personalInfo?.bloodGroup ?? values.bloodGroup ?? "",
-            dob: updated.personalInfo?.dob ?? values.dateOfBirth ?? "",
-            languages: updated.personalInfo?.languages ?? values.languages ?? [],
-            certificates: [],
-            emergencyContact: {
-              name: "",
-              phone: "",
-              relationship: "",
-            },
+            bloodGroup: updated.bloodGroup ?? values.bloodGroup ?? "",
+            dob: updated.dob ?? values.dateOfBirth ?? "",
+            languages: updated.languages ?? values.languages ?? [],
+            licensedSince: updated.licensedSince ?? values.licensedSince,
+            experienceYears: updated.experienceYears ?? values.experienceYears,
           },
         }));
 
@@ -370,26 +329,16 @@ export const DriverProfile = () => {
       } else {
         // Update existing profile
         const res = await authService.updateDriverProfile(payload);
-        const updated = res?.driver || res || payload;
+        const updated = res?.driverProfile || res || {};
 
         setDriverData((prev) => ({
           ...prev,
-          fullName: updated.fullName ?? payload.fullName ?? prev.fullName,
-          email: updated.email ?? payload.email ?? prev.email,
-          phoneNumber: updated.phoneNumber ?? payload.phoneNumber ?? prev.phoneNumber,
-          driverLicenseNumber: updated.driverLicenseNumber ?? payload.driverLicenseNumber ?? prev.driverLicenseNumber,
-          address: updated.address ?? payload.address ?? prev.address,
-          profileImage: updated.profileImage ?? prev.profileImage,
           personalInfo: {
-            bloodGroup: updated.personalInfo?.bloodGroup ?? payload.personalInfo?.bloodGroup ?? prev.personalInfo?.bloodGroup ?? "",
-            dob: updated.personalInfo?.dob ?? payload.personalInfo?.dob ?? prev.personalInfo?.dob ?? "",
-            languages: updated.personalInfo?.languages ?? payload.personalInfo?.languages ?? prev.personalInfo?.languages ?? [],
-            certificates: updated.personalInfo?.certificates ?? payload.personalInfo?.certificates ?? prev.personalInfo?.certificates ?? [],
-            emergencyContact: updated.personalInfo?.emergencyContact ?? payload.personalInfo?.emergencyContact ?? prev.personalInfo?.emergencyContact ?? {
-              name: "",
-              phone: "",
-              relationship: "",
-            },
+            bloodGroup: updated.bloodGroup ?? payload.bloodGroup ?? prev.personalInfo?.bloodGroup ?? "",
+            dob: updated.dob ?? payload.dob ?? prev.personalInfo?.dob ?? "",
+            languages: updated.languages ?? payload.languages ?? prev.personalInfo?.languages ?? [],
+            licensedSince: updated.licensedSince ?? payload.licensedSince ?? prev.personalInfo?.licensedSince,
+            experienceYears: updated.experienceYears ?? payload.experienceYears ?? prev.personalInfo?.experienceYears,
           },
         }));
 
@@ -554,16 +503,9 @@ export const DriverProfile = () => {
           driverLicenseNumber: driverData.driverLicenseNumber,
           dateOfBirth: driverData.personalInfo?.dob || "",
           bloodGroup: driverData.personalInfo?.bloodGroup || "",
-          address: driverData.address || "",
           languages: driverData.personalInfo?.languages || [],
-          certificates: driverData.personalInfo?.certificates || [],
-          emergencyContact: driverData.personalInfo?.emergencyContact
-            ? {
-                name: driverData.personalInfo.emergencyContact.name || "",
-                phone: driverData.personalInfo.emergencyContact.phone || "",
-                relation: driverData.personalInfo.emergencyContact.relationship || "",
-              }
-            : undefined,
+          licensedSince: driverData.personalInfo?.licensedSince || "",
+          experienceYears: driverData.personalInfo?.experienceYears,
         }}
       />
       <AddVehicleModal

@@ -22,24 +22,45 @@ import { bookingApi } from './api';
  * - Booking: Port 3004 (Ride booking - Sprint 2) ✨
  */
 
-// TypeScript Interfaces
+// TypeScript Interfaces matching Kerides Backend DTOs
+
+interface Coordinates {
+  lat: number;
+  lng: number;
+}
+
 interface Location {
-  type: 'Point';
-  coordinates: [number, number]; // [longitude, latitude]
-  address?: string;
+  address: string;
+  coordinates: Coordinates;
+}
+
+interface Distance {
+  text: string;  // e.g., "5.2 km"
+  value: number; // meters, e.g., 5200
+}
+
+interface Duration {
+  text: string;  // e.g., "15 mins"
+  value: number; // seconds, e.g., 900
 }
 
 interface CreateBookingData {
-  pickupLocation: Location;
-  dropoffLocation: Location;
-  vehicleType: 'motorcycle' | 'auto' | 'sedan' | 'suv';
-  pickupTime?: Date;
+  origin: Location;
+  destination: Location;
+  distance: Distance;
+  duration: Duration;
+  vehicleId?: string;
+  driverId?: string;
+  paymentMethod?: 'CASH' | 'CARD' | 'UPI' | 'WALLET';
+  scheduledAt?: string; // ISO 8601 format
+  notes?: string;
 }
 
 interface EstimateFareData {
-  pickupLocation: Location;
-  dropoffLocation: Location;
-  vehicleType: 'motorcycle' | 'auto' | 'sedan' | 'suv';
+  distanceInMeters: number;  // Distance in meters (e.g., 5200)
+  durationInSeconds: number; // Duration in seconds (e.g., 900)
+  vehicleId?: string;
+  vehicleType?: string;
 }
 
 interface RateBookingData {
