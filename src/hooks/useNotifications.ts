@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import api from '../services/api';
+import { bookingApi } from '../services/api';
 import { authService } from '../services/authServices';
 
 export const useNotifications = (intervalMs = 10000) => {
@@ -11,11 +11,11 @@ export const useNotifications = (intervalMs = 10000) => {
       setLoading(true);
       const role = authService.getUserRole();
       if (role === 'DRIVER') {
-        const res = await api.get('/bookings/pending-for-driver');
+        const res = await bookingApi.get('/ride-requests/pending');
         const data = res.data;
         setCount(Array.isArray(data) ? data.length : (data?.length ?? 0));
       } else {
-        const res = await api.get('/bookings/my-bookings/pending');
+        const res = await bookingApi.get('/bookings/my-bookings');
         const data = res.data;
         setCount(Array.isArray(data) ? data.length : (data?.length ?? 0));
       }

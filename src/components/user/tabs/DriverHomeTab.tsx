@@ -313,7 +313,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       // Try active / pending / recent driver bookings (no new API needed)
       const endpoints = [
         '/bookings/driver/active',
-        '/bookings/pending-for-driver',
+        '/ride-requests/pending',
         '/bookings/driver/my-bookings',
       ];
 

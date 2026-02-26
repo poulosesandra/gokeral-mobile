@@ -96,9 +96,8 @@ const Maps: React.FC = () => {
   };
 
   const handleLogout = () => {
-    authService.logout();
+    authService.logout('/user/login');
     message.success('Logged out successfully');
-    navigate('/user/login');
   };
 
   // Smoothly animate the map to a target location over `duration` ms (returns a Promise)
