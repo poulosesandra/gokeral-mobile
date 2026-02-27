@@ -88,7 +88,7 @@ export const Header = ({
       const currentUser = authService.getCurrentUser();
       if (!currentUser) return 0;
 
-      const url = role === 'DRIVER' ? '/bookings/pending-for-driver' : '/bookings/my-bookings/pending';
+      const url = role === 'DRIVER' ? '/ride-requests/pending' : '/bookings/my-bookings';
       const res = await bookingApi.get(url);
       const d = res.data;
 
@@ -129,7 +129,7 @@ export const Header = ({
       const currentUser = authService.getCurrentUser();
       if (!currentUser) return [];
 
-      const url = role === 'DRIVER' ? '/bookings/pending-for-driver' : '/bookings/my-bookings/pending';
+      const url = role === 'DRIVER' ? '/ride-requests/pending' : '/bookings/my-bookings';
       const res = await bookingApi.get(url);
       const d = res.data;
 

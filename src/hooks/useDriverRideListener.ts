@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { bookingApi } from '../services/api';
 
 // If backend doesn't expose pending rides endpoint, set to false to avoid repeated calls.
 let pendingRidesAvailable: boolean | null = null; // null = unknown, true = available, false = not available
@@ -52,37 +53,24 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         if (pendingRidesAvailable === false) return;
         if (!enabled || !driverId) return;
         try {
-            const response = await fetch('/api/rides/pending', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
-            });
+            const response = await bookingApi.get('/ride-requests/pending');
+            const payload = response.data;
 
-            if (!response.ok) {
-                const text = await response.text().catch(() => '');
-                // If backend explicitly returns 404, mark endpoint as unavailable to avoid future calls
-                if (response.status === 404) {
-                  pendingRidesAvailable = false;
-                  console.warn('[useDriverRideListener] /api/rides/pending not available — disabling further checks');
-                  setError('Pending rides endpoint not available');
-                  return;
-                }
-
-                setError(`Failed to fetch pending rides (${response.status}) ${text}`);
+            if (!payload) {
+                setError('Failed to fetch pending rides');
                 return;
             }
 
             // On success mark endpoint available (in case it was unknown)
             pendingRidesAvailable = true;
 
-            const payload = await response.json();
             const rides = Array.isArray(payload?.rides) ? payload.rides : Array.isArray(payload) ? payload : [];
 
             if (rides.length > 0) {
                 const ride = rides[0];
                 setNewRideRequest({
                     rideId: ride.bookingId || ride._id,
-                    bookingId: ride.bookingId,
+                    bookingId: ride.bookingId || ride._id,
                     customerId: ride.customerId || ride.userId,
                     userId: ride.customerId || ride.userId,
                     customerName: ride.customerName || ride.userInfo?.name || 'Customer',
@@ -100,11 +88,19 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
             } else {
                 setNewRideRequest(null);
             }
-        } catch (err) {
+        } catch (err: any) {
+            const status = err?.response?.status;
+            if (status === 404) {
+                  pendingRidesAvailable = false;
+                  console.warn('[useDriverRideListener] /ride-requests/pending not available — disabling further checks');
+                  setError('Pending rides endpoint not available');
+                  return;
+            }
+
             console.error('Error fetching pending rides:', err);
             // Network / connection errors — disable further attempts to avoid console spam while backend is down
             pendingRidesAvailable = false;
-            setError(err instanceof Error ? err.message : 'Error fetching pending rides');
+            setError(err?.response?.data?.message || err?.message || 'Error fetching pending rides');
         }
     }, [driverId, enabled]);
 
@@ -119,26 +115,15 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
 
             // If this hook was initialized with a driverId, use the driver booking endpoint
             if (driverId) {
-                const response = await fetch(`/api/bookings/driver/booking/${currentRideId}`, {
+                const response = await bookingApi.get(`/bookings/${currentRideId}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                     },
                 });
 
-                if (!response.ok) {
-                    const text = await response.text().catch(() => '');
-                    console.error('Driver booking status fetch failed:', response.status, text);
+                const booking = response.data;
+                if (!booking) {
                     throw new Error('Failed to fetch booking status for driver');
-                }
-
-                // Guard against non-JSON responses (e.g., HTML served by dev server)
-                const text = await response.text();
-                let booking: any;
-                try {
-                    booking = JSON.parse(text);
-                } catch (parseErr) {
-                    console.error('Unexpected non-JSON response when fetching booking status for driver:', text?.slice?.(0,200));
-                    throw new Error('Unexpected non-JSON response when fetching booking status');
                 }
 
                 const status = booking?.status || booking?.booking?.status;

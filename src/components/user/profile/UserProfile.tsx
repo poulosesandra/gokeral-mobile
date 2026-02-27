@@ -43,6 +43,23 @@ export const UserProfile = () => {
 
       setLoading(true);
 
+      // Check authentication and role
+      const currentUser = authService.getCurrentUser();
+      if (!currentUser) {
+        console.log('🔴 [USER PROFILE] No user logged in');
+        window.location.href = "/user/login";
+        return;
+      }
+
+      // CRITICAL: Validate user role is USER (defensive check - only validate if role exists)
+      const userRole = currentUser.role?.toUpperCase();
+      if (userRole && userRole !== 'USER') {
+        console.error('🔴 [USER PROFILE] Access denied: User role is', userRole, 'but USER required');
+        // Don't clear auth here - just redirect to appropriate login
+        window.location.href = userRole === 'DRIVER' ? '/driver/login' : '/user/login';
+        return;
+      }
+
       // Always fetch fresh data from backend
       try {
         const response = await authService.fetchUserProfile();
@@ -66,8 +83,8 @@ export const UserProfile = () => {
         // 401 = unauthorized, logout and redirect
         if (backendError.response?.status === 401) {
           console.log('🔴 [USER PROFILE] Unauthorized, logging out');
-          authService.logout();
-          window.location.href = "/user/login";
+          authService.logout('/user/login');
+          return;
         } 
         // 404 = profile doesn't exist yet (new user)
         else if (backendError.response?.status === 404) {
@@ -111,8 +128,7 @@ export const UserProfile = () => {
   const navigate = (path: string) => routerNavigate(path);
 
   const handleLogout = () => {
-    authService.logout();
-    window.location.href = "/user/login";
+    authService.logout('/user/login');
   };
 
   useEffect(() => {

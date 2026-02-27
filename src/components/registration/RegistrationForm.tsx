@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Car, Mail, Lock, Eye, EyeOff, ArrowLeft, User, Phone, CheckCircle, AlertCircle } from "lucide-react";
+import { Car, Mail, Lock, Eye, EyeOff, ArrowLeft, User, Phone, CheckCircle, AlertCircle, Shield } from "lucide-react";
 import authService from "../../services/authServices";
+import api from "../../services/api";
 
 interface RegistrationFormProps {
   userType: "user" | "driver";
@@ -40,6 +41,14 @@ const RegistrationForm = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Email OTP verification states
+  const [emailOtp, setEmailOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [canResendOtp, setCanResendOtp] = useState(true);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -105,9 +114,92 @@ const RegistrationForm = ({
     return isValid;
   };
 
+  // Timer countdown effect
+  useEffect(() => {
+    if (otpTimer > 0) {
+      const interval = setInterval(() => {
+        setOtpTimer((prev) => {
+          if (prev <= 1) {
+            setCanResendOtp(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [otpTimer]);
+
+  // Send OTP to email
+  const handleSendOtp = async () => {
+    // Validate email first
+    if (!formData.email) {
+      setErrors({ ...errors, email: "Email is required" });
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      setErrors({ ...errors, email: "Please enter a valid email" });
+      return;
+    }
+
+    setOtpLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.post('/auth/send-otp', { email: formData.email });
+      setOtpSent(true);
+      setOtpTimer(180); // 3 minutes = 180 seconds
+      setCanResendOtp(false);
+      setError(null);
+      // Show success in a toast or inline message
+      console.log('✅ OTP sent:', response.data);
+    } catch (err: any) {
+      console.error('❌ Send OTP error:', err);
+      setError(err?.response?.data?.message || 'Failed to send OTP. Please try again.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Verify OTP
+  const handleVerifyOtp = async () => {
+    if (!emailOtp || emailOtp.length !== 6) {
+      setErrors({ ...errors, emailOtp: "Please enter 6-digit OTP" });
+      return;
+    }
+
+    setOtpLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.post('/auth/verify-otp', {
+        email: formData.email,
+        otp: emailOtp,
+      });
+
+      if (response.data.verified) {
+        setOtpVerified(true);
+        setOtpTimer(0);
+        setError(null);
+        console.log('✅ Email verified:', response.data);
+      }
+    } catch (err: any) {
+      console.error('❌ Verify OTP error:', err);
+      setErrors({ ...errors, emailOtp: err?.response?.data?.message || 'Invalid or expired OTP' });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Check if email is verified
+    if (!otpVerified) {
+      setError("Please verify your email with OTP before registering");
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
@@ -192,11 +284,15 @@ const RegistrationForm = ({
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
           {/* Success Message */}
           {success && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center gap-3">
-              <CheckCircle className="text-green-500" size={24} />
-              <div>
-                <p className="text-green-700 font-medium">Registration successful!</p>
-                <p className="text-green-600 text-sm">Redirecting to login...</p>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="text-green-500 flex-shrink-0 mt-0.5" size={24} />
+                <div>
+                  <p className="text-green-700 font-medium">Registration successful!</p>
+                  <p className="text-green-600 text-sm mt-1">
+                    Redirecting to login page...
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -235,30 +331,104 @@ const RegistrationForm = ({
               )}
             </div>
 
-            {/* Email Input */}
+            {/* Email Input with Verification */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
                 Email Address
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    disabled={otpVerified}
+                    className={`block w-full pl-12 pr-4 py-3 border ${
+                      errors.email ? "border-red-300" : otpVerified ? "border-green-300 bg-green-50" : "border-gray-300"
+                    } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none disabled:opacity-70`}
+                    placeholder="your@email.com"
+                  />
                 </div>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className={`block w-full pl-12 pr-4 py-3 border ${errors.email ? "border-red-300" : "border-gray-300"
-                    } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
-                  placeholder="your@email.com"
-                />
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={otpLoading || otpVerified || !formData.email}
+                  className={`px-4 py-3 rounded-xl font-medium transition-all ${
+                    otpVerified
+                      ? "bg-green-100 text-green-700 cursor-not-allowed"
+                      : "bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  }`}
+                >
+                  {otpVerified ? "✓ Verified" : otpLoading ? "Sending..." : otpSent && !canResendOtp ? "Resend" : "Verify"}
+                </button>
               </div>
               {errors.email && (
                 <p className="mt-2 text-sm text-red-600">{errors.email}</p>
               )}
+              {otpSent && !otpVerified && otpTimer > 0 && (
+                <p className="mt-2 text-sm text-green-600">
+                  OTP sent! Check your email. Expires in {Math.floor(otpTimer / 60)}:{(otpTimer % 60).toString().padStart(2, '0')}
+                </p>
+              )}
             </div>
+
+            {/* OTP Input (shown after OTP sent) */}
+            {otpSent && !otpVerified && (
+              <div className="animate-fadeIn">
+                <label htmlFor="emailOtp" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Email Verification OTP
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Shield className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="emailOtp"
+                      name="emailOtp"
+                      type="text"
+                      maxLength={6}
+                      value={emailOtp}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, ''); // Only digits
+                        setEmailOtp(value);
+                        setErrors({ ...errors, emailOtp: "" });
+                      }}
+                      className={`block w-full pl-12 pr-4 py-3 border ${
+                        errors.emailOtp ? "border-red-300" : "border-gray-300"
+                      } rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all outline-none`}
+                      placeholder="Enter 6-digit OTP"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleVerifyOtp}
+                    disabled={otpLoading || emailOtp.length !== 6}
+                    className="px-4 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {otpLoading ? "Verifying..." : "Submit"}
+                  </button>
+                </div>
+                {errors.emailOtp && (
+                  <p className="mt-2 text-sm text-red-600">{errors.emailOtp}</p>
+                )}
+                {canResendOtp && (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={otpLoading}
+                    className="mt-2 text-sm text-green-600 hover:text-green-700 font-medium"
+                  >
+                    Didn't receive? Resend OTP
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Phone Input */}
             <div>

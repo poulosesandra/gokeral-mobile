@@ -76,7 +76,10 @@ export const DriverProfile = () => {
 
   const currentUserForHook = authService.getCurrentUser();
   const driverIdForHook = currentUserForHook?._id || currentUserForHook?.id || "";
-  const { newRideRequest, acceptRide: hookAcceptRide, rejectRide: hookRejectRide } = useDriverRideListener(driverIdForHook, !!driverIdForHook);
+  const { newRideRequest, acceptRide: hookAcceptRide, rejectRide: hookRejectRide } = useDriverRideListener(
+    driverIdForHook,
+    !!driverIdForHook && activeTab === 'bookings'
+  );
 
   useEffect(() => {
     if (newRideRequest) {
@@ -157,8 +160,19 @@ export const DriverProfile = () => {
         setLoading(true);
         const currentUser = authService.getCurrentUser();
 
+        // Not logged in at all
         if (!currentUser) {
           navigate("/driver/login");
+          return;
+        }
+
+        // CRITICAL: Validate user role is DRIVER (defensive check - only validate if role exists)
+        const userRole = currentUser.role?.toUpperCase();
+        if (userRole && userRole !== 'DRIVER') {
+          console.error('🔴 [DRIVER PROFILE] Access denied: User role is', userRole, 'but DRIVER required');
+          message.error("Access denied. This page is only for driver accounts.");
+          // Don't clear auth here - just redirect to appropriate login
+          navigate(userRole === 'USER' ? '/user/login' : '/driver/login');
           return;
         }
 
@@ -187,9 +201,9 @@ export const DriverProfile = () => {
           // 401 = unauthorized, logout and redirect
           if (backendError.response?.status === 401) {
             console.log('🔴 [DRIVER PROFILE] Unauthorized, logging out');
-            authService.logout();
+            authService.logout('/driver/login');
             message.error("Session expired. Please login again.");
-            navigate("/driver/login");
+            return;
           } 
           // 403/404 = profile doesn't exist yet (new driver)
           else if (backendError.response?.status === 403 || backendError.response?.status === 404) {
@@ -259,9 +273,8 @@ export const DriverProfile = () => {
   }, []);
 
   const handleLogout = () => {
-    authService.logout();
+    authService.logout('/driver/login');
     message.success("Logged out successfully");
-    navigate("/driver/login");
   };
 
   const handleNavigate = (path: string) => {

@@ -65,7 +65,27 @@ const LoginForm = ({
 
       // Check for accessToken (new backend structure)
       if (res && res.accessToken) {
-        console.log('✅ Login successful, navigating to:', navigateTo);
+        console.log('✅ Login successful, user role:', res.user.role);
+        
+        // CRITICAL: Validate that user's role matches the login form type
+        const expectedRole = userType === "driver" ? "DRIVER" : "USER";
+        const actualRole = res.user.role?.toUpperCase();
+        
+        if (actualRole !== expectedRole) {
+          console.error('❌ Role mismatch: expected', expectedRole, 'but got', actualRole);
+          authService.clearAuth(); // Clear the valid but wrong-role login
+          
+          if (actualRole === "DRIVER" && expectedRole === "USER") {
+            setError("This is a driver account. Please use the Driver Login page.");
+          } else if (actualRole === "USER" && expectedRole === "DRIVER") {
+            setError("This is a user account. Please use the User Login page.");
+          } else {
+            setError(`Invalid account type. Expected ${expectedRole} but got ${actualRole}.`);
+          }
+          return;
+        }
+        
+        console.log('✅ Role validated, navigating to:', navigateTo);
         navigate(navigateTo || (userType === "driver" ? "/driver/profile" : "/map"));
       } else {
         console.error('❌ Login response missing accessToken:', res);
