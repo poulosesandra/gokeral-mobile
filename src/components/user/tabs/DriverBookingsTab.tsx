@@ -3,7 +3,7 @@
 import { useEffect, useState, type FC } from "react";
 import { Card, Empty, Tag, Spin, Button, Modal, message, Space } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, ReloadOutlined } from "@ant-design/icons";
-import api from "../../../services/api";
+import { bookingApi } from "../../../services/api";
 import { authService } from "../../../services/authServices";
 
 interface Booking {
@@ -131,7 +131,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
   }, []);
 
   useEffect(() => {
-    const onBookingUpdated = (ev: any) => {
+    const onBookingUpdated = () => {
       void fetchBookings();
     };
     window.addEventListener('booking:updated', onBookingUpdated);
@@ -164,8 +164,12 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       }
 
       // Fetch ALL bookings for this driver.
-      const allResp = await api.get("/bookings/driver/all");
-      const allBookings: Booking[] = Array.isArray(allResp.data) ? allResp.data : [];
+      const allResp = await bookingApi.get("/bookings/driver/my-bookings");
+      const allBookings: Booking[] = Array.isArray(allResp.data?.bookings)
+        ? allResp.data.bookings
+        : Array.isArray(allResp.data)
+          ? allResp.data
+          : [];
 
       // Sort newest-first
       const sorted = [...allBookings].sort((a, b) => {
@@ -197,14 +201,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
     }
     setAcceptLoadingMap((m) => ({ ...m, [id]: true }));
     try {
-      const currentUser = authService.getCurrentUser();
-      const token = currentUser?.token;
-
-      const res = await api.post(
-        `/api/rides/${id}/accept`,
-        { driverId: currentUser?._id || currentUser?.id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await bookingApi.post(`/bookings/${id}/accept`);
 
       message.success(res.data?.Message || res.data?.message || "Ride accepted");
 
@@ -234,15 +231,8 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
     }
     setRejectLoadingMap((m) => ({ ...m, [id]: true }));
 
-    const currentUser = authService.getCurrentUser();
-    const token = currentUser?.token;
-
     try {
-      const res = await api.post(
-        `/api/rides/${id}/reject`,
-        { driverId: currentUser?._id || currentUser?.id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await bookingApi.post(`/bookings/${id}/reject`);
 
       message.success(res.data?.message || "Ride rejected");
 
@@ -293,7 +283,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       let found = bookings.find((b) => getBookingId(b) === openBookingId);
       if (!found) {
         try {
-          const res = await api.get(`/bookings/${openBookingId}`);
+          const res = await bookingApi.get(`/bookings/${openBookingId}`);
           found = res.data as Booking;
         } catch (err) {
           message.error("Failed to fetch booking details");

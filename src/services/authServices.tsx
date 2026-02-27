@@ -400,7 +400,8 @@ export const authService = {
         licenseNumber: profileData.licenseNumber, // From driver profile
         driverLicenseNumber: profileData.licenseNumber, // Alias for frontend compatibility
         bloodGroup: profileData.bloodGroup,
-        dob: profileData.dob,
+        dateOfBirth: profileData.dateOfBirth || profileData.dob,
+        dob: profileData.dateOfBirth || profileData.dob,
         languages: profileData.languages || [],
         licensedSince: profileData.licensedSince,
         experienceYears: profileData.experienceYears,
@@ -408,7 +409,7 @@ export const authService = {
         // Map nested structure for frontend compatibility
         personalInfo: {
           bloodGroup: profileData.bloodGroup,
-          dob: profileData.dob,
+          dob: profileData.dateOfBirth || profileData.dob,
           languages: profileData.languages || [],
           certificates: [], // Not supported yet
           emergencyContact: { name: "", phone: "", relationship: "" }, // Not supported yet
@@ -508,7 +509,7 @@ export const authService = {
   createDriverProfile: async (data: {
     licenseNumber: string;
     bloodGroup?: string;
-    dob?: string;
+    dateOfBirth?: string;
     languages?: string[];
     licensedSince?: string;
     experienceYears?: number;
@@ -527,7 +528,7 @@ export const authService = {
       driverLicenseNumber: data.licenseNumber,
       personalInfo: {
         bloodGroup: res.data.bloodGroup || data.bloodGroup,
-        dob: res.data.dob || data.dob,
+        dob: res.data.dateOfBirth || data.dateOfBirth,
         languages: res.data.languages || data.languages || [],
         certificates: [],
         emergencyContact: { name: "", phone: "", relationship: "" },
@@ -543,7 +544,7 @@ export const authService = {
     
     // Map personalInfo fields to root level (backend structure)
     if (data.personalInfo?.bloodGroup) payload.bloodGroup = data.personalInfo.bloodGroup;
-    if (data.personalInfo?.dob) payload.dob = data.personalInfo.dob;
+    if (data.personalInfo?.dob) payload.dateOfBirth = data.personalInfo.dob;
     if (data.personalInfo?.languages) payload.languages = data.personalInfo.languages;
     
     // Map drivingExperience fields
@@ -553,6 +554,14 @@ export const authService = {
     if ((data as any).drivingExperience?.yearsOfExperience) {
       payload.experienceYears = (data as any).drivingExperience.yearsOfExperience;
     }
+    
+    // Sprint 2: Individual document uploads
+    if ((data as any).drivingLicenseCertificate) payload.drivingLicenseCertificate = (data as any).drivingLicenseCertificate;
+    if ((data as any).policeClearanceCertificate) payload.policeClearanceCertificate = (data as any).policeClearanceCertificate;
+    if ((data as any).medicalFitnessCertificate) payload.medicalFitnessCertificate = (data as any).medicalFitnessCertificate;
+    if ((data as any).addressProof) payload.addressProof = (data as any).addressProof;
+    if ((data as any).professionalTrainingCertificate) payload.professionalTrainingCertificate = (data as any).professionalTrainingCertificate;
+    if ((data as any).emergencyContact) payload.emergencyContact = (data as any).emergencyContact;
     
     console.log('🔵 [UPDATE DRIVER PROFILE] Sending:', payload);
     
@@ -566,10 +575,16 @@ export const authService = {
       driverLicenseNumber: res.data.licenseNumber,
       personalInfo: {
         bloodGroup: res.data.bloodGroup,
-        dob: res.data.dob,
+        dob: res.data.dateOfBirth || res.data.dob,
         languages: res.data.languages || [],
-        certificates: [],
-        emergencyContact: { name: "", phone: "", relationship: "" },
+        emergencyContact: res.data.emergencyContact || { name: "", phone: "", relationship: "" },
+      },
+      documents: {
+        drivingLicenseCertificate: res.data.drivingLicenseCertificate,
+        policeClearanceCertificate: res.data.policeClearanceCertificate,
+        medicalFitnessCertificate: res.data.medicalFitnessCertificate,
+        addressProof: res.data.addressProof,
+        professionalTrainingCertificate: res.data.professionalTrainingCertificate,
       },
     };
     
@@ -589,8 +604,8 @@ export const authService = {
 
             console.log('📍 [DRIVER LOCATION] Getting location:', { latitude, longitude });
 
-            // Send location to backend - POST /drivers/location/update
-            const response = await api.post('/drivers/location/update', {
+            // Send location to driver-service - PATCH /driver-profiles/me/location
+            const response = await driverApi.patch('/driver-profiles/me/location', {
               latitude,
               longitude,
               isOnline: true,

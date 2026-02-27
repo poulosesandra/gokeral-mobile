@@ -301,7 +301,7 @@ export const DriverProfile = () => {
 
     const payload = {
       bloodGroup: values.bloodGroup ?? driverData.personalInfo?.bloodGroup,
-      dob: values.dateOfBirth ?? driverData.personalInfo?.dob,
+      dateOfBirth: values.dateOfBirth ?? driverData.personalInfo?.dob,
       languages: values.languages ?? driverData.personalInfo?.languages ?? [],
       licensedSince: values.licensedSince,
       experienceYears: values.experienceYears,
@@ -317,7 +317,7 @@ export const DriverProfile = () => {
         const profilePayload = {
           licenseNumber: values.driverLicenseNumber,
           bloodGroup: values.bloodGroup,
-          dob: values.dateOfBirth,
+          dateOfBirth: values.dateOfBirth,
           languages: values.languages || [],
           licensedSince: values.licensedSince,
           experienceYears: values.experienceYears,
@@ -331,7 +331,7 @@ export const DriverProfile = () => {
           driverLicenseNumber: values.driverLicenseNumber,
           personalInfo: {
             bloodGroup: updated.bloodGroup ?? values.bloodGroup ?? "",
-            dob: updated.dob ?? values.dateOfBirth ?? "",
+            dob: updated.dateOfBirth ?? updated.dob ?? values.dateOfBirth ?? "",
             languages: updated.languages ?? values.languages ?? [],
             licensedSince: updated.licensedSince ?? values.licensedSince,
             experienceYears: updated.experienceYears ?? values.experienceYears,
@@ -348,7 +348,7 @@ export const DriverProfile = () => {
           ...prev,
           personalInfo: {
             bloodGroup: updated.bloodGroup ?? payload.bloodGroup ?? prev.personalInfo?.bloodGroup ?? "",
-            dob: updated.dob ?? payload.dob ?? prev.personalInfo?.dob ?? "",
+            dob: updated.dateOfBirth ?? updated.dob ?? payload.dateOfBirth ?? prev.personalInfo?.dob ?? "",
             languages: updated.languages ?? payload.languages ?? prev.personalInfo?.languages ?? [],
             licensedSince: updated.licensedSince ?? payload.licensedSince ?? prev.personalInfo?.licensedSince,
             experienceYears: updated.experienceYears ?? payload.experienceYears ?? prev.personalInfo?.experienceYears,
