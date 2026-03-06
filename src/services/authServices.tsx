@@ -1,4 +1,4 @@
-import api, { setAuthToken, userApi, driverApi } from './api';
+import api, { setAuthToken, userApi, driverApi, bookingApi } from './api';
 
 export const getLoginPathForRole = (role?: string | null): string => {
   return String(role || '').toUpperCase() === 'DRIVER' ? '/driver/login' : '/user/login';
@@ -399,6 +399,7 @@ export const authService = {
         ...currentUser,                           // fullName, email, phoneNumber, role from login
         licenseNumber: profileData.licenseNumber, // From driver profile
         driverLicenseNumber: profileData.licenseNumber, // Alias for frontend compatibility
+        profileImage: profileData.profileImage || currentUser?.profileImage || null,
         bloodGroup: profileData.bloodGroup,
         dateOfBirth: profileData.dateOfBirth || profileData.dob,
         dob: profileData.dateOfBirth || profileData.dob,
@@ -411,8 +412,21 @@ export const authService = {
           bloodGroup: profileData.bloodGroup,
           dob: profileData.dateOfBirth || profileData.dob,
           languages: profileData.languages || [],
-          certificates: [], // Not supported yet
-          emergencyContact: { name: "", phone: "", relationship: "" }, // Not supported yet
+          certificates: [
+            profileData.drivingLicenseCertificate,
+            profileData.policeClearanceCertificate,
+            profileData.medicalFitnessCertificate,
+            profileData.addressProof,
+            profileData.professionalTrainingCertificate,
+          ].filter(Boolean),
+          emergencyContact: profileData.emergencyContact || { name: "", phone: "", relationship: "" },
+        },
+        documents: {
+          drivingLicenseCertificate: profileData.drivingLicenseCertificate || '',
+          policeClearanceCertificate: profileData.policeClearanceCertificate || '',
+          medicalFitnessCertificate: profileData.medicalFitnessCertificate || '',
+          addressProof: profileData.addressProof || '',
+          professionalTrainingCertificate: profileData.professionalTrainingCertificate || '',
         },
       };
     } catch (error: any) {
@@ -515,45 +529,72 @@ export const authService = {
     experienceYears?: number;
   }) => {
     console.log('🔵 [CREATE DRIVER PROFILE] Creating profile with license:', data.licenseNumber);
-    
-    const res = await driverApi.post('/driver-profiles', data);
-    
-    console.log('✅ [CREATE DRIVER PROFILE] Profile created:', res.data);
-    
-    // Merge new profile data with current user data
-    const currentUser = authService.getCurrentUser();
-    const updatedData = {
-      ...currentUser,
-      licenseNumber: data.licenseNumber,
-      driverLicenseNumber: data.licenseNumber,
-      personalInfo: {
-        bloodGroup: res.data.bloodGroup || data.bloodGroup,
-        dob: res.data.dateOfBirth || data.dateOfBirth,
-        languages: res.data.languages || data.languages || [],
-        certificates: [],
-        emergencyContact: { name: "", phone: "", relationship: "" },
-      },
-    };
-    
-    authService.setCurrentUser(updatedData);
-    return updatedData;
+
+    try {
+      const res = await driverApi.post('/driver-profiles', data);
+
+      console.log('✅ [CREATE DRIVER PROFILE] Profile created:', res.data);
+
+      // Merge new profile data with current user data
+      const currentUser = authService.getCurrentUser();
+      const updatedData = {
+        ...currentUser,
+        licenseNumber: data.licenseNumber,
+        driverLicenseNumber: data.licenseNumber,
+        personalInfo: {
+          bloodGroup: res.data.bloodGroup || data.bloodGroup,
+          dob: res.data.dateOfBirth || data.dateOfBirth,
+          languages: res.data.languages || data.languages || [],
+          certificates: [],
+          emergencyContact: { name: "", phone: "", relationship: "" },
+        },
+      };
+
+      authService.setCurrentUser(updatedData);
+      return updatedData;
+    } catch (error: any) {
+      if (error?.response?.status === 409) {
+        console.warn('⚠️ [CREATE DRIVER PROFILE] Profile already exists, switching to update flow');
+        return await authService.updateDriverProfile({
+          licenseNumber: data.licenseNumber,
+          bloodGroup: data.bloodGroup,
+          dateOfBirth: data.dateOfBirth,
+          languages: data.languages,
+          licensedSince: data.licensedSince,
+          experienceYears: data.experienceYears,
+        } as any);
+      }
+
+      throw error;
+    }
   },
 
-  updateDriverProfile: async (data: Partial<DriverSignupData>) => {
+  updateDriverProfile: async (data: Partial<DriverSignupData> & {
+    profileImage?: string;
+    bloodGroup?: string;
+    dateOfBirth?: string;
+    languages?: string[];
+    licensedSince?: string;
+    experienceYears?: number;
+    emergencyContact?: { name?: string; phone?: string; relationship?: string };
+    drivingLicenseCertificate?: string;
+    policeClearanceCertificate?: string;
+    medicalFitnessCertificate?: string;
+    addressProof?: string;
+    professionalTrainingCertificate?: string;
+  }) => {
     const payload: any = {};
     
-    // Map personalInfo fields to root level (backend structure)
-    if (data.personalInfo?.bloodGroup) payload.bloodGroup = data.personalInfo.bloodGroup;
-    if (data.personalInfo?.dob) payload.dateOfBirth = data.personalInfo.dob;
-    if (data.personalInfo?.languages) payload.languages = data.personalInfo.languages;
+    // Map profile fields (accept both root-level and nested legacy structure)
+    payload.bloodGroup = data.bloodGroup ?? data.personalInfo?.bloodGroup;
+    payload.dateOfBirth = data.dateOfBirth ?? data.personalInfo?.dob;
+    payload.languages = data.languages ?? data.personalInfo?.languages;
+    payload.licenseNumber = (data as any).licenseNumber ?? data.driverLicenseNumber;
     
     // Map drivingExperience fields
-    if ((data as any).drivingExperience?.licensedSince) {
-      payload.licensedSince = (data as any).drivingExperience.licensedSince;
-    }
-    if ((data as any).drivingExperience?.yearsOfExperience) {
-      payload.experienceYears = (data as any).drivingExperience.yearsOfExperience;
-    }
+    payload.licensedSince = data.licensedSince ?? (data as any).drivingExperience?.licensedSince;
+    payload.experienceYears = data.experienceYears ?? (data as any).drivingExperience?.yearsOfExperience;
+    if ((data as any).profileImage !== undefined) payload.profileImage = (data as any).profileImage;
     
     // Sprint 2: Individual document uploads
     if ((data as any).drivingLicenseCertificate) payload.drivingLicenseCertificate = (data as any).drivingLicenseCertificate;
@@ -562,6 +603,11 @@ export const authService = {
     if ((data as any).addressProof) payload.addressProof = (data as any).addressProof;
     if ((data as any).professionalTrainingCertificate) payload.professionalTrainingCertificate = (data as any).professionalTrainingCertificate;
     if ((data as any).emergencyContact) payload.emergencyContact = (data as any).emergencyContact;
+
+    // Remove undefined keys so DTO validation remains clean
+    Object.keys(payload).forEach((key) => {
+      if (payload[key] === undefined) delete payload[key];
+    });
     
     console.log('🔵 [UPDATE DRIVER PROFILE] Sending:', payload);
     
@@ -573,6 +619,7 @@ export const authService = {
       ...currentUser,
       ...res.data,
       driverLicenseNumber: res.data.licenseNumber,
+      profileImage: res.data.profileImage ?? currentUser?.profileImage ?? null,
       personalInfo: {
         bloodGroup: res.data.bloodGroup,
         dob: res.data.dateOfBirth || res.data.dob,
@@ -632,12 +679,12 @@ export const authService = {
     try {
       console.log('🔍 [SEARCH DRIVERS] Nearby drivers:', { latitude, longitude, radiusKm });
 
-      // GET /bookings/nearby-drivers?latitude=X&longitude=Y&radius=Z
-      const response = await api.get('/bookings/nearby-drivers', {
+      // GET /bookings/nearby-drivers?pickupLat=X&pickupLng=Y&radiusKm=Z
+      const response = await bookingApi.get('/bookings/nearby-drivers', {
         params: {
-          latitude,
-          longitude,
-          radius: radiusKm,
+          pickupLat: latitude,
+          pickupLng: longitude,
+          radiusKm,
         },
       });
 

@@ -3,7 +3,6 @@ import { message } from 'antd';
 import ConfirmBookingModal from './modal/ConfirmBookingModal';
 import SelectDriverModal from './modal/SelectDriverModal';
 import type { VehicleData } from './modal/types';
-import { calculateFare } from '../../utils/fareCalculation';
 
 interface DriverData {
   _id: string;
@@ -116,23 +115,6 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
 
   const handleDriverSelected = useCallback(async (driver: DriverData) => {
     try {
-      let fareValue = 150;
-
-      if (route?.legs?.[0]) {
-        const rLeg = route.legs[0];
-        const distanceInMeters = rLeg.distance?.value || 0;
-        const durationInSeconds = rLeg.duration?.value || 0;
-        const distanceInKm = distanceInMeters / 1000;
-
-        const fareStructure = driver.vehicle?.fareStructure || {
-          minimumFare: 50,
-          perKilometerRate: 15,
-          waitingChargePerMinute: 1,
-        };
-
-        fareValue = calculateFare(distanceInKm, durationInSeconds, fareStructure);
-      }
-
       const vehicleData: VehicleData = {
         id: driver._id,
         vehicleId: driver.vehicle?._id || driver.vehicle?.id || 'Unknown_Vehicle_ID',
@@ -140,12 +122,12 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
         make: driver.vehicle?.make || 'Unknown',
         vehicleModel: driver.vehicle?.vehicleModel || 'Unknown',
         year: driver.vehicle?.year || 2020,
-        seatsNo: driver.vehicle?.seatsNo || 4,
-        licensePlate: driver.vehicle?.licensePlate || 'N/A',
+        seatsNo: driver.vehicle?.seatsNo || (driver.vehicle as any)?.seatingCapacity || 4,
+        licensePlate: driver.vehicle?.licensePlate || (driver.vehicle as any)?.registrationNumber || 'N/A',
         vehicleImage: driver.vehicle?.vehicleImages?.[0] || undefined,
         rating: driver.drivingExperience?.averageRating || 4.5,
-        price: Math.round(fareValue),
-        vehicleType: driver.vehicle?.vehicleType || vehicleType,
+        price: undefined,
+        vehicleType: driver.vehicle?.vehicleType || (driver.vehicle as any)?.type || vehicleType,
         distance: driver.distance,
         phoneNumber: driver.phoneNumber,
       };
@@ -248,7 +230,9 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
             pickup: route.legs[0].start_address || 'Pickup Location',
             destination: route.legs[0].end_address || 'Destination Location',
             distance: route.legs[0].distance?.text || '0 km',
+            distanceValueMeters: route.legs[0].distance?.value || 0,
             duration: route.legs[0].duration?.text || '0 mins',
+            durationValueSeconds: route.legs[0].duration?.value || 0,
             passengers: 1,
             pickupLocation: {
               lat: route.legs[0].start_location.lat(),

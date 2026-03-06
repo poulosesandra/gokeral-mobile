@@ -351,7 +351,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
       centered
       title={isEditing ? "Edit Vehicle" : currentStep === "details" ? "Add Vehicle" : "Fare & Fees Settings"}
       maskClosable={false}
-      bodyStyle={{ maxHeight: "70vh", overflowY: "auto" }}
+      styles={{ body: { maxHeight: "70vh", overflowY: "auto" } }}
     >
       {currentStep === "details" && (
         <form onSubmit={handleSubmit} className="w-full">
@@ -422,10 +422,11 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
                 required
               >
                 <option value="">Vehicle Type</option>
+                <option value="AUTO">Auto Rickshaw (3-Seater)</option>
+                <option value="BIKE">Bike/Motorcycle (1 Passenger)</option>
                 <option value="HATCHBACK">Hatchback (4-Seater)</option>
                 <option value="SEDAN">Sedan (4-5 Seater)</option>
                 <option value="SUV">SUV (6-7 Seater)</option>
-                <option value="VAN">Van (7-8 Seater)</option>
               </select>
               <select
                 className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"

@@ -17,17 +17,28 @@ import DriverAddDetails, { type DriverPersonalInfoValues } from "./driverprofile
 import AddVehicleModal from "./driverprofile/modal/driverAddVehicle";
 import RideRequestModal from "./driverprofile/modal/RideRequestModal";
 import { authService } from "../../services/authServices";
+import { bookingApi } from "../../services/api";
 
 export type DriverData = {
   fullName: string;
   email: string;
   phoneNumber: string;
+  address?: string;
   driverLicenseNumber: string;
   profileImage: string | null;
+  documents?: {
+    drivingLicenseCertificate?: string;
+    policeClearanceCertificate?: string;
+    medicalFitnessCertificate?: string;
+    addressProof?: string;
+    professionalTrainingCertificate?: string;
+  };
   personalInfo?: {
     bloodGroup?: string;
     dob?: string;
     languages?: string[];
+    certificates?: string[];
+    emergencyContact?: { name?: string; phone?: string; relationship?: string };
     licensedSince?: string;
     experienceYears?: number;
   };
@@ -54,8 +65,17 @@ export const DriverProfile = () => {
       bloodGroup: "",
       dob: "",
       languages: [],
+      certificates: [],
+      emergencyContact: { name: "", phone: "", relationship: "" },
       licensedSince: "",
       experienceYears: 0,
+    },
+    documents: {
+      drivingLicenseCertificate: "",
+      policeClearanceCertificate: "",
+      medicalFitnessCertificate: "",
+      addressProof: "",
+      professionalTrainingCertificate: "",
     },
   });
   const [vehicleToEdit, setVehicleToEdit] = useState<{ id?: string; make?: string; model?: string; year?: number; licensePlate?: string; color?: string; [key: string]: string | number | undefined } | null>(null);
@@ -104,14 +124,7 @@ export const DriverProfile = () => {
       if (hookAcceptRide) {
         await hookAcceptRide(pendingRide.bookingId);
       } else {
-        const currentUser = authService.getCurrentUser();
-        await fetch(`/api/rides/${pendingRide.bookingId}/accept`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${currentUser?.token}`,
-          },
-        });
+        await bookingApi.post(`/bookings/${pendingRide.bookingId}/accept`);
       }
 
       message.success("Ride accepted");
@@ -131,14 +144,7 @@ export const DriverProfile = () => {
       if (hookRejectRide) {
         await hookRejectRide(pendingRide.bookingId);
       } else {
-        const currentUser = authService.getCurrentUser();
-        await fetch(`/api/rides/${pendingRide.bookingId}/reject`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${currentUser?.token}`,
-          },
-        });
+        await bookingApi.post(`/bookings/${pendingRide.bookingId}/reject`);
       }
 
       message.info("Ride rejected");
@@ -190,8 +196,17 @@ export const DriverProfile = () => {
               bloodGroup: backendData.personalInfo?.bloodGroup || backendData.bloodGroup || "",
               dob: backendData.personalInfo?.dob || backendData.dob || "",
               languages: backendData.personalInfo?.languages || backendData.languages || [],
+              certificates: backendData.personalInfo?.certificates || backendData.certificates || [],
+              emergencyContact: backendData.personalInfo?.emergencyContact || backendData.emergencyContact || { name: "", phone: "", relationship: "" },
               licensedSince: backendData.personalInfo?.licensedSince || backendData.licensedSince || "",
               experienceYears: backendData.personalInfo?.experienceYears || backendData.experienceYears || 0,
+            },
+            documents: backendData.documents || {
+              drivingLicenseCertificate: backendData.drivingLicenseCertificate || "",
+              policeClearanceCertificate: backendData.policeClearanceCertificate || "",
+              medicalFitnessCertificate: backendData.medicalFitnessCertificate || "",
+              addressProof: backendData.addressProof || "",
+              professionalTrainingCertificate: backendData.professionalTrainingCertificate || "",
             },
           });
           setLoading(false);
@@ -222,8 +237,17 @@ export const DriverProfile = () => {
                 bloodGroup: "",
                 dob: "",
                 languages: [],
+                certificates: [],
+                emergencyContact: { name: "", phone: "", relationship: "" },
                 licensedSince: "",
                 experienceYears: 0,
+              },
+              documents: {
+                drivingLicenseCertificate: "",
+                policeClearanceCertificate: "",
+                medicalFitnessCertificate: "",
+                addressProof: "",
+                professionalTrainingCertificate: "",
               },
             });
             setLoading(false);
@@ -305,6 +329,12 @@ export const DriverProfile = () => {
       languages: values.languages ?? driverData.personalInfo?.languages ?? [],
       licensedSince: values.licensedSince,
       experienceYears: values.experienceYears,
+      drivingLicenseCertificate: values.drivingLicenseCertificate,
+      policeClearanceCertificate: values.policeClearanceCertificate,
+      medicalFitnessCertificate: values.medicalFitnessCertificate,
+      addressProof: values.addressProof,
+      professionalTrainingCertificate: values.professionalTrainingCertificate,
+      emergencyContact: values.emergencyContact,
     };
 
     try {
@@ -315,7 +345,7 @@ export const DriverProfile = () => {
         // First time: Create driver profile with license number
         console.log('🔵 Creating driver profile for first time');
         const profilePayload = {
-          licenseNumber: values.driverLicenseNumber,
+          licenseNumber: values.driverLicenseNumber || "",
           bloodGroup: values.bloodGroup,
           dateOfBirth: values.dateOfBirth,
           languages: values.languages || [],
@@ -326,9 +356,27 @@ export const DriverProfile = () => {
         const res = await authService.createDriverProfile(profilePayload);
         const updated = res?.driverProfile || res || {};
 
+        // Create DTO doesn't include document fields; persist them via update endpoint.
+        const hasSupplementalFields = Boolean(
+          payload.drivingLicenseCertificate ||
+          payload.policeClearanceCertificate ||
+          payload.medicalFitnessCertificate ||
+          payload.addressProof ||
+          payload.professionalTrainingCertificate ||
+          payload.emergencyContact
+        );
+
+        if (hasSupplementalFields) {
+          try {
+            await authService.updateDriverProfile(payload as any);
+          } catch (supplementalErr) {
+            console.warn("Profile created but supplemental document update failed:", supplementalErr);
+          }
+        }
+
         setDriverData((prev) => ({
           ...prev,
-          driverLicenseNumber: values.driverLicenseNumber,
+          driverLicenseNumber: values.driverLicenseNumber || "",
           personalInfo: {
             bloodGroup: updated.bloodGroup ?? values.bloodGroup ?? "",
             dob: updated.dateOfBirth ?? updated.dob ?? values.dateOfBirth ?? "",
@@ -497,10 +545,11 @@ export const DriverProfile = () => {
         pickupLocation={pendingRide?.pickupLocation || ""}
         phoneNumber={pendingRide?.phoneNumber}
         fare={pendingRide?.estimatedFare || 0}
+        distance={pendingRide?.distance || "N/A"}
         onAccept={handleAcceptRide}
         onReject={handleRejectRide}
-        accepting={acceptLoading}
-        rejecting={rejectLoading}
+        acceptLoading={acceptLoading}
+        rejectLoading={rejectLoading}
       />
 
       {/* Modals */}

@@ -13,6 +13,11 @@ const parseDobToDayjs = (value?: string) => {
     return dayjs(new Date(yyyy, mm - 1, dd));
   }
 
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [yyyy, mm, dd] = raw.split("-").map(Number);
+    return dayjs(new Date(yyyy, mm - 1, dd));
+  }
+
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return undefined
   return dayjs(date);
@@ -162,12 +167,12 @@ const DriverPersonalInfoModal = ({
         phoneNumber: values.phoneNumber,
         driverLicenseNumber: values.driverLicenseNumber,
         dateOfBirth: values.dateOfBirth
-          ? dayjs(values.dateOfBirth).toISOString()
+          ? dayjs(values.dateOfBirth).format('YYYY-MM-DD')
           : undefined,
         bloodGroup: values.bloodGroup,
         languages: values.languages || [],
         licensedSince: values.licensedSince
-          ? dayjs(values.licensedSince).toISOString()
+          ? dayjs(values.licensedSince).format('YYYY-MM-DD')
           : undefined,
         experienceYears: values.experienceYears,
         ...documents,
@@ -199,7 +204,7 @@ const DriverPersonalInfoModal = ({
       onOk={() => form.submit()}
       confirmLoading={loading}
       width={720}
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
         <p className="text-sm text-blue-700">

@@ -14,8 +14,16 @@ import {
 } from "@ant-design/icons";
 import type { UserData } from "../profile/UserProfile";
 import { useEffect, useRef, useState } from "react";
-import api from "../../../services/api";
+import { authService } from "../../../services/authServices";
 import bookingService from "../../../services/bookingService";
+
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 // Define base TabKey type
 export type UserTabKey = "home" | "personal" | "bookings" | "security" | "privacy" | "data";
@@ -177,30 +185,15 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
 
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const resp = await api.post("/users/upload-document", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      const url = resp?.data?.url || resp?.data?.user?.documents?.slice(-1)[0]?.url;
-      if (url) {
-        const currentUserRaw = localStorage.getItem("userData");
-        const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
-        await api.patch("/users/update", {
-          fullName: parsed.fullName,
-          email: parsed.email,
-          phoneNumber: parsed.phoneNumber,
-          profileImage: url,
-        });
-
-        const updatedUser = { ...parsed, profileImage: url };
-        localStorage.setItem("userData", JSON.stringify(updatedUser));
-        onProfileImageUpdate?.();
-        message.success("Profile picture uploaded and saved");
-      } else {
-        message.warning("Uploaded but could not find file URL");
+      const imageDataUrl = await fileToDataUrl(file);
+      if (!imageDataUrl) {
+        message.warning("Could not process selected image");
+        return;
       }
+
+      await authService.updateUserProfile({ profileImage: imageDataUrl } as any);
+      onProfileImageUpdate?.();
+      message.success("Profile picture uploaded and saved");
     } catch (err: any) {
       console.error("Profile upload failed", err);
       message.error(err?.response?.data?.message || "Upload failed");
@@ -218,16 +211,7 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
       okType: "danger",
       onOk: async () => {
         try {
-          const currentUserRaw = localStorage.getItem("userData");
-          const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
-          await api.patch("/users/update", {
-            fullName: parsed.fullName,
-            email: parsed.email,
-            phoneNumber: parsed.phoneNumber,
-            profileImage: null,
-          });
-          const updatedUser = { ...parsed, profileImage: null };
-          localStorage.setItem("userData", JSON.stringify(updatedUser));
+          await authService.updateUserProfile({ profileImage: "" } as any);
           onProfileImageUpdate?.();
           message.success("Profile picture removed");
         } catch (err: any) {

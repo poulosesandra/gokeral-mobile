@@ -1,7 +1,6 @@
 "use client";
 
 import { Avatar, Button, Tabs, message, Modal, Spin } from "antd";
-import api from '../../../services/api';
 import {
   UserOutlined,
   HomeOutlined,
@@ -14,6 +13,15 @@ import {
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { useRef, useState, useEffect } from "react";
+import { authService } from '../../../services/authServices';
+
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 export type DriverTabKey = "home" | "personalInfo" | "bookings" | "vehicles" | "settings";
 
@@ -81,25 +89,11 @@ export const DriverSidebar = ({
 
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const resp = await api.post('/drivers/upload-document', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      const url = resp?.data?.url || resp?.data?.driver?.documents?.slice(-1)[0]?.url;
+      const url = await fileToDataUrl(file);
       if (url) {
-        // Save to backend driver update
-        const currentUserRaw = localStorage.getItem('userData');
-        const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
-        await api.patch('/drivers/update', {
-          fullName: parsed.fullName,
-          email: parsed.email,
-          phoneNumber: parsed.phoneNumber,
-          profileImage: url,
-        });
+        await authService.updateDriverProfile({ profileImage: url } as any);
 
-        message.success('Profile picture uploaded and saved');
+        message.success('Profile picture updated');
         onProfileImageUpdate?.(url);
       } else {
         message.warning('Uploaded but could not find file URL');
@@ -121,14 +115,7 @@ export const DriverSidebar = ({
       okType: "danger",
       onOk: async () => {
         try {
-          const currentUserRaw = localStorage.getItem('userData');
-          const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
-          await api.patch('/drivers/update', {
-            fullName: parsed.fullName,
-            email: parsed.email,
-            phoneNumber: parsed.phoneNumber,
-            profileImage: null,
-          });
+          await authService.updateDriverProfile({ profileImage: '' } as any);
           onProfileImageUpdate?.(null);
           message.success('Profile picture removed');
         } catch (err: any) {

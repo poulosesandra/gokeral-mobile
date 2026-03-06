@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { bookingApi } from '../services/api';
 import { authService } from '../services/authServices';
 
-export const useNotifications = (intervalMs = 10000) => {
+export const useNotifications = (_intervalMs = 10000) => {
   const [count, setCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
 

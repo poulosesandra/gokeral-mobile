@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { message } from 'antd';
 import bookingService from '../../../services/bookingService';
 import type { VehicleData } from './types';
@@ -9,7 +9,9 @@ interface Booking {
         pickup: string;
         destination: string;
         distance: string;
+        distanceValueMeters?: number;
         duration: string;
+        durationValueSeconds?: number;
         passengers: number;
         pickupLocation?: { lat: number; lng: number };
         dropLocation?: { lat: number; lng: number };
@@ -38,7 +40,9 @@ interface ConfirmBookingModalProps {
         pickup: string;
         destination: string;
         distance: string;
+        distanceValueMeters?: number;
         duration: string;
+        durationValueSeconds?: number;
         passengers: number;
         pickupLocation?: { lat: number; lng: number };
         dropLocation?: { lat: number; lng: number };
@@ -58,11 +62,43 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [userNotes, setUserNotes] = useState('');
+    const [backendEstimatedFare, setBackendEstimatedFare] = useState<number | null>(null);
 
     if (!isOpen || !selectedVehicle) return null;
 
-    // Use numeric price when available; fallback to default
-    const estimatedFare = Math.round(selectedVehicle.price ?? 250);
+    useEffect(() => {
+        const fetchFare = async () => {
+            try {
+                const distanceMeters = Number(tripDetails.distanceValueMeters || 0);
+                const durationSeconds = Number(tripDetails.durationValueSeconds || 0);
+
+                if (!distanceMeters || !durationSeconds) {
+                    setBackendEstimatedFare(null);
+                    return;
+                }
+
+                const response = await bookingService.estimateFare({
+                    distanceInMeters: distanceMeters,
+                    durationInSeconds: durationSeconds,
+                    vehicleId: selectedVehicle.vehicleId,
+                    vehicleType: selectedVehicle.vehicleType,
+                });
+
+                const estimated = response?.estimatedFare ?? response?.fareBreakdown?.total;
+                setBackendEstimatedFare(typeof estimated === 'number' ? estimated : null);
+            } catch (err) {
+                console.warn('Failed to estimate fare from backend, using local fallback.', err);
+                setBackendEstimatedFare(null);
+            }
+        };
+
+        if (isOpen && selectedVehicle) {
+            void fetchFare();
+        }
+    }, [isOpen, selectedVehicle, tripDetails.distanceValueMeters, tripDetails.durationValueSeconds]);
+
+    // Backend is the source of truth for fare; keep display fallback minimal.
+    const estimatedFare = backendEstimatedFare != null ? Math.round(backendEstimatedFare) : 0;
 
     const handleConfirmBooking = async () => {
         setIsLoading(true);
@@ -73,21 +109,26 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
             const userData = localStorage.getItem('userData');
             const user = userData ? JSON.parse(userData) : {};
 
-            // Parse distance value (e.g., "10.3 km" -> 10.3)
-            const distanceValue = parseFloat(tripDetails.distance.replace(/[^\d.]/g, '')) || 0;
-            const durationValue = parseInt(tripDetails.duration.replace(/[^\d]/g, '')) || 0;
+            const distanceInMeters = Number(tripDetails.distanceValueMeters || 0);
+            const durationInSeconds = Number(tripDetails.durationValueSeconds || 0);
+
+            if (!distanceInMeters || !durationInSeconds) {
+                message.error('Route details are missing. Please reselect route and try again.');
+                setIsLoading(false);
+                return;
+            }
 
             // Create booking via backend API
             const bookingData = {
                 origin: {
-                    location: {
-                        lat: tripDetails.pickupLocation?.lat || 0,
-                        lng: tripDetails.pickupLocation?.lng || 0,
+                    coordinates: {
+                    lat: tripDetails.pickupLocation?.lat || 0,
+                    lng: tripDetails.pickupLocation?.lng || 0,
                     },
                     address: tripDetails.pickup,
                 },
                 destination: {
-                    location: {
+                    coordinates: {
                         lat: tripDetails.dropLocation?.lat || 0,
                         lng: tripDetails.dropLocation?.lng || 0,
                     },
@@ -95,41 +136,20 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                 },
                 distance: {
                     text: tripDetails.distance,
-                    value: distanceValue * 1000, // Convert km to meters
+                    value: distanceInMeters,
                 },
                 duration: {
                     text: tripDetails.duration,
-                    value: durationValue * 60, // Convert minutes to seconds
+                    value: durationInSeconds,
                 },
-                route: {
-                    summary: tripDetails.routeSummary || 'Direct Route',
-                    polyline: tripDetails.polyline || '',
-                    waypoints: [],
-                    bounds: {
-                        northeast: { lat: tripDetails.pickupLocation?.lat || 0, lng: tripDetails.pickupLocation?.lng || 0 },
-                        southwest: { lat: tripDetails.dropLocation?.lat || 0, lng: tripDetails.dropLocation?.lng || 0 },
-                    },
-                },
-                price: {
-                    baseFare: 0,
-                    minimumFare: 50,
-                    bookingFee: 10,
-                    total: estimatedFare,
-                },
-                vehiclePreference: mapVehicleType(selectedVehicle.vehicleType),
-                userInfo: {
-                    date: new Date().toISOString().split('T')[0],
-                    time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-                    name: user.fullName || user.name || 'Guest',
-                    scheduledDateTime: new Date().toISOString(),
-                    phone: user.phoneNumber || user.phone || '',
-                },
-                paymentMethod: paymentMethod,
-                // New fields for driver selection
-                selectedDriverId: selectedVehicle.id,
-                selectedVehicleId: selectedVehicle.vehicleId,
-                passengers: tripDetails.passengers,
-                userNotes: userNotes,
+                driverId: selectedVehicle.id,
+                vehicleId: selectedVehicle.vehicleId,
+                vehicleType: selectedVehicle.vehicleType,
+                paymentMethod,
+                scheduledAt: new Date().toISOString(),
+                notes:
+                    userNotes ||
+                    `Vehicle: ${mapVehicleType(selectedVehicle.vehicleType)}, Fare: ₹${estimatedFare}, Driver: ${selectedVehicle.driverName || 'Driver'}, Driver Phone: ${selectedVehicle.phoneNumber || 'N/A'}, Passenger: ${user.fullName || user.name || 'Guest'} (${tripDetails.passengers})`,
             };
 
             console.log('🔵 [CONFIRM BOOKING] Creating booking:', bookingData);
@@ -139,6 +159,7 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
             console.log('✅ [CONFIRM BOOKING] Booking created:', response);
 
             message.success('Booking confirmed! Driver will arrive shortly.');
+            window.dispatchEvent(new Event('booking:updated'));
 
             onSuccess({
                 ...response,
@@ -261,7 +282,9 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                     {/* Price */}
                     <div className="flex justify-between items-center p-4 bg-green-50 rounded-xl">
                         <span className="text-gray-700 font-medium">Total Fare</span>
-                        <span className="text-2xl font-bold text-green-600">₹{estimatedFare}</span>
+                        <span className="text-2xl font-bold text-green-600">
+                            {backendEstimatedFare != null ? `₹${estimatedFare}` : 'Calculating...'}
+                        </span>
                     </div>
 
                     {/* Error Message */}
@@ -288,8 +311,10 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                                 </svg>
                                 Creating Booking...
                             </span>
-                        ) : (
+                        ) : backendEstimatedFare != null ? (
                             `Confirm Booking • ₹${estimatedFare}`
+                        ) : (
+                            'Confirm Booking'
                         )}
                     </button>
 

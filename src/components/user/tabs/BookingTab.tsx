@@ -47,6 +47,39 @@ interface Booking {
   [key: string]: any;
 }
 
+const parseNotesDriverInfo = (notes?: string): { name?: string; phone?: string } => {
+  const text = String(notes || '');
+  if (!text) return {};
+
+  const nameMatch = text.match(/Driver:\s*([^,|\n]+)/i);
+  const phoneMatch = text.match(/Driver\s*Phone:\s*([^,|\n]+)/i);
+
+  return {
+    name: nameMatch?.[1]?.trim(),
+    phone: phoneMatch?.[1]?.trim(),
+  };
+};
+
+const normalizeBooking = (raw: any): Booking => {
+  const noteDriver = parseNotesDriverInfo(raw?.notes);
+
+  return {
+    ...raw,
+    _id: raw?._id || raw?.id,
+    id: raw?.id || raw?._id,
+    pickupLocation: raw?.pickupLocation || raw?.origin?.address || '-',
+    dropoffLocation: raw?.dropoffLocation || raw?.destination?.address || '-',
+    bookingTime: raw?.bookingTime || raw?.createdAt || raw?.scheduledAt || new Date().toISOString(),
+    estimatedFare: raw?.estimatedFare ?? raw?.fare ?? raw?.fareBreakdown?.total ?? 0,
+    actualFare: raw?.actualFare ?? raw?.fare ?? 0,
+    driver: {
+      ...(raw?.driver || {}),
+      fullName: raw?.driver?.fullName || noteDriver.name,
+      phoneNumber: raw?.driver?.phoneNumber || noteDriver.phone,
+    },
+  };
+};
+
 interface BookingsTabProps {
   loading?: boolean;
 }
@@ -93,7 +126,15 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
   }, []);
 
   useEffect(() => {
-    const onBookingUpdated = (ev: any) => {
+    const intervalId = window.setInterval(() => {
+      void fetchBookings();
+    }, 12000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    const onBookingUpdated = () => {
       void fetchBookings();
     };
     window.addEventListener("booking:updated", onBookingUpdated);
@@ -180,7 +221,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
         return;
       }
 
-      setBookings(allBookings);
+      setBookings((allBookings || []).map(normalizeBooking));
 
       // If some ACCEPTED / IN_PROGRESS bookings are missing embedded driver info,
       // fetch details for those and merge so user sees immediate assignment.
@@ -198,7 +239,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
               setBookings((prev) =>
                 prev.map((p) => {
                   if ((p._id && updatedBooking._id && String(p._id) === String(updatedBooking._id)) || (p.id && updatedBooking.id && String(p.id) === String(updatedBooking.id))) {
-                    return { ...p, ...updatedBooking };
+                    return normalizeBooking({ ...p, ...updatedBooking });
                   }
                   return p;
                 })
@@ -264,7 +305,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
 
   const handleCancelBooking = async (bookingId: string) => {
     try {
-      await bookingService.cancelBooking(bookingId);
+      await bookingService.updateBookingStatus(bookingId, "CANCELLED");
       message.success("Booking cancelled successfully");
       void fetchBookings(); // Refresh bookings
     } catch (error: any) {
@@ -366,7 +407,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
             <div className="space-y-3">
               {filteredBookings.map((booking) => (
                 <Card
-                  key={booking._id}
+                  key={booking._id || booking.id}
                   className="hover:shadow-lg transition-shadow cursor-pointer border-l-4"
                   style={{
                     borderLeftColor:
@@ -409,7 +450,9 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                       </div>
                       <p className="text-sm mt-2">
                         <span className="text-gray-600">Driver: </span>
-                        <span className="font-semibold">{booking.driver?.fullName || "Unassigned"}</span>
+                        <span className="font-semibold">
+                          {booking.driver?.fullName || (booking.driverId ? "Assigned Driver" : "Unassigned")}
+                        </span>
                       </p>
                     </div>
 
@@ -456,7 +499,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                       try {
                         navigator.clipboard?.writeText(String(selectedBooking.rideOtp));
                         message.success("OTP copied to clipboard");
-                      } catch (e) {
+                      } catch {
                         message.error("Failed to copy OTP");
                       }
                     }}
@@ -563,6 +606,32 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
           </Space>
         </Modal>
       )}
+
+      <Modal
+        title="Rate Driver"
+        open={ratingModalOpen}
+        onCancel={() => setRatingModalOpen(false)}
+        onOk={() => void handleSubmitRating()}
+        okText="Submit"
+        okButtonProps={{ loading: ratingLoading, disabled: rating <= 0 }}
+      >
+        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+          <div>
+            <p className="text-gray-600 text-sm mb-2">Rating</p>
+            <Rate value={rating} onChange={setRating} />
+          </div>
+          <div>
+            <p className="text-gray-600 text-sm mb-2">Review</p>
+            <textarea
+              className="w-full border border-gray-300 rounded-md p-2"
+              rows={4}
+              value={review}
+              onChange={(e) => setReview(e.target.value)}
+              placeholder="Share your experience"
+            />
+          </div>
+        </Space>
+      </Modal>
     </div>
   );
 };

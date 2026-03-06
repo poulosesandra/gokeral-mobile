@@ -7,7 +7,6 @@ const DriverRegistration = () => {
       loginLink="/driver/login"
       title="Driver Registration"
       subtitle="Join our team of professional drivers"
-      includeDriverFields={true}
     />
   );
 };

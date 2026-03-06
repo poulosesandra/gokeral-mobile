@@ -4,7 +4,6 @@ import { useEffect, useState, type FC } from "react";
 import { Card, Empty, Tag, Spin, Button, Modal, message, Space } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, ReloadOutlined } from "@ant-design/icons";
 import { bookingApi } from "../../../services/api";
-import { authService } from "../../../services/authServices";
 
 interface Booking {
   _id?: string;
@@ -102,6 +101,38 @@ const getPassengerPhone = (b?: Partial<Booking> | null): string => {
   );
 };
 
+const parseNotesPassenger = (notes?: string): { name?: string } => {
+  const text = String(notes || "");
+  if (!text) return {};
+  const match = text.match(/Passenger:\s*([^,(\n]+)/i);
+  return { name: match?.[1]?.trim() };
+};
+
+const normalizeDriverBooking = (raw: any): Booking => {
+  const notePassenger = parseNotesPassenger(raw?.notes);
+
+  return {
+    ...raw,
+    _id: raw?._id || raw?.id,
+    id: raw?.id || raw?._id,
+    pickupLocation: raw?.pickupLocation || raw?.origin?.address || "-",
+    dropoffLocation: raw?.dropoffLocation || raw?.destination?.address || "-",
+    bookingTime: raw?.bookingTime || raw?.createdAt || raw?.scheduledAt || new Date().toISOString(),
+    estimatedFare: raw?.estimatedFare ?? raw?.fare ?? raw?.fareBreakdown?.total ?? 0,
+    actualFare: raw?.actualFare ?? raw?.fare ?? 0,
+    passenger: {
+      ...(raw?.passenger || {}),
+      name:
+        raw?.passenger?.name ||
+        raw?.passenger?.fullName ||
+        raw?.userInfo?.name ||
+        raw?.userInfo?.fullName ||
+        notePassenger.name,
+      phone: raw?.passenger?.phone || raw?.userInfo?.phone,
+    },
+  };
+};
+
 // Normalize the booking/ride identifier.
 // Prefer the Mongo `_id` (stringified) to avoid sending "BK-..." (bookingId) to endpoints that expect ObjectId.
 const getBookingId = (booking: Partial<Booking> | null | undefined): string | undefined => {
@@ -131,6 +162,14 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
   }, []);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void fetchBookings();
+    }, 12000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
     const onBookingUpdated = () => {
       void fetchBookings();
     };
@@ -153,16 +192,6 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
     try {
       setLoading(true);
 
-      // Get current driver's ID
-      const currentUser = authService.getCurrentUser();
-      const currentDriverId = currentUser?._id || currentUser?.id;
-
-      if (!currentDriverId) {
-        setBookings([]);
-        setLoading(false);
-        return false;
-      }
-
       // Fetch ALL bookings for this driver.
       const allResp = await bookingApi.get("/bookings/driver/my-bookings");
       const allBookings: Booking[] = Array.isArray(allResp.data?.bookings)
@@ -171,8 +200,10 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
           ? allResp.data
           : [];
 
+      const normalizedBookings = (allBookings || []).map(normalizeDriverBooking);
+
       // Sort newest-first
-      const sorted = [...allBookings].sort((a, b) => {
+      const sorted = [...normalizedBookings].sort((a, b) => {
         const aDate = new Date(getBookingDateString(a) || 0).getTime();
         const bDate = new Date(getBookingDateString(b) || 0).getTime();
         return bDate - aDate;
@@ -206,6 +237,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       message.success(res.data?.Message || res.data?.message || "Ride accepted");
 
       setBookings((prev) => prev.map((b) => (getBookingId(b) === id ? { ...b, status: "ACCEPTED" } : b)));
+      window.dispatchEvent(new Event("booking:updated"));
     } catch (err: any) {
       message.error(err.response?.data?.message || err.message || "Failed to accept ride");
     } finally {
@@ -237,6 +269,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       message.success(res.data?.message || "Ride rejected");
 
       setBookings((prev) => prev.filter((b) => getBookingId(b) !== id));
+      window.dispatchEvent(new Event("booking:updated"));
     } catch (err: any) {
       const status = err?.response?.status;
       if (status >= 500 || !status) {
@@ -284,7 +317,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       if (!found) {
         try {
           const res = await bookingApi.get(`/bookings/${openBookingId}`);
-          found = res.data as Booking;
+          found = normalizeDriverBooking(res.data) as Booking;
         } catch (err) {
           message.error("Failed to fetch booking details");
         }
@@ -388,7 +421,6 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
                         <span className="font-semibold">{getPassengerPhone(booking)}</span>
                       </p>
                     </div>
-
                     {/* Right - Fare & Status */}
                     <div className="flex flex-col md:items-end items-start gap-2 md:w-44 md:flex-shrink-0">
                       <Tag color={getStatusColor(booking.status)}>{getStatusLabel(booking.status)}</Tag>
@@ -403,7 +435,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
                       {booking.status === "COMPLETED" && (
                         <div className="flex items-center gap-1">
                           <DollarOutlined />
-                          <span className="font-bold text-gray-800">${booking.actualFare || booking.estimatedFare || 0}</span>
+                          <span className="font-bold text-gray-800">₹{booking.actualFare || booking.estimatedFare || 0}</span>
                         </div>
                       )}
                       {booking.status === "CANCELLED" && <span className="text-xs text-gray-500 font-semibold">Cancelled</span>}
@@ -459,11 +491,11 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
 
             <div>
               <p className="text-gray-600 text-sm">Estimated Fare</p>
-              <p className="font-semibold">${selectedBooking.estimatedFare || 0}</p>
-              {selectedBooking.actualFare && (
+              <p className="font-semibold">₹{selectedBooking?.estimatedFare || 0}</p>
+              {selectedBooking?.actualFare && (
                 <>
                   <p className="text-gray-600 text-sm mt-2">Actual Fare</p>
-                  <p className="font-semibold text-green-600">${selectedBooking.actualFare}</p>
+                  <p className="font-semibold text-green-600">₹{selectedBooking?.actualFare}</p>
                 </>
               )}
             </div>

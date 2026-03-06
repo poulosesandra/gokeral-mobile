@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Spin, Empty, Card, Avatar, Rate, Tag, Button, message, Modal, Input } from 'antd';
 import { PhoneOutlined, EnvironmentOutlined, CarOutlined, CloseOutlined } from '@ant-design/icons';
-import api from '../../../services/api';
-import { calculateFare } from '../../../utils/fareCalculation';
+import { bookingApi } from '../../../services/api';
 
 const mapVehicleType = (t?: string) => {
   if (!t) return 'Auto';
@@ -15,6 +14,7 @@ const mapVehicleType = (t?: string) => {
 
 interface Driver {
     _id: string;
+    driverId?: string;
     fullName: string;
     phoneNumber: string;
     profileImage?: string;
@@ -33,6 +33,9 @@ interface Driver {
         licensePlate: string;
         vehicleType: string;
         seatsNo: number;
+        type?: string;
+        seatingCapacity?: number;
+        registrationNumber?: string;
         vehicleImages?: string[];
         fareStructure?: {
             minimumFare: number;
@@ -43,6 +46,57 @@ interface Driver {
         };
     };
 }
+
+interface RawNearbyDriver {
+    _id?: string;
+    driverId?: string;
+    accountId?: string;
+    fullName?: string;
+    phoneNumber?: string;
+    profileImage?: string;
+    distance?: number;
+    isOnline?: boolean;
+    estimatedArrival?: number;
+    rating?: number;
+    vehicle?: Driver['vehicle'];
+    latitude?: number;
+    longitude?: number;
+}
+
+const normalizeVehicleKey = (value?: string): string => {
+    const input = String(value || '').toLowerCase().trim();
+    if (!input) return '';
+    if (input.includes('suv') || input.includes('seven')) return 'SUV';
+    if (input.includes('sedan')) return 'SEDAN';
+    if (input.includes('hatch')) return 'HATCHBACK';
+    if (input.includes('auto') || input.includes('rickshaw')) return 'AUTO';
+    if (input.includes('bike')) return 'BIKE';
+    return input.toUpperCase();
+};
+
+const normalizeNearbyDrivers = (payload: any): Driver[] => {
+    const list = Array.isArray(payload) ? payload : payload?.drivers || [];
+
+    return list.map((item: RawNearbyDriver, index: number): Driver => {
+        const id = item._id || item.driverId || item.accountId || `driver-${index}`;
+        return {
+            _id: id,
+            driverId: item.driverId || item.accountId || id,
+            fullName: item.fullName || 'Driver',
+            phoneNumber: item.phoneNumber || 'N/A',
+            profileImage: item.profileImage,
+            drivingExperience: {
+                averageRating: item.rating,
+                totalTripsCompleted: undefined,
+            },
+            latitude: item.latitude || 0,
+            longitude: item.longitude || 0,
+            distance: typeof item.distance === 'number' ? item.distance : 0,
+            isOnline: item.isOnline ?? true,
+            vehicle: item.vehicle,
+        };
+    });
+};
 
 interface SelectDriverModalProps {
     isOpen: boolean;
@@ -68,6 +122,7 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
     const [drivers, setDrivers] = useState<Driver[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchText, setSearchText] = useState('');
+    const [estimatedFareByDriver, setEstimatedFareByDriver] = useState<Record<string, number>>({});
 
     useEffect(() => {
         if (isOpen) {
@@ -82,38 +137,29 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
             // Try operating-area endpoint first
             let fetched: Driver[] = [];
             try {
-                const response = await api.get('/bookings/nearby-drivers', {
-                    params: { latitude: pickupLatitude, longitude: pickupLongitude, radius: 2 },
+                const response = await bookingApi.get('/bookings/nearby-drivers', {
+                    params: {
+                        pickupLat: pickupLatitude,
+                        pickupLng: pickupLongitude,
+                        radiusKm: 2,
+                        vehicleType,
+                    },
                 });
-                fetched = (response.data || []).slice(0, maxDrivers);
-                if (!fetched.length) {
-                    // fallback: flexible
-                    const flex = await api.get('/bookings/nearby-drivers-flexible', {
-                        params: { latitude: pickupLatitude, longitude: pickupLongitude, radius: 2 },
-                    });
-                    fetched = (flex.data || []).slice(0, maxDrivers);
-                }
+                fetched = normalizeNearbyDrivers(response.data).slice(0, maxDrivers);
             } catch (err) {
-                // on error, try flexible
-                try {
-                    const flex = await api.get('/bookings/nearby-drivers-flexible', {
-                        params: { latitude: pickupLatitude, longitude: pickupLongitude, radius: 2 },
-                    });
-                    fetched = (flex.data || []).slice(0, maxDrivers);
-                } catch (flexErr) {
-                    console.error('Driver search failed', flexErr);
-                    message.error('Failed to load nearby drivers. Please try again.');
-                    fetched = [];
-                }
+                console.error('Driver search failed', err);
+                message.error('Failed to load nearby drivers. Please try again.');
+                fetched = [];
             }
 
             // If vehicleType is provided, filter drivers by normalized vehicle type
             let finalDrivers = fetched;
             if (vehicleType) {
-                const want = String(vehicleType).trim();
+                const want = normalizeVehicleKey(vehicleType);
                 finalDrivers = fetched.filter((d) => {
-                    const drvType = mapVehicleType(d.vehicle?.vehicleType);
-                    return drvType === want;
+                    const drvType = d.vehicle?.vehicleType || d.vehicle?.type;
+                    if (!drvType) return true;
+                    return normalizeVehicleKey(drvType) === want;
                 });
             }
 
@@ -123,16 +169,54 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
         }
     };
 
-    const getEstimatedPrice = (driver: Driver): string | undefined => {
-        const leg = route?.legs?.[0];
-        if (!leg) return undefined;
-        const distanceInMeters = leg.distance?.value || 0;
-        const durationInSeconds = leg.duration?.value || 0;
-        const distanceInKm = distanceInMeters / 1000;
-        const fareStructure = driver.vehicle?.fareStructure || { minimumFare: 50, perKilometerRate: 15, waitingChargePerMinute: 1 };
-        const fare = calculateFare(distanceInKm, durationInSeconds, fareStructure);
-        return `₹${Math.round(fare)}`;
-    };
+    useEffect(() => {
+        const fetchFareEstimates = async () => {
+            const leg = route?.legs?.[0];
+            if (!leg || drivers.length === 0) {
+                setEstimatedFareByDriver({});
+                return;
+            }
+
+            const distanceInMeters = leg.distance?.value || 0;
+            const durationInSeconds = leg.duration?.value || 0;
+
+            if (!distanceInMeters || !durationInSeconds) {
+                setEstimatedFareByDriver({});
+                return;
+            }
+
+            const entries = await Promise.all(
+                drivers.map(async (driver) => {
+                    try {
+                        const vehicleId = (driver.vehicle as any)?._id || (driver.vehicle as any)?.id;
+                        if (!vehicleId) return [driver._id, null] as const;
+
+                        const response = await bookingApi.post('/bookings/estimate-fare', {
+                            distanceInMeters,
+                            durationInSeconds,
+                            vehicleId,
+                            vehicleType: driver.vehicle?.vehicleType || driver.vehicle?.type,
+                        });
+
+                        const estimatedFare = response?.data?.estimatedFare ?? response?.data?.fareBreakdown?.total;
+                        return [driver._id, typeof estimatedFare === 'number' ? estimatedFare : null] as const;
+                    } catch {
+                        return [driver._id, null] as const;
+                    }
+                }),
+            );
+
+            const nextState: Record<string, number> = {};
+            for (const [driverId, fare] of entries) {
+                if (typeof fare === 'number') {
+                    nextState[driverId] = fare;
+                }
+            }
+            setEstimatedFareByDriver(nextState);
+        };
+
+        void fetchFareEstimates();
+    }, [drivers, route]);
 
     // Helper added: return first vehicle image or undefined
     const getVehicleImage = (driver: Driver): string | undefined => {
@@ -166,7 +250,7 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                         <div className="space-y-3">
                             <p className="text-sm text-gray-600 font-medium">✅ {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} available within 2 km</p>
                             {filteredDrivers.map((driver, index) => (
-                                <Card key={driver._id} className="cursor-pointer hover:shadow-md transition-shadow border border-gray-200" onClick={() => { onSelectDriver(driver); onClose(); }}>
+                                <Card key={driver._id || driver.driverId} className="cursor-pointer hover:shadow-md transition-shadow border border-gray-200" onClick={() => { onSelectDriver(driver); onClose(); }}>
                                     <div className="flex justify-between items-start gap-3">
                                         {/* Driver Info */}
                                         <div className="flex gap-3 flex-1">
@@ -189,7 +273,7 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                                                 alt={driver.fullName}
                                                 style={{ backgroundColor: '#1E90FF' }}
                                             >
-                                                {driver.fullName.charAt(0)}
+                                                {(driver.fullName || 'D').charAt(0)}
                                             </Avatar>
 
                                             <div className="flex-1">
@@ -200,9 +284,9 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                                                     </h4>
                                                     <div className="flex items-center gap-2">
                                                         {/* Price (from old VehicleListModal) */}
-                                                        {getEstimatedPrice(driver) && (
+                                                        {typeof estimatedFareByDriver[driver._id] === 'number' && (
                                                             <Tag color="green" className="text-xs font-bold">
-                                                                {getEstimatedPrice(driver)}
+                                                                ₹{Math.round(estimatedFareByDriver[driver._id])}
                                                             </Tag>
                                                         )}
                                                         <Tag color={driver.isOnline ? 'green' : 'red'} className="text-xs">
@@ -237,10 +321,10 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                                                         </div>
                                                         <div className="text-xs text-gray-600 ml-6 mt-1">
                                                             <div>
-                                                                {mapVehicleType(driver.vehicle.vehicleType)} • {driver.vehicle.seatsNo} seats
+                                                                {mapVehicleType(driver.vehicle.vehicleType || driver.vehicle.type)} • {driver.vehicle.seatsNo || driver.vehicle.seatingCapacity || '-'} seats
                                                             </div>
                                                             <div className="font-mono text-gray-700 font-semibold">
-                                                                Plate: {driver.vehicle.licensePlate}
+                                                                Plate: {driver.vehicle.licensePlate || driver.vehicle.registrationNumber || 'N/A'}
                                                             </div>
                                                         </div>
                                                     </div>

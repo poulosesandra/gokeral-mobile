@@ -6,7 +6,7 @@ import { BellOutlined, UserOutlined, LogoutOutlined, DownOutlined, LeftOutlined,
 import { Link, useNavigate } from "react-router-dom";
 import type { MenuProps } from "antd";
 import { authService } from '../services/authServices';
-import api, { bookingApi } from '../services/api';
+import { bookingApi } from '../services/api';
 
 interface HeaderProps {
   navigate?: (path: string) => void;
@@ -22,10 +22,10 @@ interface HeaderProps {
 export const Header = ({
   navigate,
   handleLogout,
-  username,
+  username: _username,
   onMenuToggle,
   showMenuIcon = false,
-  profileImage,
+  profileImage: _profileImage,
   onProfileClick,
   onBack,
 }: HeaderProps) => {
@@ -186,7 +186,7 @@ export const Header = ({
   }, [role]);
 
   useEffect(() => {
-    const onRideRequest = (evt: Event) => {
+    const onRideRequest = () => {
       if (role === 'DRIVER') {
         setCount((c) => c + 1);
       }

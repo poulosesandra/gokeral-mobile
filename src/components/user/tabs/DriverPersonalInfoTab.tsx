@@ -12,8 +12,16 @@ import {
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { useEffect, useState, useRef } from "react";
-import type { DriverData } from "./DriverHomeTab";
-import api from "../../../services/api";
+import type { DriverData } from "../../driver/DriverProfile";
+import { authService } from "../../../services/authServices";
+
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 interface DriverPersonalInfoTabProps {
   driverData: DriverData;
@@ -34,6 +42,14 @@ const formatDob = (dob?: string) => {
     month: "2-digit",
     year: "numeric",
   }).format(date);
+};
+
+const docLabelMap: Record<string, string> = {
+  drivingLicenseCertificate: "Driving License Certificate",
+  policeClearanceCertificate: "Police Clearance Certificate",
+  medicalFitnessCertificate: "Medical Fitness Certificate",
+  addressProof: "Address Proof",
+  professionalTrainingCertificate: "Professional Training Certificate",
 };
 
 export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo, onProfileImageUpdate }: DriverPersonalInfoTabProps) => {
@@ -62,32 +78,17 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
 
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const resp = await api.post("/drivers/upload-document", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      const url = resp?.data?.url || resp?.data?.driver?.documents?.slice(-1)[0]?.url;
+      const url = await fileToDataUrl(file);
       if (url) {
-        const currentUserRaw = localStorage.getItem("userData");
-        const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
-        await api.patch("/drivers/update", {
-          fullName: parsed.fullName,
-          email: parsed.email,
-          phoneNumber: parsed.phoneNumber,
-          profileImage: url,
-        });
+        await authService.updateDriverProfile({ profileImage: url } as any);
 
         // Update local state immediately for instant display
-        const updatedUser = { ...parsed, profileImage: url };
-        localStorage.setItem("userData", JSON.stringify(updatedUser));
         setLocalDriverData({ ...localDriverData, profileImage: url });
         
         // Notify parent to refresh
         onProfileImageUpdate?.(url);
         
-        message.success("Profile picture uploaded and saved");
+        message.success("Profile picture updated");
         setOptionsVisible(false);
       } else {
         message.warning("Uploaded but could not find file URL");
@@ -109,18 +110,9 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
       okType: "danger",
       onOk: async () => {
         try {
-          const currentUserRaw = localStorage.getItem("userData");
-          const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
-          await api.patch("/drivers/update", {
-            fullName: parsed.fullName,
-            email: parsed.email,
-            phoneNumber: parsed.phoneNumber,
-            profileImage: null,
-          });
-          
+          await authService.updateDriverProfile({ profileImage: '' } as any);
+
           // Update local state immediately for instant display
-          const updatedUser = { ...parsed, profileImage: null };
-          localStorage.setItem("userData", JSON.stringify(updatedUser));
           setLocalDriverData({ ...localDriverData, profileImage: null });
           
           // Notify parent to refresh
@@ -368,10 +360,22 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
 
             <div className="pt-3 border-t">
               <h4 className="font-semibold text-gray-700 mb-3">Certifications</h4>
-              {localDriverData.personalInfo?.certificates && localDriverData.personalInfo.certificates.length > 0 ? (
-                localDriverData.personalInfo.certificates.map((cert, index) => (
-                  <Tag key={index} color="green" className="px-3 py-1 text-sm mr-2">{cert}</Tag>
-                ))
+              {localDriverData.documents && Object.values(localDriverData.documents).some(Boolean) ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {Object.entries(localDriverData.documents)
+                    .filter(([, value]) => Boolean(value))
+                    .map(([key, value]) => (
+                      <a
+                        key={key}
+                        href={String(value)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-blue-600 underline break-all"
+                      >
+                        {docLabelMap[key] || key}
+                      </a>
+                    ))}
+                </div>
               ) : (
                 <p className="text-gray-500">No certifications added</p>
               )}

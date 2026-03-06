@@ -210,9 +210,13 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
           }
         };
 
-        readLoop().catch((err) => console.error('[SSE] read loop error', err));
+        readLoop().catch((err: any) => {
+          if (err?.name === 'AbortError') return;
+          console.error('[SSE] read loop error', err);
+        });
       })
-      .catch((err) => {
+      .catch((err: any) => {
+        if (err?.name === 'AbortError') return;
         console.error('[SSE] connect error', err);
       });
 
