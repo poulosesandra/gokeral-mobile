@@ -9,6 +9,7 @@ import vehicleService from "../../../services/vehicleService";
 const mapVehicleType = (t?: string) => {
   if (!t) return 'Auto';
   const s = String(t).toLowerCase();
+  if (s.includes('bike')) return 'Bike';
   if (s.includes('auto')) return 'Auto';
   if (s.includes('suv')) return 'Seven Seater';
   if (s.includes('sedan') || s.includes('hatch')) return 'Five Seater';
@@ -89,13 +90,13 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
           const model = v.vehicleModel || v.model || "";
           const title = company ? `${company}${model ? " " + model : ""}` : v.vehicleModel || model || "";
           const license = v.licensePlate || v.licensePlateNumber || v.vehicleNumber || "";
-          const seats = Number(v.seatsNo ?? v.seats ?? 0) || 0;
+          const seats = Number(v.seatingCapacity ?? v.seatsNo ?? v.seats ?? 0) || 0;
           const year = Number(v.year || 0) || 0;
           const images = v.vehicleImages || (v.vehicleImage ? [v.vehicleImage] : []);
 
           return {
             _id: v._id,
-            vehicleType: v.vehicleType || v.vehicleClass || "",
+            vehicleType: v.type || v.vehicleType || v.vehicleClass || "",
             vehicleNumber: license,
             vehicleModel: title,
             vehicleColor: v.color || v.vehicleColor || "",

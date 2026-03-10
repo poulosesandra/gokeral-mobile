@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Spin, Empty, Card, Avatar, Rate, Tag, Divider, Button, message } from 'antd';
 import { PhoneOutlined, EnvironmentOutlined, CarOutlined } from '@ant-design/icons';
-import api from '../../services/api';
+import { bookingApi } from '../../services/api';
 
 // Hardcoded mapping for vehicle types
 const mapVehicleType = (t?: string) => {
@@ -57,14 +57,14 @@ const NearbyDrivers: React.FC<NearbyDriversProps> = ({ latitude, longitude, radi
     const fetchNearbyDrivers = async () => {
         try {
             setLoading(true);
-            const response = await api.get('/bookings/nearby-drivers', {
+            const response = await bookingApi.get('/bookings/nearby-drivers', {
                 params: {
-                    latitude,
-                    longitude,
-                    radius,
+                    pickupLat: latitude,
+                    pickupLng: longitude,
+                    radiusKm: radius,
                 },
             });
-            setDrivers(response.data);
+            setDrivers(Array.isArray(response.data) ? response.data : response.data?.drivers || []);
         } catch (error) {
             console.error('Failed to fetch nearby drivers:', error);
             message.error('Failed to load nearby drivers');

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { bookingApi } from '../services/api';
 
 interface RideAcceptedData {
     rideId: string;
@@ -42,15 +43,8 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
 
         try {
             setLoading(true);
-            const response = await fetch(`/api/rides/${rideId}/status`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
-            });
-
-            if (!response.ok) throw new Error('Failed to fetch ride status');
-
-            const data = await response.json();
+            const response = await bookingApi.get(`/bookings/${rideId}`);
+            const data = response.data;
 
             if (data.status === 'ACCEPTED') {
                 setRideAccepted({
@@ -64,19 +58,25 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
                     status: data.status,
                 });
                 setError(null);
-            } else if (data.status === 'STARTED') {
+            } else if (data.status === 'DRIVER_ARRIVED') {
+                setDriverArrived(true);
+                setError(null);
+            } else if (data.status === 'IN_PROGRESS' || data.status === 'STARTED') {
                 setRideStarted(true);
+                setDriverArrived(false);
                 setError(null);
             } else if (data.status === 'COMPLETED') {
                 setRideCompleted(true);
                 setRideAccepted(null);
                 setDriverLocation(null);
                 setRideStarted(false);
+                setDriverArrived(false);
             } else if (data.status === 'CANCELLED') {
                 setRideCancelled(true);
                 setRideAccepted(null);
                 setDriverLocation(null);
                 setRideStarted(false);
+                setDriverArrived(false);
             }
 
             setLoading(false);
@@ -91,22 +91,8 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
         if (!rideId || !rideAccepted) return;
 
         try {
-            const response = await fetch(`/api/rides/${rideId}/driver-location`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
-            });
-
-            if (!response.ok) throw new Error('Failed to fetch driver location');
-
-            const data = await response.json();
-            setDriverLocation({
-                driverId: data.driverId,
-                rideId: data.rideId,
-                latitude: data.latitude,
-                longitude: data.longitude,
-                timestamp: Date.now(),
-            });
+            // Driver live-location endpoint is not exposed by booking-service currently.
+            setDriverLocation(null);
         } catch (err) {
             console.error('Error fetching driver location:', err);
         }
@@ -142,18 +128,33 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
         }) => {
             try {
                 setLoading(true);
-                const response = await fetch('/api/rides/create', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                const payload = {
+                    origin: {
+                        address: rideData.pickupLocation,
+                        coordinates: {
+                            lat: rideData.pickupLatitude,
+                            lng: rideData.pickupLongitude,
+                        },
                     },
-                    body: JSON.stringify(rideData),
-                });
+                    destination: {
+                        address: rideData.dropLocation,
+                        coordinates: {
+                            lat: rideData.dropoffLatitude,
+                            lng: rideData.dropoffLongitude,
+                        },
+                    },
+                    distance: {
+                        text: rideData.estimatedDistance ? `${rideData.estimatedDistance} km` : 'N/A',
+                        value: rideData.estimatedDistance ? Math.max(0, Math.round(rideData.estimatedDistance * 1000)) : 0,
+                    },
+                    duration: {
+                        text: 'N/A',
+                        value: 0,
+                    },
+                };
 
-                if (!response.ok) throw new Error('Failed to request ride');
-
-                const data = await response.json();
+                const response = await bookingApi.post('/bookings', payload);
+                const data = response.data;
                 setError(null);
                 return data;
             } catch (err) {
@@ -170,21 +171,10 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
     const updateLocation = useCallback(
         async (rideId: string, latitude: number, longitude: number) => {
             try {
-                const response = await fetch('/api/customers/location/update', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({
-                        customerId: userId,
-                        rideId,
-                        latitude,
-                        longitude,
-                    }),
-                });
-
-                if (!response.ok) throw new Error('Failed to update location');
+                void rideId;
+                void latitude;
+                void longitude;
+                void userId;
             } catch (err) {
                 console.error('Error updating customer location:', err);
             }
@@ -196,19 +186,10 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
         async (rideId: string, reason?: string) => {
             try {
                 setLoading(true);
-                const response = await fetch(`/api/rides/${rideId}/cancel`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({
-                        customerId: userId,
-                        reason: reason || 'Customer cancelled',
-                    }),
+                await bookingApi.patch(`/bookings/${rideId}/status`, {
+                    status: 'CANCELLED',
+                    cancelReason: reason || 'Customer cancelled',
                 });
-
-                if (!response.ok) throw new Error('Failed to cancel ride');
 
                 setRideCancelled(true);
                 setRideAccepted(null);

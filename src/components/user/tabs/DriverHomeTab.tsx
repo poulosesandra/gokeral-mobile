@@ -6,7 +6,7 @@ import type { FC } from "react";
 import { useJsApiLoader } from "@react-google-maps/api";
 import MapArea from "../../map/MapArea";
 import { authService } from "../../../services/authServices";
-import api from "../../../services/api";
+import { bookingApi } from "../../../services/api";
 
 const GOOGLE_MAPS_LIBRARIES: ("places")[] = ["places"];
 
@@ -133,9 +133,9 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
   }, []);
 
   const fetchCurrent = useCallback(async () => {
-    const url = role === "DRIVER" ? "/bookings/driver/current" : "/bookings/my-bookings/current";
     try {
-      const res = await api.get(url);
+      const url = role === "DRIVER" ? "/bookings/driver/my-bookings" : "/bookings/my-bookings";
+      const res = await bookingApi.get(url);
       const data = res.data;
       setLastFetchStatus(res.status);
       setLastFetchTime(new Date().toLocaleTimeString());
@@ -143,7 +143,10 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       console.debug("[DriverHome] fetchCurrent", { url, status: res.status, data });
 
       if (res.status === 200) {
-        const booking = extractBookingFromResponse(data);
+        const bookings = Array.isArray(data?.bookings) ? data.bookings : Array.isArray(data) ? data : [];
+        const activeStatuses = ["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"];
+        const current = bookings.find((b: any) => activeStatuses.includes(String(b?.status || "").toUpperCase())) || null;
+        const booking = current ? extractBookingFromResponse(current) : null;
         if (booking) {
           if (booking.status) booking.status = String(booking.status).toUpperCase();
           setActiveBooking(booking);
@@ -207,9 +210,13 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
           }
         };
 
-        readLoop().catch((err) => console.error('[SSE] read loop error', err));
+        readLoop().catch((err: any) => {
+          if (err?.name === 'AbortError') return;
+          console.error('[SSE] read loop error', err);
+        });
       })
-      .catch((err) => {
+      .catch((err: any) => {
+        if (err?.name === 'AbortError') return;
         console.error('[SSE] connect error', err);
       });
 
@@ -224,8 +231,8 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       // initial fetch
       fetchCurrent();
 
-      const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '';
-      const url = `${apiBase}/drivers/subscribe-to-bookings`;
+      const bookingBase = (import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:3004').replace(/\/$/, '');
+      const url = `${bookingBase}/ride-requests/stream`;
 
       cleanup = connectSseWithAuth(url, (payload: unknown) => {
         // payloads from server: { event: 'connected' } or { event: 'new_ride_request', booking: {...} }
@@ -312,7 +319,6 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     try {
       // Try active / pending / recent driver bookings (no new API needed)
       const endpoints = [
-        '/bookings/driver/active',
         '/ride-requests/pending',
         '/bookings/driver/my-bookings',
       ];
@@ -320,7 +326,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       let all: unknown[] = [];
       for (const ep of endpoints) {
         try {
-          const r = await api.get(ep);
+          const r = await bookingApi.get(ep);
           const payload = r.data as unknown;
           if (payload && typeof payload === "object") {
             const p = payload as Record<string, unknown>;
@@ -394,7 +400,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
 
     setArriving(true);
     try {
-      const res = await api.patch(`/bookings/${bookingIdToUse}/arrived`);
+      const res = await bookingApi.patch(`/bookings/${bookingIdToUse}/status`, { status: 'DRIVER_ARRIVED' });
       const data = res.data;
       setLastFetchStatus(res.status);
       setLastFetchTime(new Date().toLocaleTimeString());
@@ -444,7 +450,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       // Auto-mark arrival if booking is still ACCEPTED
       if (activeBooking?.status === 'ACCEPTED') {
         try {
-          const arrivedRes = await api.patch(`/bookings/${bookingIdToUse}/arrived`);
+          const arrivedRes = await bookingApi.patch(`/bookings/${bookingIdToUse}/status`, { status: 'DRIVER_ARRIVED' });
           const arrivedBooking = extractBookingFromResponse(arrivedRes.data) || arrivedRes.data;
           if (arrivedBooking) {
             if (arrivedBooking.status) arrivedBooking.status = String(arrivedBooking.status).toUpperCase();
@@ -475,7 +481,8 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         setStartingRide(false);
         return;
       }
-      const res = await api.post(`/bookings/${bookingId}/verify-otp`, { otp });
+      await bookingApi.patch(`/bookings/${bookingId}/status`, { status: 'IN_PROGRESS' });
+      const res = await bookingApi.post(`/bookings/${bookingId}/verify-otp`, { otp });
       const data = res.data;
       if (res.status === 200) {
         message.success('Ride started successfully');

@@ -237,7 +237,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
     setLoading(true);
 
     try {
-      if (!make || !model || !year || !seats || !licensePlate || !vehicleType || !vehicleClass) {
+      if (!make || !model || !year || !seats || !licensePlate || !vehicleType) {
         setError("Please fill in all required fields");
         return;
       }
@@ -245,13 +245,11 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
       // Create payload (match backend CreateVehicleDto)
       const vehiclePayload = {
         make,
-        vehicleModel: model,                    // ✅ Backend expects "vehicleModel"
+        vehicleModel: model,
         year: parseInt(year, 10),
-        registrationNumber: licensePlate,       // ✅ Backend expects "registrationNumber"
-        type: vehicleType,                      // ✅ Backend expects "type" (HATCHBACK|SEDAN|SUV|VAN)
-        seatingCapacity: parseInt(seats, 10),   // ✅ Backend expects "seatingCapacity"
-        color: "",                              // Optional
-        // Note: fareStructure is not supported by backend yet
+        registrationNumber: licensePlate,
+        type: vehicleType,
+        seatingCapacity: parseInt(seats, 10),
       };
 
       // Update payload (same structure)
@@ -262,17 +260,12 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         registrationNumber: licensePlate,
         type: vehicleType,
         seatingCapacity: parseInt(seats, 10),
-        color: "",
-        // Note: fareStructure is not supported by backend yet
       };
 
       // EDIT FLOW
       if (isEditing && vehicleId) {
         const updated = await vehicleService.updateVehicle(vehicleId, updatePayload as any);
         const targetId = updated?._id || vehicleId;
-
-        // ⚠️ Document/image upload not supported yet (Sprint 2)
-        // Document and image upload will be implemented in Sprint 2
 
         setVehicleId(targetId);
         setCurrentStep("fare");
@@ -296,9 +289,6 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
       } catch (err) {
         console.warn("Backfill update failed (create succeeded):", err);
       }
-
-      // ⚠️ Document/image upload not supported yet (Sprint 2)
-      // Document and image upload will be implemented in Sprint 2
 
       setCurrentStep("fare");
     } catch (err: any) {
@@ -361,7 +351,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
       centered
       title={isEditing ? "Edit Vehicle" : currentStep === "details" ? "Add Vehicle" : "Fare & Fees Settings"}
       maskClosable={false}
-      bodyStyle={{ maxHeight: "70vh", overflowY: "auto" }}
+      styles={{ body: { maxHeight: "70vh", overflowY: "auto" } }}
     >
       {currentStep === "details" && (
         <form onSubmit={handleSubmit} className="w-full">
@@ -442,7 +432,6 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
                 className="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={vehicleClass}
                 onChange={(e) => setVehicleClass(e.target.value)}
-                required
               >
                 <option value="">Vehicle Class</option>
                 <option value="Economy">Economy</option>

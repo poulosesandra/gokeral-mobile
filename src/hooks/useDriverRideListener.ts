@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { bookingApi } from '../services/api';
+import { bookingApi, driverApi } from '../services/api';
 
 // If backend doesn't expose pending rides endpoint, set to false to avoid repeated calls.
 let pendingRidesAvailable: boolean | null = null; // null = unknown, true = available, false = not available
@@ -64,23 +64,30 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
             // On success mark endpoint available (in case it was unknown)
             pendingRidesAvailable = true;
 
-            const rides = Array.isArray(payload?.rides) ? payload.rides : Array.isArray(payload) ? payload : [];
+            const rides = Array.isArray(payload?.requests)
+                ? payload.requests
+                : Array.isArray(payload?.rides)
+                    ? payload.rides
+                    : Array.isArray(payload)
+                        ? payload
+                        : [];
 
             if (rides.length > 0) {
                 const ride = rides[0];
+                const booking = ride?.booking || {};
                 setNewRideRequest({
-                    rideId: ride.bookingId || ride._id,
-                    bookingId: ride.bookingId || ride._id,
-                    customerId: ride.customerId || ride.userId,
-                    userId: ride.customerId || ride.userId,
+                    rideId: ride.bookingId || booking._id || ride._id,
+                    bookingId: ride.bookingId || booking._id || ride._id,
+                    customerId: ride.customerId || booking.userId,
+                    userId: ride.customerId || booking.userId,
                     customerName: ride.customerName || ride.userInfo?.name || 'Customer',
-                    pickupLocation: ride.pickupLocation || ride.pickupAddress || '',
-                    dropLocation: ride.dropoffLocation || ride.dropoffAddress || '',
-                    pickupLatitude: ride.pickupLatitude || 0,
-                    pickupLongitude: ride.pickupLongitude || 0,
-                    dropoffLatitude: ride.dropoffLatitude || 0,
-                    dropoffLongitude: ride.dropoffLongitude || 0,
-                    estimatedFare: ride.estimatedFare || 0,
+                    pickupLocation: ride.pickupLocation || ride.pickupAddress || booking.origin?.address || '',
+                    dropLocation: ride.dropoffLocation || ride.dropoffAddress || booking.destination?.address || '',
+                    pickupLatitude: ride.pickupLatitude || booking.origin?.coordinates?.lat || 0,
+                    pickupLongitude: ride.pickupLongitude || booking.origin?.coordinates?.lng || 0,
+                    dropoffLatitude: ride.dropoffLatitude || booking.destination?.coordinates?.lat || 0,
+                    dropoffLongitude: ride.dropoffLongitude || booking.destination?.coordinates?.lng || 0,
+                    estimatedFare: ride.estimatedFare || booking.fare || 0,
                     estimatedDistance: ride.estimatedDistance || ride.distance || undefined,
                     rideOtp: ride.rideOtp,
                 });
@@ -147,16 +154,13 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
                 return;
             }
 
-            // Default: customer-side ride status endpoint
-            const response = await fetch(`/api/rides/${currentRideId}/status`, {
+            const response = await bookingApi.get(`/bookings/${currentRideId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },
             });
 
-            if (!response.ok) throw new Error('Failed to fetch ride status');
-
-            const data = await response.json();
+            const data = response.data;
 
             if (data.status === 'ACCEPTED') {
                 setAcceptSuccess(true);
@@ -182,26 +186,8 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
     const pollCustomerLocation = useCallback(async () => {
         if (!currentRideId) return;
 
-        try {
-            const response = await fetch(`/api/rides/${currentRideId}/customer-location`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
-            });
-
-            if (!response.ok) throw new Error('Failed to fetch customer location');
-
-            const data = await response.json();
-            setCustomerLocation({
-                customerId: data.customerId,
-                rideId: data.rideId,
-                latitude: data.latitude,
-                longitude: data.longitude,
-                timestamp: Date.now(),
-            });
-        } catch (err) {
-            console.error('Error polling customer location:', err);
-        }
+        // customer-location endpoint is not exposed in current booking microservice API.
+        setCustomerLocation(null);
     }, [currentRideId]);
 
     // On init fetch pending rides once (SSE and polling removed)
@@ -235,20 +221,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         async (rideId: string) => {
             try {
                 setLoading(true);
-                const response = await fetch(`/api/rides/${rideId}/accept`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({
-                        driverId,
-                    }),
-                });
-
-                if (!response.ok) throw new Error('Failed to accept ride');
-
-                await response.json();
+                await bookingApi.post(`/bookings/${rideId}/accept`);
                 setAcceptSuccess(true);
                 setCurrentRideId(rideId);
                 setNewRideRequest(null);
@@ -267,18 +240,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         async (rideId: string) => {
             try {
                 setLoading(true);
-                const response = await fetch(`/api/rides/${rideId}/reject`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({
-                        driverId,
-                    }),
-                });
-
-                if (!response.ok) throw new Error('Failed to reject ride');
+                await bookingApi.post(`/bookings/${rideId}/reject`);
 
                 setNewRideRequest(null);
                 setError(null);
@@ -293,24 +255,13 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
     );
 
     const updateLocation = useCallback(
-        async (rideId: string, latitude: number, longitude: number) => {
+        async (_rideId: string, latitude: number, longitude: number) => {
             try {
-                const response = await fetch('/api/drivers/location/update', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({
-                        driverId,
-                        rideId,
-                        latitude,
-                        longitude,
-                        isOnline: true,
-                    }),
+                await driverApi.patch('/driver-profiles/me/location', {
+                    latitude,
+                    longitude,
+                    isOnline: true,
                 });
-
-                if (!response.ok) throw new Error('Failed to update location');
             } catch (err) {
                 console.error('Error updating driver location:', err);
             }
@@ -322,18 +273,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         async (rideId: string) => {
             try {
                 setLoading(true);
-                const response = await fetch(`/api/rides/${rideId}/arrived`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({
-                        driverId,
-                    }),
-                });
-
-                if (!response.ok) throw new Error('Failed to notify arrival');
+                await bookingApi.patch(`/bookings/${rideId}/status`, { status: 'DRIVER_ARRIVED' });
 
                 setArrivedSuccess(true);
                 setError(null);
@@ -348,22 +288,10 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
     );
 
     const startRide = useCallback(
-        async (rideId: string, otp: string) => {
+        async (rideId: string, _otp: string) => {
             try {
                 setLoading(true);
-                const response = await fetch(`/api/rides/${rideId}/start`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({
-                        driverId,
-                        otp,
-                    }),
-                });
-
-                if (!response.ok) throw new Error('Failed to start ride');
+                await bookingApi.patch(`/bookings/${rideId}/status`, { status: 'IN_PROGRESS' });
 
                 setRideStarted(true);
                 setArrivedSuccess(false);
@@ -382,18 +310,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         async (rideId: string) => {
             try {
                 setLoading(true);
-                const response = await fetch(`/api/rides/${rideId}/complete`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({
-                        driverId,
-                    }),
-                });
-
-                if (!response.ok) throw new Error('Failed to complete ride');
+                await bookingApi.patch(`/bookings/${rideId}/status`, { status: 'COMPLETED' });
 
                 setRideCompleted(true);
                 setAcceptSuccess(false);
@@ -407,26 +324,17 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
                 setLoading(false);
             }
         },
-        [driverId]
+        []
     );
 
     const cancelRide = useCallback(
         async (rideId: string, reason?: string) => {
             try {
                 setLoading(true);
-                const response = await fetch(`/api/rides/${rideId}/cancel`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({
-                        driverId,
-                        reason: reason || 'Driver cancelled',
-                    }),
+                await bookingApi.patch(`/bookings/${rideId}/status`, {
+                    status: 'CANCELLED',
+                    reason: reason || 'Driver cancelled',
                 });
-
-                if (!response.ok) throw new Error('Failed to cancel ride');
 
                 setAcceptSuccess(false);
                 setRideStarted(false);
@@ -439,7 +347,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
                 setLoading(false);
             }
         },
-        [driverId]
+        []
     );
 
     const reset = useCallback(() => {

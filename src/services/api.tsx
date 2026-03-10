@@ -24,7 +24,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000,
+  timeout: 30000,
   withCredentials: true,
 });
 
@@ -34,7 +34,7 @@ export const userApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000,
+  timeout: 30000,
   withCredentials: true,
 });
 
@@ -44,7 +44,7 @@ export const driverApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000,
+  timeout: 30000,
   withCredentials: true,
 });
 
@@ -54,7 +54,7 @@ export const bookingApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000,
+  timeout: 30000,
   withCredentials: true,
 });
 

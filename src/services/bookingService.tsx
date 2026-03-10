@@ -51,6 +51,7 @@ interface CreateBookingData {
   duration: Duration;
   vehicleId?: string;
   driverId?: string;
+  vehicleType?: string;
   paymentMethod?: 'CASH' | 'CARD' | 'UPI' | 'WALLET';
   scheduledAt?: string; // ISO 8601 format
   notes?: string;
@@ -90,7 +91,12 @@ const bookingService = {
    */
   async findNearbyDrivers(latitude: number, longitude: number, vehicleType: string, radius: number = 5) {
     const res = await bookingApi.get('/bookings/nearby-drivers', {
-      params: { latitude, longitude, vehicleType, radius }
+      params: {
+        pickupLat: latitude,
+        pickupLng: longitude,
+        vehicleType,
+        radiusKm: radius,
+      }
     });
     return res.data;
   },
