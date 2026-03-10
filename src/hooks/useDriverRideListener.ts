@@ -64,23 +64,30 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
             // On success mark endpoint available (in case it was unknown)
             pendingRidesAvailable = true;
 
-            const rides = Array.isArray(payload?.rides) ? payload.rides : Array.isArray(payload) ? payload : [];
+            const rides = Array.isArray(payload?.requests)
+                ? payload.requests
+                : Array.isArray(payload?.rides)
+                    ? payload.rides
+                    : Array.isArray(payload)
+                        ? payload
+                        : [];
 
             if (rides.length > 0) {
                 const ride = rides[0];
+                const booking = ride?.booking || {};
                 setNewRideRequest({
-                    rideId: ride.bookingId || ride._id,
-                    bookingId: ride.bookingId || ride._id,
-                    customerId: ride.customerId || ride.userId,
-                    userId: ride.customerId || ride.userId,
+                    rideId: ride.bookingId || booking._id || ride._id,
+                    bookingId: ride.bookingId || booking._id || ride._id,
+                    customerId: ride.customerId || booking.userId,
+                    userId: ride.customerId || booking.userId,
                     customerName: ride.customerName || ride.userInfo?.name || 'Customer',
-                    pickupLocation: ride.pickupLocation || ride.pickupAddress || '',
-                    dropLocation: ride.dropoffLocation || ride.dropoffAddress || '',
-                    pickupLatitude: ride.pickupLatitude || 0,
-                    pickupLongitude: ride.pickupLongitude || 0,
-                    dropoffLatitude: ride.dropoffLatitude || 0,
-                    dropoffLongitude: ride.dropoffLongitude || 0,
-                    estimatedFare: ride.estimatedFare || 0,
+                    pickupLocation: ride.pickupLocation || ride.pickupAddress || booking.origin?.address || '',
+                    dropLocation: ride.dropoffLocation || ride.dropoffAddress || booking.destination?.address || '',
+                    pickupLatitude: ride.pickupLatitude || booking.origin?.coordinates?.lat || 0,
+                    pickupLongitude: ride.pickupLongitude || booking.origin?.coordinates?.lng || 0,
+                    dropoffLatitude: ride.dropoffLatitude || booking.destination?.coordinates?.lat || 0,
+                    dropoffLongitude: ride.dropoffLongitude || booking.destination?.coordinates?.lng || 0,
+                    estimatedFare: ride.estimatedFare || booking.fare || 0,
                     estimatedDistance: ride.estimatedDistance || ride.distance || undefined,
                     rideOtp: ride.rideOtp,
                 });

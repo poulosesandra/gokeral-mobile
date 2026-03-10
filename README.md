@@ -15,6 +15,16 @@ A modern React + TypeScript + Vite frontend for the Gokeral ride-sharing platfor
 - 📊 **Ride History & Ratings** - Track completed rides and rate drivers
 - 🎨 **Responsive UI** - Built with Ant Design and Tailwind CSS
 
+## Integration Notes (2026-03-09)
+
+- Frontend is aligned to Kerides microservices booking contracts.
+- Driver booking screen now combines:
+  - `GET /bookings/driver/my-bookings` (assigned history)
+  - `GET /ride-requests/pending` (actionable pending requests)
+- Notification badge parsing supports object payloads:
+  - `{ count, bookings }` and `{ count, requests }`
+- Booking details normalization uses `origin.address` and `destination.address` when legacy fields are absent.
+
 ---
 
 ## 🧰 Tech Stack

@@ -42,6 +42,7 @@ interface Booking {
   paymentCompleted?: boolean;
   userRating?: number;
   userReview?: string;
+  requestId?: string;
 }
 
 interface DriverBookingsTabProps {
@@ -200,10 +201,47 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
           ? allResp.data
           : [];
 
-      const normalizedBookings = (allBookings || []).map(normalizeDriverBooking);
+      const pendingResp = await bookingApi.get("/ride-requests/pending");
+      const pendingRequests: any[] = Array.isArray(pendingResp.data?.requests)
+        ? pendingResp.data.requests
+        : Array.isArray(pendingResp.data)
+          ? pendingResp.data
+          : [];
+
+      const pendingBookings: Booking[] = pendingRequests
+        .map((req) => {
+          const booking = req?.booking || {};
+          return normalizeDriverBooking({
+            ...booking,
+            _id: booking?._id || req?.bookingId,
+            status: booking?.status || "PENDING",
+            requestId: req?.requestId,
+            estimatedFare: booking?.fare,
+          });
+        })
+        .filter((b) => Boolean(getBookingId(b)));
+
+      const normalizedBookings = [...(allBookings || []).map(normalizeDriverBooking), ...pendingBookings];
+
+      const dedupedById = new Map<string, Booking>();
+      for (const b of normalizedBookings) {
+        const id = getBookingId(b);
+        if (!id) continue;
+
+        const existing = dedupedById.get(id);
+        if (!existing) {
+          dedupedById.set(id, b);
+          continue;
+        }
+
+        // Prefer richer non-pending record if duplicate exists.
+        if ((existing.status || "").toUpperCase() === "PENDING" && (b.status || "").toUpperCase() !== "PENDING") {
+          dedupedById.set(id, b);
+        }
+      }
 
       // Sort newest-first
-      const sorted = [...normalizedBookings].sort((a, b) => {
+      const sorted = [...dedupedById.values()].sort((a, b) => {
         const aDate = new Date(getBookingDateString(a) || 0).getTime();
         const bDate = new Date(getBookingDateString(b) || 0).getTime();
         return bDate - aDate;
