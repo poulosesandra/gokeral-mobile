@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useDriverRideListener } from "../../hooks/useDriverRideListener";
 import { message } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -269,18 +269,26 @@ export const DriverProfile = () => {
   }, [navigate]);
 
   // Watch location query params for ?tab=bookings and ?bookingId=...
+  const urlParamHandledRef = useRef<string | null>(null);
+  
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tabParam = params.get("tab");
     const bookingIdParam = params.get("bookingId");
+    
     if (tabParam === "bookings") {
       setActiveTab("bookings");
     }
-    if (bookingIdParam) {
+    
+    // Skip if we've already handled this bookingId
+    if (bookingIdParam && urlParamHandledRef.current !== bookingIdParam) {
+      urlParamHandledRef.current = bookingIdParam;
       setActiveTab("bookings");
       setOpenBookingId(bookingIdParam);
+      // Clear URL params to prevent re-triggering on refresh
+      navigate(location.pathname, { replace: true });
     }
-  }, [location.search]);
+  }, [location.search, navigate]);
 
   useEffect(() => {
     const handleResize = () => {

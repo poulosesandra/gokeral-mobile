@@ -64,10 +64,37 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
   const manualToggleRef = useRef(false);
   const locationRequestRef = useRef(false);
 
-  // Debug states
-  const [lastFetchStatus, setLastFetchStatus] = useState<number | null>(null);
-  const [lastFetchDataSnippet, setLastFetchDataSnippet] = useState<string | null>(null);
-  const [lastFetchTime, setLastFetchTime] = useState<string | null>(null);
+  const [lastOtpError, setLastOtpError] = useState<string | null>(null);
+
+  const extractApiErrorMessage = (err: unknown, fallback: string): string => {
+    const obj = err as Record<string, unknown>;
+    const response = obj?.response as Record<string, unknown> | undefined;
+    const data = response?.data as Record<string, unknown> | string | undefined;
+
+    if (typeof data === 'string' && data.trim()) {
+      return data;
+    }
+
+    if (data && typeof data === 'object') {
+      const messageField = data.message;
+      if (Array.isArray(messageField)) {
+        const joined = messageField.map((m) => String(m)).join(', ').trim();
+        if (joined) return joined;
+      }
+      if (typeof messageField === 'string' && messageField.trim()) {
+        return messageField;
+      }
+      if (typeof data.error === 'string' && data.error.trim()) {
+        return data.error;
+      }
+    }
+
+    if (typeof obj?.message === 'string' && obj.message.trim()) {
+      return obj.message;
+    }
+
+    return fallback;
+  };
 
   const handleShareLocation = async () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -137,10 +164,6 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       const url = role === "DRIVER" ? "/bookings/driver/my-bookings" : "/bookings/my-bookings";
       const res = await bookingApi.get(url);
       const data = res.data;
-      setLastFetchStatus(res.status);
-      setLastFetchTime(new Date().toLocaleTimeString());
-      setLastFetchDataSnippet(data ? JSON.stringify(data).slice(0, 500) + (JSON.stringify(data).length > 500 ? "…" : "") : String(data));
-      console.debug("[DriverHome] fetchCurrent", { url, status: res.status, data });
 
       if (res.status === 200) {
         const bookings = Array.isArray(data?.bookings) ? data.bookings : Array.isArray(data) ? data : [];
@@ -150,8 +173,10 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         if (booking) {
           if (booking.status) booking.status = String(booking.status).toUpperCase();
           setActiveBooking(booking);
-          if (role === "DRIVER" && ["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"].includes(booking.status ?? '')) {
+          if (role === "DRIVER" && ["ACCEPTED", "DRIVER_ARRIVED"].includes(booking.status ?? '')) {
             setShowOtpPanel(true);
+          } else if (role === 'DRIVER' && booking.status === 'IN_PROGRESS' && !manualToggleRef.current) {
+            setShowOtpPanel(false);
           }
           if (role === "USER" && booking.status === "ACCEPTED") {
             setShowOtpPanel(true);
@@ -169,7 +194,6 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       }
     } catch (err: unknown) {
       console.error("[DriverHome] Failed to fetch current booking", err);
-      setLastFetchDataSnippet(String(err).slice(0, 500));
     }
   }, [role, extractBookingFromResponse]);
 
@@ -242,11 +266,10 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         if (booking) {
           if (booking.status) booking.status = String(booking.status).toUpperCase();
           setActiveBooking(booking);
-          setLastFetchStatus(200);
-          setLastFetchTime(new Date().toLocaleTimeString());
-          setLastFetchDataSnippet(JSON.stringify(payload).slice(0, 500) + (JSON.stringify(payload).length > 500 ? '…' : ''));
-          if (["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"].includes(booking.status ?? '')) {
+          if (["ACCEPTED", "DRIVER_ARRIVED"].includes(booking.status ?? '')) {
             setShowOtpPanel(true);
+          } else if (booking.status === 'IN_PROGRESS' && !manualToggleRef.current) {
+            setShowOtpPanel(false);
           }
         } else {
           setActiveBooking(null);
@@ -354,6 +377,12 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         return String(ride ?? '') === String(otpToFind);
       }) as ActiveBooking | undefined;
 
+      const fallbackActive = combined.find((b) => {
+        const o = b as Record<string, unknown>;
+        const status = String(o['status'] ?? '').toUpperCase();
+        return ['ACCEPTED', 'DRIVER_ARRIVED', 'IN_PROGRESS'].includes(status);
+      }) as ActiveBooking | undefined;
+
       if (found) {
         if (found.status) found.status = String(found.status).toUpperCase();
         setActiveBooking(found);
@@ -361,6 +390,13 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         manualToggleRef.current = true; // keep OTP panel open
         if (!options?.silent) message.success('Booking connected — click "Start Ride" to confirm arrival and begin the trip');
         return found;
+      } else if (fallbackActive) {
+        if (fallbackActive.status) fallbackActive.status = String(fallbackActive.status).toUpperCase();
+        setActiveBooking(fallbackActive);
+        setShowOtpPanel(true);
+        manualToggleRef.current = true;
+        if (!options?.silent) message.info('Connected to your active booking. Click "Start Ride" to verify OTP.');
+        return fallbackActive;
       } else {
         if (!options?.silent) message.error('No booking found for this OTP. Ask the passenger to confirm the number and try again.');
         return null;
@@ -402,9 +438,6 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     try {
       const res = await bookingApi.patch(`/bookings/${bookingIdToUse}/status`, { status: 'DRIVER_ARRIVED' });
       const data = res.data;
-      setLastFetchStatus(res.status);
-      setLastFetchTime(new Date().toLocaleTimeString());
-      setLastFetchDataSnippet(JSON.stringify(data).slice(0, 500) + (JSON.stringify(data).length > 500 ? "…" : ""));
 
       const booking = extractBookingFromResponse(data) || data;
       if (booking) {
@@ -432,88 +465,100 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       return;
     }
 
-    // Ensure we have an id to use (try silent find if needed)
-    let bookingIdToUse = activeBooking?._id || activeBooking?.id || activeBooking?.bookingId || activeBooking?.rideId;
-    if (!bookingIdToUse) {
-      const found = await findBookingByOtp(otp, { silent: true });
-      bookingIdToUse = found?._id || found?.id || found?.bookingId || found?.rideId;
-      if (!bookingIdToUse) {
-        setShowOtpPanel(true); // keep panel open silently
-        return;
-      }
-    }
-
     if (startingRide) return;
+    setLastOtpError(null);
     setStartingRide(true);
 
     try {
-      // Auto-mark arrival if booking is still ACCEPTED
-      if (activeBooking?.status === 'ACCEPTED') {
-        try {
-          const arrivedRes = await bookingApi.patch(`/bookings/${bookingIdToUse}/status`, { status: 'DRIVER_ARRIVED' });
-          const arrivedBooking = extractBookingFromResponse(arrivedRes.data) || arrivedRes.data;
-          if (arrivedBooking) {
-            if (arrivedBooking.status) arrivedBooking.status = String(arrivedBooking.status).toUpperCase();
-            setActiveBooking(arrivedBooking);
-            window.dispatchEvent(new CustomEvent("booking:updated", { detail: { bookingId: bookingIdToUse, status: arrivedBooking.status } }));
-          } else {
-            await fetchCurrent();
-          }
-          message.success('Arrival confirmed.');
-        } catch (err: unknown) {
-          const errObj = err as Record<string, unknown>;
-          const errMsg = ((errObj?.response as Record<string, unknown>)?.data as Record<string, unknown>)?.message || (errObj as Record<string, unknown>)?.message || 'Failed to mark arrival';
-          message.error(String(errMsg));
-          setStartingRide(false);
-          return;
-        }
-      }
-
       if (activeBooking?.status === 'IN_PROGRESS') {
         message.info('Ride already in progress.');
         setStartingRide(false);
         return;
       }
 
-      const bookingId = bookingIdToUse;
-      if (!bookingId) {
-        message.warning('No booking connected');
-        setStartingRide(false);
+      // Prefer connected booking; fallback to all active bookings for this driver.
+      const candidates: ActiveBooking[] = [];
+      if (activeBooking) {
+        candidates.push(activeBooking);
+      } else {
+        const res = await bookingApi.get('/bookings/driver/my-bookings');
+        const payload = res.data;
+        const bookings = Array.isArray(payload?.bookings)
+          ? payload.bookings
+          : Array.isArray(payload)
+            ? payload
+            : [];
+
+        for (const b of bookings) {
+          const extracted = extractBookingFromResponse(b);
+          if (!extracted) continue;
+          const status = String(extracted.status || '').toUpperCase();
+          if (['ACCEPTED', 'DRIVER_ARRIVED', 'IN_PROGRESS'].includes(status)) {
+            candidates.push({ ...extracted, status });
+          }
+        }
+      }
+
+      if (!candidates.length) {
+        const warn = 'No active booking found for this driver. Accept a ride first.';
+        setLastOtpError(warn);
+        message.warning(warn);
+        setShowOtpPanel(true);
         return;
       }
-      await bookingApi.patch(`/bookings/${bookingId}/status`, { status: 'IN_PROGRESS' });
-      const res = await bookingApi.post(`/bookings/${bookingId}/verify-otp`, { otp });
-      const data = res.data;
-      if (res.status === 200) {
-        message.success('Ride started successfully');
-        const bookingFromResponse = extractBookingFromResponse(data?.booking ?? data) || activeBooking;
-        setActiveBooking((prev) => (prev ? { ...prev, status: 'IN_PROGRESS' } : prev));
-        setOtp('');
-        setShowOtpPanel(false);
-        manualToggleRef.current = false;
-        await fetchCurrent();
 
-        const origin =
-          bookingFromResponse?.pickupDetails && bookingFromResponse.pickupDetails.latitude && bookingFromResponse.pickupDetails.longitude
-            ? { lat: Number(bookingFromResponse.pickupDetails.latitude), lng: Number(bookingFromResponse.pickupDetails.longitude) }
-            : bookingFromResponse?.pickupLocation || null;
+      let started = false;
+      let lastErrorMessage = 'Invalid OTP or no eligible booking found.';
 
-        const destination =
-          bookingFromResponse?.dropDetails && bookingFromResponse.dropDetails.latitude && bookingFromResponse.dropDetails.longitude
-            ? { lat: Number(bookingFromResponse.dropDetails.latitude), lng: Number(bookingFromResponse.dropDetails.longitude) }
-            : bookingFromResponse?.dropoffLocation || null;
+      for (const candidate of candidates) {
+        const bookingId = candidate?._id || candidate?.id || candidate?.bookingId || candidate?.rideId;
+        if (!bookingId) continue;
 
-        if (origin && destination) {
-          await computeAndShowRoute(origin as google.maps.LatLngLiteral, destination as google.maps.LatLngLiteral);
-        } else {
-          console.warn("Insufficient pickup/drop info to compute route");
+        try {
+          const res = await bookingApi.post(`/bookings/${bookingId}/verify-otp`, { otp });
+          const data = res.data;
+          const bookingFromResponse = extractBookingFromResponse(data?.booking ?? data) || candidate;
+
+          if (bookingFromResponse) {
+            setActiveBooking({ ...bookingFromResponse, status: 'IN_PROGRESS' });
+          }
+
+          message.success('Ride started successfully');
+          setOtp('');
+          setShowOtpPanel(false);
+          manualToggleRef.current = false;
+          await fetchCurrent();
+
+          const origin =
+            bookingFromResponse?.pickupDetails && bookingFromResponse.pickupDetails.latitude && bookingFromResponse.pickupDetails.longitude
+              ? { lat: Number(bookingFromResponse.pickupDetails.latitude), lng: Number(bookingFromResponse.pickupDetails.longitude) }
+              : bookingFromResponse?.pickupLocation || null;
+
+          const destination =
+            bookingFromResponse?.dropDetails && bookingFromResponse.dropDetails.latitude && bookingFromResponse.dropDetails.longitude
+              ? { lat: Number(bookingFromResponse.dropDetails.latitude), lng: Number(bookingFromResponse.dropDetails.longitude) }
+              : bookingFromResponse?.dropoffLocation || null;
+
+          if (origin && destination) {
+            await computeAndShowRoute(origin as google.maps.LatLngLiteral, destination as google.maps.LatLngLiteral);
+          }
+
+          started = true;
+          break;
+        } catch (err: unknown) {
+          lastErrorMessage = extractApiErrorMessage(err, 'Failed to verify OTP');
         }
-      } else {
-        message.error(data?.message || 'Invalid OTP');
+      }
+
+      if (!started) {
+        setLastOtpError(lastErrorMessage);
+        message.error(lastErrorMessage);
       }
     } catch (err: unknown) {
       console.error('[DriverHome] verify OTP failed', err);
-      message.error(String(err ?? 'Failed to verify OTP'));
+      const msg = extractApiErrorMessage(err, 'Failed to verify OTP');
+      setLastOtpError(msg);
+      message.error(msg);
     } finally {
       setStartingRide(false);
     }
@@ -620,15 +665,11 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
             </Button>
           </div>
 
-          <div className="mt-3 text-xs text-gray-600">
-            <div><strong>Debug:</strong></div>
-            <div>Last fetch status: {lastFetchStatus ?? "-"}</div>
-            <div>Last fetch time: {lastFetchTime ?? "-"}</div>
-            <div style={{ marginTop: 6, whiteSpace: "pre-wrap", maxHeight: 120, overflow: "auto", background: "#f7f7f7", padding: 8, borderRadius: 6 }}>
-              {lastFetchDataSnippet ?? "No response yet"}
+          {lastOtpError && (
+            <div className="mt-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2">
+              OTP status: {lastOtpError}
             </div>
-            <div className="mt-2 text-xxs text-gray-400">If booking still doesn't show, click <em>Refresh Now</em> and paste the debug text here.</div>
-          </div>
+          )}
         </Card>
       )}
 

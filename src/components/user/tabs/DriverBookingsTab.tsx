@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FC } from "react";
+import { useEffect, useState, useRef, type FC } from "react";
 import { Card, Empty, Tag, Spin, Button, Modal, message, Space } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, ReloadOutlined } from "@ant-design/icons";
 import { bookingApi } from "../../../services/api";
@@ -157,18 +157,22 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const handledOpenBookingIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchBookings();
   }, []);
 
+  // Pause auto-refresh when modal is open
   useEffect(() => {
+    if (detailsModalOpen) return;
+    
     const intervalId = window.setInterval(() => {
       void fetchBookings();
     }, 12000);
 
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [detailsModalOpen]);
 
   useEffect(() => {
     const onBookingUpdated = () => {
@@ -348,7 +352,12 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
 
   // Open booking details when parent supplies `openBookingId`
   useEffect(() => {
-    if (!openBookingId) return;
+    // Skip if no openBookingId or we've already handled this one
+    if (!openBookingId || handledOpenBookingIdRef.current === openBookingId) return;
+    
+    // Mark as handled immediately to prevent re-triggers
+    handledOpenBookingIdRef.current = openBookingId;
+    
     const open = async () => {
       // Try find in current list
       let found = bookings.find((b) => getBookingId(b) === openBookingId);
@@ -369,7 +378,8 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       onOpenHandled?.();
     };
     open();
-  }, [openBookingId, bookings, onOpenHandled]);
+    // Note: bookings is not in deps intentionally - we fetch from API if not found locally
+  }, [openBookingId, onOpenHandled]);
 
   return (
     <div className="w-full space-y-4">
