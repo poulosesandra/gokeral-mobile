@@ -97,7 +97,9 @@ const responseErrorInterceptor = (error: any) => {
   const isProfileEndpoint = error.config?.url?.includes('/profiles/') ||
                            error.config?.url?.includes('/driver-profiles/') ||
                            error.config?.url?.includes('/bookings') ||
-                           error.config?.url?.includes('/vehicles');
+                           error.config?.url?.includes('/ride-requests') ||
+                           error.config?.url?.includes('/vehicles') ||
+                           error.config?.url?.includes('/notifications');
   
   if (error.response?.status === 401 && !isAuthEndpoint && !isProfileEndpoint) {
     console.warn('⚠️ [UNAUTHORIZED] Clearing localStorage and redirecting');

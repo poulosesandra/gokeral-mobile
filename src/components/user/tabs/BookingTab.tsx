@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, CopyOutlined, ReloadOutlined } from "@ant-design/icons";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import bookingService from "../../../services/bookingService";
 
 // NOTE: Replacing utility imports with hardcoded mapping as requested
@@ -120,18 +120,23 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
   const [ratingLoading, setRatingLoading] = useState(false);
 
   const location = useLocation();
+  const navigate = useNavigate();
+  const urlParamHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
     void fetchBookings();
   }, []);
 
+  // Pause auto-refresh when modal is open to prevent disruptive updates
   useEffect(() => {
+    if (detailsModalOpen) return; // Don't poll while modal is showing
+    
     const intervalId = window.setInterval(() => {
       void fetchBookings();
     }, 12000);
 
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [detailsModalOpen]);
 
   useEffect(() => {
     const onBookingUpdated = () => {
@@ -141,11 +146,20 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
     return () => window.removeEventListener("booking:updated", onBookingUpdated);
   }, []);
 
+  // Track which booking we opened via event to prevent duplicate opens
+  const openedViaEventRef = useRef<string | null>(null);
+
   // --- New: listen for open-booking so "Open" in Notifications works for users ---
   useEffect(() => {
     const onOpenBooking = async (ev: Event) => {
       const bookingId = (ev as CustomEvent)?.detail?.bookingId;
       if (!bookingId) return;
+      
+      // Prevent duplicate opens for the same booking
+      if (openedViaEventRef.current === bookingId && detailsModalOpen) {
+        return;
+      }
+      openedViaEventRef.current = bookingId;
 
       // Try find in current list
       let found = bookings.find(
@@ -173,39 +187,48 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
 
     window.addEventListener("open-booking", onOpenBooking as EventListener);
     return () => window.removeEventListener("open-booking", onOpenBooking as EventListener);
-  }, [bookings]);
+  }, [bookings, detailsModalOpen]);
 
   // --- New: check URL query (fallback) so modal opens after navigation from anywhere (e.g., Home) ---
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const bookingId = params.get("bookingId");
     const tab = params.get("tab");
-    if (tab === "bookings" && bookingId) {
-      (async () => {
-        // Try find locally first
-        let found = bookings.find(
-          (b) => String(b._id) === String(bookingId) || String(b.id) === String(bookingId)
-        );
-        if (!found) {
-          try {
-            const res = await bookingService.getBookingById(bookingId);
-            found = (res.booking || res) as Booking;
-          } catch (err) {
-            console.error("Failed to fetch booking from URL param:", err);
-            message.error("Failed to fetch booking details");
-            return;
-          }
-        }
-        if (found) {
-          setSelectedBooking(found);
-          setDetailsModalOpen(true);
-        } else {
-          message.error("Booking not found");
-        }
-      })();
+    
+    // Skip if no bookingId param OR we've already handled this specific bookingId
+    if (!bookingId || tab !== "bookings" || urlParamHandledRef.current === bookingId) {
+      return;
     }
-    // Run whenever location.search changes
-  }, [location.search, bookings]);
+    
+    // Mark this bookingId as handled to prevent re-triggering
+    urlParamHandledRef.current = bookingId;
+    
+    (async () => {
+      // Try find locally first
+      let found = bookings.find(
+        (b) => String(b._id) === String(bookingId) || String(b.id) === String(bookingId)
+      );
+      if (!found) {
+        try {
+          const res = await bookingService.getBookingById(bookingId);
+          found = (res.booking || res) as Booking;
+        } catch (err) {
+          console.error("Failed to fetch booking from URL param:", err);
+          message.error("Failed to fetch booking details");
+          return;
+        }
+      }
+      if (found) {
+        setSelectedBooking(found);
+        setDetailsModalOpen(true);
+        // Clear URL params to prevent re-triggering on refresh
+        navigate(location.pathname, { replace: true });
+      } else {
+        message.error("Booking not found");
+      }
+    })();
+    // Only react to location.search changes, not bookings updates
+  }, [location.search, navigate]);
 
   const fetchBookings = async () => {
     try {
@@ -512,9 +535,9 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
             </div>
           }
           open={detailsModalOpen}
-          onCancel={() => setDetailsModalOpen(false)}
+          onCancel={() => { setDetailsModalOpen(false); openedViaEventRef.current = null; }}
           footer={[
-            <Button key="close" onClick={() => setDetailsModalOpen(false)}>Close</Button>,
+            <Button key="close" onClick={() => { setDetailsModalOpen(false); openedViaEventRef.current = null; }}>Close</Button>,
             selectedBooking.status === "PENDING" && (
               <Button key="cancel" danger onClick={() => {
                 Modal.confirm({
@@ -522,7 +545,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                   content: "Are you sure you want to cancel this booking?",
                   okText: "Yes",
                   cancelText: "No",
-                  onOk() { handleCancelBooking(selectedBooking._id!); setDetailsModalOpen(false); }
+                  onOk() { handleCancelBooking(selectedBooking._id!); setDetailsModalOpen(false); openedViaEventRef.current = null; }
                 });
               }}>Cancel Booking</Button>
             ),

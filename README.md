@@ -25,6 +25,54 @@ A modern React + TypeScript + Vite frontend for the Gokeral ride-sharing platfor
   - `{ count, bookings }` and `{ count, requests }`
 - Booking details normalization uses `origin.address` and `destination.address` when legacy fields are absent.
 
+## Milestone Update (2026-03-11)
+
+### Completed Ride Start OTP Workflow
+
+- Driver receives ride request email and can accept from app.
+- On driver acceptance, booking-service generates OTP and emails passenger.
+- Driver marks arrival (`DRIVER_ARRIVED`) and asks passenger for OTP.
+- Driver submits OTP in app to start ride (`IN_PROGRESS`).
+- Ride completion is now a dedicated action after trip end.
+
+### Frontend Behavior (Current)
+
+- `Start Ride` no longer pre-sets booking status before OTP verification.
+- OTP verification always calls `POST /bookings/:bookingId/verify-otp` first.
+- Driver OTP panel auto-opens for `ACCEPTED` and `DRIVER_ARRIVED` states.
+- JSON debug dump was removed from driver OTP panel UI for cleaner UX.
+- Transient 401 errors from ride data endpoints no longer force logout globally.
+
+### Mobile Handover Contract (React Native)
+
+Use these endpoints for driver start-flow integration:
+
+| Step | Endpoint | Method | Role |
+|------|----------|--------|------|
+| List active bookings | `/bookings/driver/my-bookings` | GET | DRIVER |
+| List pending requests | `/ride-requests/pending` | GET | DRIVER |
+| Accept booking | `/bookings/:bookingId/accept` | POST | DRIVER |
+| Mark arrived | `/bookings/:bookingId/driver-arrived` | POST | DRIVER |
+| Verify OTP + start | `/bookings/:bookingId/verify-otp` | POST | DRIVER |
+| Complete ride | `/bookings/:bookingId/complete` | POST | DRIVER |
+
+OTP request payload:
+
+```json
+{
+  "otp": "6358"
+}
+```
+
+Success response (shape may vary by service version, but status must become `IN_PROGRESS`):
+
+```json
+{
+  "message": "Ride started successfully!",
+  "status": "IN_PROGRESS"
+}
+```
+
 ---
 
 ## 🧰 Tech Stack
@@ -207,7 +255,7 @@ POST /bookings/:id/accept
 
 ### 4. Arrive at Pickup
 ```
-PATCH /bookings/:id/arrived
+POST /bookings/:bookingId/driver-arrived
 ```
 - Marks driver as arrived
 - Notifies customer
@@ -215,13 +263,19 @@ PATCH /bookings/:id/arrived
 
 ### 5. Verify OTP & Start Ride
 ```
-POST /bookings/:id/verify-otp
+POST /bookings/:bookingId/verify-otp
 ```
-- Customer shares 4-digit OTP with driver
-- Reveals drop location to driver
-- Starts ride tracking
+- Passenger shares 4-digit OTP with driver
+- Ride starts and status moves to `IN_PROGRESS`
+- Driver app starts route tracking
 
-### 6. Complete & Rate
+### 6. Complete Ride
+```
+POST /bookings/:bookingId/complete
+```
+- Driver completes ride after reaching destination
+
+### 7. Complete & Rate
 - Driver marks ride complete
 - User rates driver (1-5 stars)
 - Ride history updated
