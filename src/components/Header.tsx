@@ -1,7 +1,7 @@
 "use client";
 
 import { Avatar, Button, Dropdown, Modal, List, Typography } from "antd";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { BellOutlined, UserOutlined, LogoutOutlined, DownOutlined, LeftOutlined, MenuOutlined } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
 import type { MenuProps } from "antd";
@@ -150,7 +150,7 @@ export const Header = ({
       setNotifModalVisible(true);
       
       // Mark all as viewed when user opens notification modal
-      const ids = items.map(item => item.id).filter(Boolean);
+      const ids = items.map((item: { id: string }) => item.id).filter(Boolean);
       if (ids.length > 0) {
         addViewedNotifIds(ids);
       }
