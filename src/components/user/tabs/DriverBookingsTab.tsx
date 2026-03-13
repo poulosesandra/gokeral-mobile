@@ -197,20 +197,33 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
     try {
       setLoading(true);
 
-      // Fetch ALL bookings for this driver.
-      const allResp = await bookingApi.get("/bookings/driver/my-bookings");
-      const allBookings: Booking[] = Array.isArray(allResp.data?.bookings)
-        ? allResp.data.bookings
-        : Array.isArray(allResp.data)
-          ? allResp.data
+      // Fetch in parallel and tolerate partial failure so one endpoint does not blank the whole tab.
+      const [allRespResult, pendingRespResult] = await Promise.allSettled([
+        bookingApi.get("/bookings/driver/my-bookings"),
+        bookingApi.get("/ride-requests/pending"),
+      ]);
+
+      const allBookings: Booking[] =
+        allRespResult.status === "fulfilled"
+          ? Array.isArray(allRespResult.value.data?.bookings)
+            ? allRespResult.value.data.bookings
+            : Array.isArray(allRespResult.value.data)
+              ? allRespResult.value.data
+              : []
           : [];
 
-      const pendingResp = await bookingApi.get("/ride-requests/pending");
-      const pendingRequests: any[] = Array.isArray(pendingResp.data?.requests)
-        ? pendingResp.data.requests
-        : Array.isArray(pendingResp.data)
-          ? pendingResp.data
+      const pendingRequests: any[] =
+        pendingRespResult.status === "fulfilled"
+          ? Array.isArray(pendingRespResult.value.data?.requests)
+            ? pendingRespResult.value.data.requests
+            : Array.isArray(pendingRespResult.value.data)
+              ? pendingRespResult.value.data
+              : []
           : [];
+
+      if (allRespResult.status === "rejected" && pendingRespResult.status === "rejected") {
+        throw allRespResult.reason || pendingRespResult.reason;
+      }
 
       const pendingBookings: Booking[] = pendingRequests
         .map((req) => {
@@ -252,6 +265,11 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       });
 
       setBookings(sorted);
+
+      if (allRespResult.status === "rejected" || pendingRespResult.status === "rejected") {
+        message.warning("Some booking data could not be loaded. Showing available results.");
+      }
+
       return true;
     } catch (error: any) {
       setBookings([]);
