@@ -2,6 +2,45 @@ import axios from 'axios';
 
 let authToken: string | null = null;
 
+const resolveServiceBaseUrl = (envUrl: string | undefined, devFallback: string, serviceName: string): string => {
+  if (envUrl && String(envUrl).trim()) {
+    return String(envUrl).trim();
+  }
+
+  if (import.meta.env.DEV) {
+    return devFallback;
+  }
+
+  console.error(
+    `[CONFIG] Missing ${serviceName} URL in production build. Please set VITE_*_SERVICE_URL before building.`,
+  );
+  return '';
+};
+
+const AUTH_SERVICE_BASE_URL = resolveServiceBaseUrl(
+  import.meta.env.VITE_AUTH_SERVICE_URL,
+  'http://localhost:3001',
+  'VITE_AUTH_SERVICE_URL',
+);
+
+const USER_SERVICE_BASE_URL = resolveServiceBaseUrl(
+  import.meta.env.VITE_USER_SERVICE_URL,
+  'http://localhost:3002',
+  'VITE_USER_SERVICE_URL',
+);
+
+const DRIVER_SERVICE_BASE_URL = resolveServiceBaseUrl(
+  import.meta.env.VITE_DRIVER_SERVICE_URL,
+  'http://localhost:3003',
+  'VITE_DRIVER_SERVICE_URL',
+);
+
+const BOOKING_SERVICE_BASE_URL = resolveServiceBaseUrl(
+  import.meta.env.VITE_BOOKING_SERVICE_URL,
+  'http://localhost:3004',
+  'VITE_BOOKING_SERVICE_URL',
+);
+
 export function setAuthToken(token: string | null) {
   authToken = token;
 
@@ -20,7 +59,7 @@ export function setAuthToken(token: string | null) {
 
 // Auth Service API (Port 3001)
 const api = axios.create({
-  baseURL: import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:3001',
+  baseURL: AUTH_SERVICE_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -30,7 +69,7 @@ const api = axios.create({
 
 // User Service API (Port 3002)
 export const userApi = axios.create({
-  baseURL: import.meta.env.VITE_USER_SERVICE_URL || 'http://localhost:3002',
+  baseURL: USER_SERVICE_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -40,7 +79,7 @@ export const userApi = axios.create({
 
 // Driver Service API (Port 3003)
 export const driverApi = axios.create({
-  baseURL: import.meta.env.VITE_DRIVER_SERVICE_URL || 'http://localhost:3003',
+  baseURL: DRIVER_SERVICE_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -50,7 +89,7 @@ export const driverApi = axios.create({
 
 // Booking Service API (Port 3004) - Sprint 2
 export const bookingApi = axios.create({
-  baseURL: import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:3004',
+  baseURL: BOOKING_SERVICE_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

@@ -255,7 +255,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       // initial fetch
       fetchCurrent();
 
-      const bookingBase = (import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:3004').replace(/\/$/, '');
+      const bookingBase = (import.meta.env.VITE_BOOKING_SERVICE_URL || (import.meta.env.DEV ? 'http://localhost:3004' : '')).replace(/\/$/, '');
       const url = `${bookingBase}/ride-requests/stream`;
 
       cleanup = connectSseWithAuth(url, (payload: unknown) => {
