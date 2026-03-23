@@ -219,7 +219,8 @@ const bookingService = {
    */
   createRideRequestStream() {
     const token = localStorage.getItem('token');
-    const url = `${import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:3004'}/ride-requests/stream`;
+    const bookingBase = import.meta.env.VITE_BOOKING_SERVICE_URL || (import.meta.env.DEV ? 'http://localhost:3004' : '');
+    const url = `${bookingBase}/ride-requests/stream`;
     
     // Create EventSource with authentication header (via query param as EventSource doesn't support custom headers)
     const eventSource = new EventSource(`${url}?token=${token}`);
