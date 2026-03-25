@@ -219,6 +219,12 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const getVehicleImagesPayload = () => {
+    const value = (imagePreview || '').trim();
+    if (!value) return undefined;
+    return [value];
+  };
+
   // ⚠️ Document upload not supported in microservices yet (Sprint 2 feature)
   // const uploadAndRegisterDoc = async (
   //   targetId: string,
@@ -250,6 +256,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         registrationNumber: licensePlate,
         type: vehicleType,
         seatingCapacity: parseInt(seats, 10),
+        vehicleImages: getVehicleImagesPayload(),
       };
 
       // Update payload (same structure)
@@ -260,6 +267,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         registrationNumber: licensePlate,
         type: vehicleType,
         seatingCapacity: parseInt(seats, 10),
+        vehicleImages: getVehicleImagesPayload(),
       };
 
       // EDIT FLOW
