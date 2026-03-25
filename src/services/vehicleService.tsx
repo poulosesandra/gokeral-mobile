@@ -11,6 +11,7 @@ export interface VehicleData {
   color?: string;                    // Optional: White, Black, etc.
   insuranceExpiryDate?: string;      // Optional: ISO date
   rcExpiryDate?: string;             // Optional: ISO date
+  vehicleImages?: string[];          // Optional: image URLs or data URIs
 }
 
 export interface Vehicle extends VehicleData {
