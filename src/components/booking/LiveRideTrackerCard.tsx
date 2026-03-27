@@ -1,0 +1,220 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button, Card, Empty, Spin, Tag } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
+import { useJsApiLoader, GoogleMap, MarkerF, Polyline } from '@react-google-maps/api';
+import bookingService from '../../services/bookingService';
+
+const mapLibraries: ("places")[] = ['places'];
+
+type LatLng = { lat: number; lng: number };
+
+interface LiveRideTrackerCardProps {
+  booking: any;
+}
+
+const ACTIVE_STATUSES = new Set(['ACCEPTED', 'DRIVER_ARRIVED', 'IN_PROGRESS']);
+
+const statusColor = (status?: string) => {
+  const normalized = String(status || '').toUpperCase();
+  if (normalized === 'IN_PROGRESS') return 'processing';
+  if (normalized === 'DRIVER_ARRIVED') return 'orange';
+  if (normalized === 'ACCEPTED') return 'cyan';
+  if (normalized === 'COMPLETED') return 'success';
+  if (normalized === 'CANCELLED') return 'error';
+  return 'default';
+};
+
+const getCoords = (input: any): LatLng | null => {
+  const lat = Number(input?.lat);
+  const lng = Number(input?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+};
+
+const LiveRideTrackerCard: React.FC<LiveRideTrackerCardProps> = ({ booking }) => {
+  const bookingId = booking?._id || booking?.id;
+  const initialStatus = String(booking?.status || '').toUpperCase();
+  const isTrackable = ACTIVE_STATUSES.has(initialStatus);
+
+  const pickup = useMemo(
+    () =>
+      getCoords(booking?.origin?.coordinates) ||
+      getCoords({ lat: booking?.pickupDetails?.latitude, lng: booking?.pickupDetails?.longitude }),
+    [booking],
+  );
+
+  const destination = useMemo(
+    () =>
+      getCoords(booking?.destination?.coordinates) ||
+      getCoords({ lat: booking?.dropDetails?.latitude, lng: booking?.dropDetails?.longitude }),
+    [booking],
+  );
+
+  const [rideStatus, setRideStatus] = useState(initialStatus || 'UNKNOWN');
+  const [driverCoords, setDriverCoords] = useState<LatLng | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE',
+    libraries: mapLibraries,
+  });
+
+  useEffect(() => {
+    setRideStatus(initialStatus || 'UNKNOWN');
+  }, [initialStatus]);
+
+  const fetchLocation = async () => {
+    if (!bookingId || !isTrackable) return;
+
+    try {
+      setLoading(true);
+      const response = await bookingService.getRideLocation(String(bookingId));
+
+      const status = String(response?.status || booking?.status || '').toUpperCase();
+      if (status) setRideStatus(status);
+
+      const coords = getCoords(response?.location?.coordinates);
+      setDriverCoords(coords);
+    } catch {
+      setDriverCoords(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchLocation();
+  }, [bookingId, isTrackable, booking?.status]);
+
+  useEffect(() => {
+    if (!bookingId || !isTrackable) return;
+
+    const token = localStorage.getItem('token');
+    const bookingBase = (import.meta.env.VITE_BOOKING_SERVICE_URL || (import.meta.env.DEV ? 'http://localhost:3004' : '')).replace(/\/$/, '');
+    const streamUrl = `${bookingBase}/bookings/${bookingId}/location/stream`;
+    const controller = new AbortController();
+
+    fetch(streamUrl, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok || !res.body) {
+          throw new Error(`Ride location stream failed (${res.status})`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split('\n\n');
+          buffer = events.pop() || '';
+
+          for (const eventChunk of events) {
+            const dataLine = eventChunk
+              .split('\n')
+              .find((line) => line.startsWith('data:'));
+
+            if (!dataLine) continue;
+
+            const payloadText = dataLine.slice(5).trim();
+            if (!payloadText) continue;
+
+            try {
+              const payload = JSON.parse(payloadText);
+              const status = String(payload?.status || booking?.status || '').toUpperCase();
+              if (status) setRideStatus(status);
+
+              const coords = getCoords(payload?.location?.coordinates);
+              if (coords) {
+                setDriverCoords(coords);
+              }
+            } catch {
+              // Ignore malformed SSE events.
+            }
+          }
+        }
+      })
+      .catch(() => {
+        // Fallback remains manual refresh and initial fetch.
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [bookingId, isTrackable, booking?.status]);
+
+  if (!isTrackable) {
+    return null;
+  }
+
+  const center = driverCoords || pickup || destination || { lat: 9.9312, lng: 76.2673 };
+
+  return (
+    <Card size="small" className="bg-gray-50 border border-gray-200">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-gray-700 text-sm font-semibold">Live Ride Tracking</p>
+        <div className="flex items-center gap-2">
+          <Tag color={statusColor(rideStatus)}>{rideStatus || 'UNKNOWN'}</Tag>
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={() => void fetchLocation()}
+            loading={loading}
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {!isLoaded ? (
+        <div className="h-52 flex items-center justify-center">
+          <Spin size="small" />
+        </div>
+      ) : !pickup && !destination ? (
+        <Empty description="Route coordinates unavailable" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      ) : (
+        <div className="h-56 rounded-lg overflow-hidden border border-gray-200">
+          <GoogleMap
+            center={center}
+            zoom={14}
+            mapContainerStyle={{ width: '100%', height: '100%' }}
+            options={{
+              zoomControl: true,
+              streetViewControl: false,
+              mapTypeControl: false,
+              fullscreenControl: false,
+            }}
+          >
+            {pickup && <MarkerF position={pickup} label="P" />}
+            {destination && <MarkerF position={destination} label="D" />}
+            {driverCoords && <MarkerF position={driverCoords} label="🚕" />}
+
+            {pickup && destination && (
+              <Polyline
+                path={[pickup, destination]}
+                options={{
+                  strokeColor: '#60A5FA',
+                  strokeOpacity: 0.8,
+                  strokeWeight: 4,
+                }}
+              />
+            )}
+          </GoogleMap>
+        </div>
+      )}
+
+      <div className="mt-2 text-xs text-gray-500">
+        {loading ? 'Refreshing location…' : driverCoords ? 'Driver location is live.' : 'Waiting for driver location updates.'}
+      </div>
+    </Card>
+  );
+};
+
+export default LiveRideTrackerCard;

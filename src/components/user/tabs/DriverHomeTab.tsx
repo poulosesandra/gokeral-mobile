@@ -57,6 +57,8 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
   // bookingCandidate removed — it was assigned but never read
   const [arriving, setArriving] = useState(false);
   const [startingRide, setStartingRide] = useState(false);
+  const locationWatchIdRef = useRef<number | null>(null);
+  const lastRideLocationPushAtRef = useRef(0);
 
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(-1);
@@ -564,9 +566,71 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     }
   };
 
-  // notify other tabs that booking status changed
-  const updatedId = activeBooking?._id || activeBooking?.id || activeBooking?.bookingId || activeBooking?.rideId;
-  if (updatedId) window.dispatchEvent(new CustomEvent('booking:updated', { detail: { bookingId: updatedId, status: activeBooking?.status } }));
+  useEffect(() => {
+    const updatedId = activeBooking?._id || activeBooking?.id || activeBooking?.bookingId || activeBooking?.rideId;
+    if (!updatedId) return;
+    window.dispatchEvent(
+      new CustomEvent('booking:updated', {
+        detail: { bookingId: updatedId, status: activeBooking?.status },
+      }),
+    );
+  }, [activeBooking?._id, activeBooking?.id, activeBooking?.bookingId, activeBooking?.rideId, activeBooking?.status]);
+
+  useEffect(() => {
+    const bookingId = activeBooking?._id || activeBooking?.id || activeBooking?.bookingId || activeBooking?.rideId;
+    const isInProgress = String(activeBooking?.status || '').toUpperCase() === 'IN_PROGRESS';
+
+    if (role !== 'DRIVER' || !bookingId || !isInProgress || typeof navigator === 'undefined' || !navigator.geolocation) {
+      if (locationWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
+      }
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setDriverLocation({ lat, lng });
+
+        const now = Date.now();
+        if (now - lastRideLocationPushAtRef.current < 3000) {
+          return;
+        }
+        lastRideLocationPushAtRef.current = now;
+
+        try {
+          await bookingApi.post(`/bookings/${bookingId}/location`, {
+            lat,
+            lng,
+            speedKmph: pos.coords.speed != null ? Math.max(0, Number(pos.coords.speed) * 3.6) : undefined,
+            heading: pos.coords.heading != null ? Number(pos.coords.heading) : undefined,
+            accuracyMeters: pos.coords.accuracy != null ? Number(pos.coords.accuracy) : undefined,
+          });
+        } catch (error) {
+          console.warn('[DriverHome] Failed to push live ride location', error);
+        }
+      },
+      (error) => {
+        console.warn('[DriverHome] Location watch failed', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 2000,
+      },
+    );
+
+    locationWatchIdRef.current = watchId;
+
+    return () => {
+      if (locationWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
+      }
+    };
+  }, [role, activeBooking?._id, activeBooking?.id, activeBooking?.bookingId, activeBooking?.rideId, activeBooking?.status]);
 
   return (
     <div className="w-full space-y-6">

@@ -73,6 +73,58 @@ interface VerifyOtpData {
   otp: string;
 }
 
+interface CreatePaymentOrderData {
+  paymentMethod?: 'UPI' | 'CARD' | 'NETBANKING' | 'WALLET' | 'CASH';
+  currency?: string;
+}
+
+interface VerifyPaymentData {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}
+
+interface DriverPayoutData {
+  amount?: number;
+  upiId?: string;
+  note?: string;
+}
+
+interface RideLocationData {
+  lat: number;
+  lng: number;
+  speedKmph?: number;
+  heading?: number;
+  accuracyMeters?: number;
+}
+
+type RazorpaySuccessPayload = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
+type RazorpayWindow = Window & {
+  Razorpay?: new (options: Record<string, unknown>) => {
+    open: () => void;
+  };
+};
+
+const loadRazorpayScript = async (): Promise<boolean> => {
+  const existing = document.querySelector('script[data-razorpay="sdk"]');
+  if (existing) return true;
+
+  return new Promise<boolean>((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.setAttribute('data-razorpay', 'sdk');
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 const bookingService = {
   /**
    * Estimate fare for a trip
@@ -116,8 +168,13 @@ const bookingService = {
    * Endpoint: GET /bookings/my-bookings
    * Auth: Required (USER role)
    */
-  async getUserBookings() {
-    const res = await bookingApi.get('/bookings/my-bookings');
+  async getUserBookings(params?: { page?: number; limit?: number }) {
+    const res = await bookingApi.get('/bookings/my-bookings', {
+      params: {
+        page: params?.page,
+        limit: params?.limit,
+      },
+    });
     return res.data;
   },
 
@@ -126,8 +183,13 @@ const bookingService = {
    * Endpoint: GET /bookings/driver/my-bookings
    * Auth: Required (DRIVER role)
    */
-  async getDriverBookings() {
-    const res = await bookingApi.get('/bookings/driver/my-bookings');
+  async getDriverBookings(params?: { page?: number; limit?: number }) {
+    const res = await bookingApi.get('/bookings/driver/my-bookings', {
+      params: {
+        page: params?.page,
+        limit: params?.limit,
+      },
+    });
     return res.data;
   },
 
@@ -211,6 +273,90 @@ const bookingService = {
     return res.data;
   },
 
+  async createPaymentOrder(bookingId: string, payload: CreatePaymentOrderData) {
+    const res = await bookingApi.post(`/payments/bookings/${bookingId}/order`, payload);
+    return res.data;
+  },
+
+  async verifyPayment(bookingId: string, payload: VerifyPaymentData) {
+    const res = await bookingApi.post(`/payments/bookings/${bookingId}/verify`, payload);
+    return res.data;
+  },
+
+  async confirmCashPayment(bookingId: string) {
+    const res = await bookingApi.post(`/payments/bookings/${bookingId}/cash/confirm`);
+    return res.data;
+  },
+
+  async getPaymentSummary(bookingId: string) {
+    const res = await bookingApi.get(`/payments/bookings/${bookingId}/summary`);
+    return res.data;
+  },
+
+  async getDriverWalletBalance() {
+    const res = await bookingApi.get('/payments/wallets/driver/me');
+    return res.data;
+  },
+
+  async triggerDriverPayout(payload: DriverPayoutData) {
+    const res = await bookingApi.post('/payments/wallets/driver/payout', payload);
+    return res.data;
+  },
+
+  async createRefund(bookingId: string, payload: { amount?: number; reason?: string }) {
+    const res = await bookingApi.post(`/payments/bookings/${bookingId}/refund`, payload);
+    return res.data;
+  },
+
+  async updateRideLocation(bookingId: string, payload: RideLocationData) {
+    const res = await bookingApi.post(`/bookings/${bookingId}/location`, payload);
+    return res.data;
+  },
+
+  async getRideLocation(bookingId: string) {
+    const res = await bookingApi.get(`/bookings/${bookingId}/location`);
+    return res.data;
+  },
+
+  async openRazorpayCheckout(args: {
+    keyId: string;
+    amount: number;
+    currency: string;
+    orderId: string;
+    name?: string;
+    description?: string;
+    prefill?: { name?: string; email?: string; contact?: string };
+    onSuccess: (payload: RazorpaySuccessPayload) => Promise<void> | void;
+    onFailure?: (error: unknown) => void;
+  }) {
+    const scriptLoaded = await loadRazorpayScript();
+    if (!scriptLoaded) {
+      throw new Error('Failed to load Razorpay checkout SDK');
+    }
+
+    const razorpayWindow = window as RazorpayWindow;
+    if (!razorpayWindow.Razorpay) {
+      throw new Error('Razorpay SDK unavailable');
+    }
+
+    const options = {
+      key: args.keyId,
+      amount: args.amount,
+      currency: args.currency,
+      name: args.name || 'Kerides',
+      description: args.description || 'Ride payment',
+      order_id: args.orderId,
+      prefill: args.prefill || {},
+      theme: { color: '#1677ff' },
+      handler: async (response: RazorpaySuccessPayload) => {
+        await args.onSuccess(response);
+      },
+    };
+
+    const checkout = new razorpayWindow.Razorpay(options);
+    checkout.open();
+  },
+
   /**
    * Stream real-time ride requests for driver (SSE)
    * Endpoint: GET /ride-requests/stream
@@ -240,4 +386,13 @@ const bookingService = {
 };
 
 export default bookingService;
-export type { CreateBookingData, EstimateFareData, RateBookingData, VerifyOtpData, Location };
+export type {
+  CreateBookingData,
+  EstimateFareData,
+  RateBookingData,
+  VerifyOtpData,
+  CreatePaymentOrderData,
+  VerifyPaymentData,
+  RideLocationData,
+  Location,
+};
