@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate } from "antd";
+import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate, Pagination } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, CopyOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
 import bookingService from "../../../services/bookingService";
+import LiveRideTrackerCard from "../../booking/LiveRideTrackerCard";
 
 // NOTE: Replacing utility imports with hardcoded mapping as requested
 const mapVehicleType = (t?: string) => {
@@ -111,6 +112,9 @@ const getStatusLabel = (status: string) => {
 export const BookingsTabUser = (_props: BookingsTabProps) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalBookings, setTotalBookings] = useState(0);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -118,33 +122,23 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
   const [ratingLoading, setRatingLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
   const urlParamHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
-    void fetchBookings();
+    void fetchBookings(1, pageSize);
   }, []);
-
-  // Pause auto-refresh when modal is open to prevent disruptive updates
-  useEffect(() => {
-    if (detailsModalOpen) return; // Don't poll while modal is showing
-    
-    const intervalId = window.setInterval(() => {
-      void fetchBookings();
-    }, 12000);
-
-    return () => window.clearInterval(intervalId);
-  }, [detailsModalOpen]);
 
   useEffect(() => {
     const onBookingUpdated = () => {
-      void fetchBookings();
+      void fetchBookings(currentPage, pageSize);
     };
     window.addEventListener("booking:updated", onBookingUpdated);
     return () => window.removeEventListener("booking:updated", onBookingUpdated);
-  }, []);
+  }, [currentPage, pageSize]);
 
   // Track which booking we opened via event to prevent duplicate opens
   const openedViaEventRef = useRef<string | null>(null);
@@ -230,12 +224,15 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
     // Only react to location.search changes, not bookings updates
   }, [location.search, navigate]);
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (page: number = currentPage, limit: number = pageSize) => {
     try {
       setLoading(true);
 
-      const response = await bookingService.getUserBookings();
+      const response = await bookingService.getUserBookings({ page, limit });
       const allBookings = response.bookings || response || [];
+      setTotalBookings(Number(response.total || allBookings.length || 0));
+      setCurrentPage(Number(response.page || page));
+      setPageSize(Number(response.limit || limit));
 
       if (!Array.isArray(allBookings)) {
         console.warn("Response is not an array:", allBookings);
@@ -279,7 +276,8 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       if (error.response?.status === 401) {
         message.error("Unauthorized - please login again");
       } else {
-        message.error(error.response?.data?.message || "Failed to load booking history");
+        const status = error.response?.status ? ` (${error.response.status})` : "";
+        message.error((error.response?.data?.message || error?.message || "Failed to load booking history") + status);
       }
     } finally {
       setLoading(false);
@@ -317,7 +315,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       setRatingModalOpen(false);
       setRating(0);
       setReview("");
-      void fetchBookings(); // Refresh bookings
+      void fetchBookings(currentPage, pageSize); // Refresh bookings
     } catch (error: any) {
       console.error("Error rating booking:", error);
       message.error(error.response?.data?.message || "Failed to submit rating");
@@ -330,10 +328,55 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
     try {
       await bookingService.updateBookingStatus(bookingId, "CANCELLED");
       message.success("Booking cancelled successfully");
-      void fetchBookings(); // Refresh bookings
+      void fetchBookings(currentPage, pageSize); // Refresh bookings
     } catch (error: any) {
       console.error("Error cancelling booking:", error);
       message.error(error.response?.data?.message || "Failed to cancel booking");
+    }
+  };
+
+  const handlePayNow = async (booking: Booking) => {
+    const bookingId = booking._id || booking.id;
+    if (!bookingId) {
+      message.error("Missing booking id");
+      return;
+    }
+
+    try {
+      setPaymentLoading(true);
+
+      const order = await bookingService.createPaymentOrder(bookingId, {
+        paymentMethod: "UPI",
+      });
+
+      if (order?.paymentMode === "WALLET" || order?.paymentMode === "CASH") {
+        message.success(order?.message || "Payment updated");
+        await fetchBookings(currentPage, pageSize);
+        return;
+      }
+
+      await bookingService.openRazorpayCheckout({
+        keyId: order.keyId,
+        amount: order.amount,
+        currency: order.currency || "INR",
+        orderId: order.orderId,
+        name: "Kerides",
+        description: `Ride payment #${bookingId}`,
+        onSuccess: async (response) => {
+          await bookingService.verifyPayment(bookingId, {
+            razorpayOrderId: response.razorpay_order_id,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpaySignature: response.razorpay_signature,
+          });
+          message.success("Payment successful. Ride marked as paid.");
+          await fetchBookings(currentPage, pageSize);
+        },
+      });
+    } catch (error: any) {
+      console.error("Payment failed:", error);
+      message.error(error?.response?.data?.message || error?.message || "Unable to complete payment");
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -354,7 +397,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
         <Card className="shadow-md rounded-lg">
           <div className="text-center">
             <p className="text-gray-600 text-xs md:text-sm mb-2">Total Bookings</p>
-            <p className="text-2xl md:text-3xl font-bold text-blue-600">{bookings.length}</p>
+            <p className="text-2xl md:text-3xl font-bold text-blue-600">{totalBookings}</p>
           </div>
         </Card>
         <Card className="shadow-md rounded-lg">
@@ -416,7 +459,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
             type="default"
             size="small"
             icon={<ReloadOutlined />}
-            onClick={(e) => { e.stopPropagation(); void fetchBookings(); }}
+            onClick={(e) => { e.stopPropagation(); void fetchBookings(currentPage, pageSize); }}
             loading={loading}
           >
             Refresh
@@ -503,6 +546,19 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
             </div>
           )}
         </Spin>
+
+        <div className="mt-4 flex justify-end">
+          <Pagination
+            current={currentPage}
+            pageSize={pageSize}
+            total={totalBookings}
+            showSizeChanger
+            pageSizeOptions={["10", "20", "50"]}
+            onChange={(page, size) => {
+              void fetchBookings(page, size || pageSize);
+            }}
+          />
+        </div>
       </Card>
 
       {/* Details Modal */}
@@ -552,6 +608,17 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
             selectedBooking.status === "COMPLETED" && !selectedBooking.driverRating && (
               <Button key="rate" type="primary" onClick={() => handleRateBooking(selectedBooking)}>Rate Driver</Button>
             ),
+            selectedBooking.status === "COMPLETED" &&
+              String(selectedBooking.paymentStatus || "").toUpperCase() !== "COMPLETED" && (
+                <Button
+                  key="pay-now"
+                  type="primary"
+                  loading={paymentLoading}
+                  onClick={() => void handlePayNow(selectedBooking)}
+                >
+                  Pay Now
+                </Button>
+              ),
           ]}
           width={600}
         >
@@ -598,6 +665,8 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
               </div>
             )}
 
+            <LiveRideTrackerCard booking={selectedBooking} />
+
             {/* Booking Time */}
             <div>
               <p className="text-gray-600 text-sm">Booking Time</p>
@@ -612,6 +681,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                   <p><span className="font-semibold">Estimated: </span>₹{selectedBooking.estimatedFare || 0}</p>
                   <p><span className="font-semibold">Actual: </span>₹{selectedBooking.actualFare || 0}</p>
                   <p><span className="font-semibold">Payment Method: </span>{selectedBooking.paymentMethod || "N/A"}</p>
+                  <p><span className="font-semibold">Payment Status: </span>{selectedBooking.paymentStatus || "PENDING"}</p>
                 </div>
               </div>
             )}

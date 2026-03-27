@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef, type FC } from "react";
-import { Card, Empty, Tag, Spin, Button, Modal, message, Space } from "antd";
+import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Pagination } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, ReloadOutlined } from "@ant-design/icons";
 import { bookingApi } from "../../../services/api";
+import DriverRideNavigatorCard from "../../booking/DriverRideNavigatorCard";
 
 interface Booking {
   _id?: string;
@@ -154,33 +155,29 @@ const getBookingId = (booking: Partial<Booking> | null | undefined): string | un
 export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, onOpenHandled }) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalBookings, setTotalBookings] = useState(0);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [driverCoords, setDriverCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [refreshingLocation, setRefreshingLocation] = useState(false);
+  const locationWatchIdRef = useRef<number | null>(null);
+  const lastRideLocationPushAtRef = useRef(0);
   const handledOpenBookingIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    fetchBookings();
+    void fetchBookings(1, pageSize);
   }, []);
-
-  // Pause auto-refresh when modal is open
-  useEffect(() => {
-    if (detailsModalOpen) return;
-    
-    const intervalId = window.setInterval(() => {
-      void fetchBookings();
-    }, 12000);
-
-    return () => window.clearInterval(intervalId);
-  }, [detailsModalOpen]);
 
   useEffect(() => {
     const onBookingUpdated = () => {
-      void fetchBookings();
+      void fetchBookings(currentPage, pageSize);
     };
     window.addEventListener('booking:updated', onBookingUpdated);
     return () => window.removeEventListener('booking:updated', onBookingUpdated);
-  }, []);
+  }, [currentPage, pageSize]);
 
   const [acceptLoadingMap, setAcceptLoadingMap] = useState<Record<string, boolean>>({});
   const [rejectLoadingMap, setRejectLoadingMap] = useState<Record<string, boolean>>({});
@@ -193,13 +190,18 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
     return booking.bookingTime || booking.createdAt || anyBooking.timestamp;
   };
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (page: number = currentPage, limit: number = pageSize) => {
     try {
       setLoading(true);
 
       // Fetch in parallel and tolerate partial failure so one endpoint does not blank the whole tab.
       const [allRespResult, pendingRespResult] = await Promise.allSettled([
-        bookingApi.get("/bookings/driver/my-bookings"),
+        bookingApi.get("/bookings/driver/my-bookings", {
+          params: {
+            page,
+            limit,
+          },
+        }),
         bookingApi.get("/ride-requests/pending"),
       ]);
 
@@ -211,6 +213,11 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
               ? allRespResult.value.data
               : []
           : [];
+
+      const paginatedTotal =
+        allRespResult.status === "fulfilled"
+          ? Number(allRespResult.value.data?.total || allBookings.length || 0)
+          : 0;
 
       const pendingRequests: any[] =
         pendingRespResult.status === "fulfilled"
@@ -225,7 +232,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
         throw allRespResult.reason || pendingRespResult.reason;
       }
 
-      const pendingBookings: Booking[] = pendingRequests
+      const pendingBookings: Booking[] = (page === 1 ? pendingRequests : [])
         .map((req) => {
           const booking = req?.booking || {};
           return normalizeDriverBooking({
@@ -265,6 +272,9 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       });
 
       setBookings(sorted);
+      setCurrentPage(page);
+      setPageSize(limit);
+      setTotalBookings(paginatedTotal + pendingBookings.length);
 
       if (allRespResult.status === "rejected" || pendingRespResult.status === "rejected") {
         message.warning("Some booking data could not be loaded. Showing available results.");
@@ -276,7 +286,8 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       if (error.response?.status === 401) {
         message.error("Unauthorized - please login again");
       } else {
-        message.error(error.response?.data?.message || "Failed to load booking history");
+        const status = error.response?.status ? ` (${error.response.status})` : "";
+        message.error((error.response?.data?.message || error?.message || "Failed to load booking history") + status);
       }
       return false;
     } finally {
@@ -298,6 +309,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
 
       setBookings((prev) => prev.map((b) => (getBookingId(b) === id ? { ...b, status: "ACCEPTED" } : b)));
       window.dispatchEvent(new Event("booking:updated"));
+      void fetchBookings(currentPage, pageSize);
     } catch (err: any) {
       message.error(err.response?.data?.message || err.message || "Failed to accept ride");
     } finally {
@@ -330,6 +342,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
 
       setBookings((prev) => prev.filter((b) => getBookingId(b) !== id));
       window.dispatchEvent(new Event("booking:updated"));
+      void fetchBookings(currentPage, pageSize);
     } catch (err: any) {
       const status = err?.response?.status;
       if (status >= 500 || !status) {
@@ -356,6 +369,46 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
   const handleViewDetails = (booking: Booking) => {
     setSelectedBooking(booking);
     setDetailsModalOpen(true);
+  };
+
+  const pushLocationOnce = async (bookingId: string) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      message.error("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setRefreshingLocation(true);
+    try {
+      const coords = await new Promise<{ lat: number; lng: number; speedKmph?: number; heading?: number; accuracyMeters?: number }>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            resolve({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              speedKmph: pos.coords.speed != null ? Math.max(0, Number(pos.coords.speed) * 3.6) : undefined,
+              heading: pos.coords.heading != null ? Number(pos.coords.heading) : undefined,
+              accuracyMeters: pos.coords.accuracy != null ? Number(pos.coords.accuracy) : undefined,
+            });
+          },
+          (err) => reject(err),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 },
+        );
+      });
+
+      setDriverCoords({ lat: coords.lat, lng: coords.lng });
+
+      await bookingApi.post(`/bookings/${bookingId}/location`, {
+        lat: coords.lat,
+        lng: coords.lng,
+        speedKmph: coords.speedKmph,
+        heading: coords.heading,
+        accuracyMeters: coords.accuracyMeters,
+      });
+    } catch (error: any) {
+      message.warning(error?.message || "Unable to refresh live location");
+    } finally {
+      setRefreshingLocation(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -399,6 +452,76 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
     // Note: bookings is not in deps intentionally - we fetch from API if not found locally
   }, [openBookingId, onOpenHandled]);
 
+  const activeRideBooking = (() => {
+    const selectedStatus = String(selectedBooking?.status || "").toUpperCase();
+    if (selectedBooking && ["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"].includes(selectedStatus)) {
+      return selectedBooking;
+    }
+    return (
+      bookings.find((b) => {
+        const status = String(b?.status || "").toUpperCase();
+        return ["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"].includes(status);
+      }) || null
+    );
+  })();
+
+  useEffect(() => {
+    const bookingId = getBookingId(activeRideBooking);
+    const status = String(activeRideBooking?.status || "").toUpperCase();
+    const shouldTrack = status === "IN_PROGRESS";
+
+    if (!bookingId || !shouldTrack || typeof navigator === "undefined" || !navigator.geolocation) {
+      if (locationWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
+      }
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setDriverCoords({ lat, lng });
+
+        const now = Date.now();
+        if (now - lastRideLocationPushAtRef.current < 3000) {
+          return;
+        }
+        lastRideLocationPushAtRef.current = now;
+
+        try {
+          await bookingApi.post(`/bookings/${bookingId}/location`, {
+            lat,
+            lng,
+            speedKmph: pos.coords.speed != null ? Math.max(0, Number(pos.coords.speed) * 3.6) : undefined,
+            heading: pos.coords.heading != null ? Number(pos.coords.heading) : undefined,
+            accuracyMeters: pos.coords.accuracy != null ? Number(pos.coords.accuracy) : undefined,
+          });
+        } catch {
+          // Keep navigator alive even if one location write fails.
+        }
+      },
+      () => {
+        // Ignore noisy geolocation errors in background watch.
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 2000,
+      },
+    );
+
+    locationWatchIdRef.current = watchId;
+
+    return () => {
+      if (locationWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
+      }
+    };
+  }, [activeRideBooking?._id, activeRideBooking?.id, activeRideBooking?.rideId, activeRideBooking?.bookingId, activeRideBooking?.status]);
+
   return (
     <div className="w-full space-y-4">
       {/* Stats Cards */}
@@ -435,7 +558,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
       <Card className="shadow-md rounded-2xl">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-semibold text-gray-800">{filterStatus === "all" ? "Booking History" : `${filterStatus} Bookings`}</h3>
-          <Button type="default" size="small" icon={<ReloadOutlined />} onClick={(e) => { e.stopPropagation(); void fetchBookings(); }} loading={loading}>Refresh</Button>
+          <Button type="default" size="small" icon={<ReloadOutlined />} onClick={(e) => { e.stopPropagation(); void fetchBookings(currentPage, pageSize); }} loading={loading}>Refresh</Button>
         </div>
 
         <Spin spinning={loading}>
@@ -513,6 +636,19 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
             </div>
           )}
         </Spin>
+
+        <div className="mt-4 flex justify-end">
+          <Pagination
+            current={currentPage}
+            pageSize={pageSize}
+            total={totalBookings}
+            showSizeChanger
+            pageSizeOptions={["10", "20", "50"]}
+            onChange={(page, size) => {
+              void fetchBookings(page, size || pageSize);
+            }}
+          />
+        </div>
       </Card>
 
       {/* Details Modal */}
@@ -537,6 +673,22 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
               <p className="text-gray-600 text-sm mt-2">Dropoff Location</p>
               <p className="font-semibold">{selectedBooking.dropoffLocation}</p>
             </div>
+
+            {["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"].includes(String(selectedBooking.status || "").toUpperCase()) && (
+              <DriverRideNavigatorCard
+                booking={selectedBooking}
+                driverCoords={driverCoords}
+                refreshing={refreshingLocation}
+                onRefreshLocation={async () => {
+                  const bookingId = getBookingId(selectedBooking);
+                  if (!bookingId) {
+                    message.error("Missing booking id for live navigation");
+                    return;
+                  }
+                  await pushLocationOnce(bookingId);
+                }}
+              />
+            )}
 
             <div>
               <p className="text-gray-600 text-sm">Booking Time</p>
