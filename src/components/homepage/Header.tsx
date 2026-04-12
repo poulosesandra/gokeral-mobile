@@ -1,4 +1,4 @@
-import { Car, Users, Phone } from "lucide-react";
+import { Car, Users, Phone, MonitorPlay } from "lucide-react";
 
 interface HeaderProps {
   isMenuOpen: boolean;
@@ -21,6 +21,7 @@ const Header = ({ isMenuOpen, setIsMenuOpen }: HeaderProps) => {
               )}
             </div>
             <nav className="hidden md:flex space-x-8">
+              <a href="/live-demo" className="text-gray-700 hover:text-green-600 transition-colors font-medium">Live Demo</a>
               <a href="/driver/register" className="text-gray-700 hover:text-green-600 transition-colors font-medium">Drivers</a>
               <a href="/contact" className="text-gray-700 hover:text-green-600 transition-colors font-medium">Contact</a>
               <a href="/about" className="text-gray-700 hover:text-green-600 transition-colors font-medium">About</a>
@@ -76,6 +77,13 @@ const Header = ({ isMenuOpen, setIsMenuOpen }: HeaderProps) => {
             </div>
             {/* Menu links */}
             <div className="flex flex-col gap-2 px-6 py-8 flex-1">
+              <a
+                href="/live-demo"
+                className="flex items-center gap-3 text-lg font-semibold text-gray-800 rounded-xl px-4 py-3.5 hover:bg-green-50 hover:text-green-600 transition-all"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <MonitorPlay className="h-5 w-5 text-green-500" /> Live Demo
+              </a>
               <a
                 href="/driver/register"
                 className="flex items-center gap-3 text-lg font-semibold text-gray-800 rounded-xl px-4 py-3.5 hover:bg-green-50 hover:text-green-600 transition-all"

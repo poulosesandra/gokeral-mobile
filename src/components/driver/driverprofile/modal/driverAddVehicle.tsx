@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Modal } from "antd";
 import { Car, FileImage, AlertCircle, Upload } from "lucide-react";
 import vehicleService from "../../../../services/vehicleService";
+import { authService } from "../../../../services/authServices";
 
 interface AddVehicleModalProps {
   open: boolean;
@@ -219,10 +220,30 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const getVehicleImagesPayload = () => {
-    const value = (imagePreview || '').trim();
-    if (!value) return undefined;
-    return [value];
+  const resolveVehicleImagesPayload = async (): Promise<string[] | undefined> => {
+    // Keep existing URL when no new file is selected.
+    if (!vehicleImage) {
+      const existing = String(imagePreview || "").trim();
+      return existing ? [existing] : undefined;
+    }
+
+    try {
+      // Reuse the presigned upload helper for vehicle image payloads.
+      const uploadedUrl = await authService.uploadDriverFilePresigned(vehicleImage, "profileImage");
+      return uploadedUrl ? [uploadedUrl] : undefined;
+    } catch (presignError) {
+      console.warn("Vehicle image presigned upload failed, falling back to base64", presignError);
+
+      // Fallback preserves previous behavior when presigned upload is temporarily unavailable.
+      const asBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(vehicleImage);
+      });
+
+      return asBase64 ? [asBase64] : undefined;
+    }
   };
 
   // ⚠️ Document upload not supported in microservices yet (Sprint 2 feature)
@@ -248,6 +269,8 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         return;
       }
 
+      const vehicleImages = await resolveVehicleImagesPayload();
+
       // Create payload (match backend CreateVehicleDto)
       const vehiclePayload = {
         make,
@@ -256,7 +279,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         registrationNumber: licensePlate,
         type: vehicleType,
         seatingCapacity: parseInt(seats, 10),
-        vehicleImages: getVehicleImagesPayload(),
+        vehicleImages,
       };
 
       // Update payload (same structure)
@@ -267,7 +290,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
         registrationNumber: licensePlate,
         type: vehicleType,
         seatingCapacity: parseInt(seats, 10),
-        vehicleImages: getVehicleImagesPayload(),
+        vehicleImages,
       };
 
       // EDIT FLOW
@@ -412,7 +435,7 @@ const AddVehiclePage: React.FC<AddVehicleModalProps> = ({
                 value={seats}
                 onChange={(e) => setSeats(e.target.value)}
                 min="1"
-                max="50"
+                max="8"
                 required
               />
               <input

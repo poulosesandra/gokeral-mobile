@@ -4,6 +4,7 @@ import { Card, Button, Empty, Tag, message, Spin, Popconfirm } from "antd";
 import { PlusOutlined, CarOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import vehicleService from "../../../services/vehicleService";
+import { authService } from "../../../services/authServices";
 
 // Hardcoded mapping — replace legacy types with the new set
 const mapVehicleType = (t?: string) => {
@@ -78,6 +79,21 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const openAsset = async (url: string) => {
+    const source = String(url || '').trim();
+    if (!source) {
+      message.warning("File URL is missing");
+      return;
+    }
+
+    try {
+      const viewUrl = await authService.resolveDriverFileViewUrl(source);
+      window.open(viewUrl, "_blank", "noopener,noreferrer");
+    } catch {
+      message.error("Failed to open file");
+    }
+  };
 
   useEffect(() => {
     const fetchVehicles = async () => {
@@ -296,7 +312,12 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
                               <div className="text-sm font-medium text-gray-800">Vehicle Images</div>
                               <div className="grid grid-cols-2 gap-3 mt-2">
                                 {vehicleImages.map((url, idx) => (
-                                  <a key={`${url}-${idx}`} href={url} target="_blank" rel="noreferrer" className="block">
+                                  <button
+                                    key={`${url}-${idx}`}
+                                    type="button"
+                                    onClick={() => openAsset(url)}
+                                    className="block text-left"
+                                  >
                                     <img
                                       src={url}
                                       alt={`Vehicle ${idx + 1}`}
@@ -304,7 +325,7 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
                                       className="w-full h-24 object-cover rounded-md border border-gray-200 bg-gray-50"
                                     />
                                     <div className="text-xs text-gray-600 underline mt-1">Open</div>
-                                  </a>
+                                  </button>
                                 ))}
                               </div>
                             </div>
@@ -323,7 +344,12 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
                                   const showImage = isImageUrl(url);
 
                                   return (
-                                    <a key={key} href={url} target="_blank" rel="noreferrer" className="block">
+                                    <button
+                                      key={key}
+                                      type="button"
+                                      onClick={() => openAsset(url)}
+                                      className="block text-left"
+                                    >
                                       <div className="text-xs font-medium text-gray-800 mb-1">{label}</div>
                                       {showImage ? (
                                         <img
@@ -335,7 +361,7 @@ export const VehiclesTab = ({ onAddVehicle, onEditVehicle, refreshSignal }: Vehi
                                       ) : (
                                         <div className="text-xs text-gray-600 underline break-all">Open</div>
                                       )}
-                                    </a>
+                                    </button>
                                   );
                                 })}
                               </div>

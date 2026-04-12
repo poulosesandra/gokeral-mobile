@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate, Pagination } from "antd";
+import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Rate, Pagination, Alert, Radio, Steps } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, CopyOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
 import bookingService from "../../../services/bookingService";
@@ -40,6 +40,7 @@ interface Booking {
   };
   driverId?: string;
   paymentMethod?: string;
+  paymentStatus?: string;
   paymentCompleted?: boolean;
   driverRating?: number;
   driverReview?: string;
@@ -85,6 +86,8 @@ interface BookingsTabProps {
   loading?: boolean;
 }
 
+type CheckoutMethod = "UPI" | "CARD" | "NETBANKING" | "WALLET" | "CASH";
+
 const getStatusColor = (status: string) => {
   const statusMap: Record<string, string> = {
     PENDING: "blue",
@@ -109,6 +112,34 @@ const getStatusLabel = (status: string) => {
   return labels[status] || status;
 };
 
+const getTripPaymentProgress = (booking: Booking | null) => {
+  const status = String(booking?.status || "").toUpperCase();
+  const paymentStatus = String(booking?.paymentStatus || "").toUpperCase();
+  const paymentCompleted =
+    booking?.paymentCompleted === true ||
+    paymentStatus === "COMPLETED" ||
+    paymentStatus === "PAID" ||
+    paymentStatus === "SUCCESS";
+
+  let current = 0;
+  if (status === "ACCEPTED") current = 1;
+  if (status === "DRIVER_ARRIVED") current = 2;
+  if (status === "IN_PROGRESS") current = 3;
+  if (status === "COMPLETED") current = paymentCompleted ? 5 : 4;
+
+  return {
+    current,
+    items: [
+      { title: "Booked" },
+      { title: "Accepted" },
+      { title: "Arrived" },
+      { title: "In Ride" },
+      { title: "Dropped" },
+      { title: "Paid" },
+    ],
+  };
+};
+
 export const BookingsTabUser = (_props: BookingsTabProps) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +154,10 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
   const [review, setReview] = useState("");
   const [ratingLoading, setRatingLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [recentlyPaidBookingId, setRecentlyPaidBookingId] = useState<string | null>(null);
+  const [paymentMethodModalOpen, setPaymentMethodModalOpen] = useState(false);
+  const [paymentMethodChoice, setPaymentMethodChoice] = useState<CheckoutMethod>("UPI");
+  const [paymentActionBooking, setPaymentActionBooking] = useState<Booking | null>(null);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -335,7 +370,41 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
     }
   };
 
-  const handlePayNow = async (booking: Booking) => {
+  const syncPaymentState = async (bookingId: string) => {
+    try {
+      const summary = await bookingService.getPaymentSummary(bookingId);
+      const status = String(summary?.paymentStatus || summary?.payment?.status || "").toUpperCase();
+      const paid = status === "COMPLETED" || status === "PAID" || status === "CAPTURED" || status === "SUCCESS";
+
+      setSelectedBooking((prev) => {
+        if (!prev) return prev;
+        const prevId = prev._id || prev.id;
+        if (String(prevId) !== String(bookingId)) return prev;
+        return {
+          ...prev,
+          paymentStatus: paid ? "COMPLETED" : (summary?.paymentStatus || prev.paymentStatus),
+          paymentCompleted: paid,
+          paymentMethod: summary?.payment?.method || prev.paymentMethod,
+        };
+      });
+
+      if (paid) {
+        setRecentlyPaidBookingId(bookingId);
+      }
+
+      return paid;
+    } catch {
+      return false;
+    }
+  };
+
+  const requestPayment = (booking: Booking) => {
+    setPaymentActionBooking(booking);
+    setPaymentMethodChoice("UPI");
+    setPaymentMethodModalOpen(true);
+  };
+
+  const handlePayNow = async (booking: Booking, method: CheckoutMethod) => {
     const bookingId = booking._id || booking.id;
     if (!bookingId) {
       message.error("Missing booking id");
@@ -344,13 +413,69 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
 
     try {
       setPaymentLoading(true);
+      setPaymentMethodModalOpen(false);
+
+      const alreadyPaid = await syncPaymentState(bookingId);
+      if (alreadyPaid || isPaymentDone(booking)) {
+        message.success("Payment already completed for this ride.");
+        return;
+      }
 
       const order = await bookingService.createPaymentOrder(bookingId, {
-        paymentMethod: "UPI",
+        paymentMethod: method,
       });
 
-      if (order?.paymentMode === "WALLET" || order?.paymentMode === "CASH") {
+      if (String(order?.status || "").toUpperCase() === "CAPTURED") {
+        setRecentlyPaidBookingId(bookingId);
+        setSelectedBooking((prev) => {
+          if (!prev) return prev;
+          const prevId = prev._id || prev.id;
+          if (String(prevId) !== String(bookingId)) return prev;
+          return {
+            ...prev,
+            paymentStatus: "COMPLETED",
+            paymentCompleted: true,
+          };
+        });
+        message.success(order?.message || "Payment already completed");
+        await fetchBookings(currentPage, pageSize);
+        return;
+      }
+
+      if (order?.paymentMode === "WALLET") {
+        setRecentlyPaidBookingId(bookingId);
+        setSelectedBooking((prev) => {
+          if (!prev) return prev;
+          const prevId = prev._id || prev.id;
+          if (String(prevId) !== String(bookingId)) return prev;
+          return {
+            ...prev,
+            paymentStatus: "COMPLETED",
+            paymentCompleted: true,
+          };
+        });
         message.success(order?.message || "Payment updated");
+        Modal.success({
+          title: "Payment Successful",
+          content: "Your payment has been received successfully.",
+        });
+        await fetchBookings(currentPage, pageSize);
+        return;
+      }
+
+      if (order?.paymentMode === "CASH") {
+        setSelectedBooking((prev) => {
+          if (!prev) return prev;
+          const prevId = prev._id || prev.id;
+          if (String(prevId) !== String(bookingId)) return prev;
+          return {
+            ...prev,
+            paymentStatus: "PENDING",
+            paymentCompleted: false,
+            paymentMethod: "CASH",
+          };
+        });
+        message.info(order?.message || "Cash selected. Payment will complete after driver confirmation.");
         await fetchBookings(currentPage, pageSize);
         return;
       }
@@ -362,13 +487,47 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
         orderId: order.orderId,
         name: "Kerides",
         description: `Ride payment #${bookingId}`,
+        onDismiss: async () => {
+          const paidAfterDismiss = await syncPaymentState(bookingId);
+          if (!paidAfterDismiss) {
+            message.info("Payment window closed. You can retry payment anytime.");
+          }
+        },
+        onFailure: async () => {
+          const paidAfterFailure = await syncPaymentState(bookingId);
+          if (!paidAfterFailure) {
+            message.error("Payment failed. Please retry.");
+          }
+        },
         onSuccess: async (response) => {
-          await bookingService.verifyPayment(bookingId, {
-            razorpayOrderId: response.razorpay_order_id,
-            razorpayPaymentId: response.razorpay_payment_id,
-            razorpaySignature: response.razorpay_signature,
+          try {
+            await bookingService.verifyPayment(bookingId, {
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+          } catch {
+            const paidViaWebhook = await syncPaymentState(bookingId);
+            if (!paidViaWebhook) {
+              throw new Error("Payment verification failed. Please check status and retry.");
+            }
+          }
+          setRecentlyPaidBookingId(bookingId);
+          setSelectedBooking((prev) => {
+            if (!prev) return prev;
+            const prevId = prev._id || prev.id;
+            if (String(prevId) !== String(bookingId)) return prev;
+            return {
+              ...prev,
+              paymentStatus: "COMPLETED",
+              paymentCompleted: true,
+            };
           });
           message.success("Payment successful. Ride marked as paid.");
+          Modal.success({
+            title: "Payment Successful",
+            content: "Your ride payment is complete. Thank you.",
+          });
           await fetchBookings(currentPage, pageSize);
         },
       });
@@ -389,6 +548,68 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       minute: "2-digit",
     });
   };
+
+  const isPaymentDone = (booking?: Booking | null) => {
+    if (!booking) return false;
+    if (booking.paymentCompleted === true) return true;
+    const paymentStatus = String(booking.paymentStatus || "").toUpperCase();
+    return paymentStatus === "COMPLETED" || paymentStatus === "PAID" || paymentStatus === "SUCCESS";
+  };
+
+  useEffect(() => {
+    if (!detailsModalOpen || !selectedBooking) return;
+
+    const bookingId = selectedBooking._id || selectedBooking.id;
+    if (!bookingId) return;
+
+    const status = String(selectedBooking.status || "").toUpperCase();
+    const shouldSync =
+      ["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"].includes(status) ||
+      (status === "COMPLETED" && !isPaymentDone(selectedBooking));
+
+    if (!shouldSync) return;
+
+    const syncTripState = async () => {
+      try {
+        const response = await bookingService.getBookingById(bookingId);
+        const updated = normalizeBooking(response?.booking || response);
+
+        setSelectedBooking((prev) => {
+          if (!prev) return prev;
+          const prevId = prev._id || prev.id;
+          if (String(prevId) !== String(bookingId)) return prev;
+          return { ...prev, ...updated };
+        });
+
+        setBookings((prev) =>
+          prev.map((b) => {
+            const id = b._id || b.id;
+            return String(id) === String(bookingId) ? { ...b, ...updated } : b;
+          }),
+        );
+
+        if (String(updated.status || "").toUpperCase() === "COMPLETED") {
+          await syncPaymentState(bookingId);
+        }
+      } catch {
+        // Keep UI stable during transient network glitches.
+      }
+    };
+
+    void syncTripState();
+    const timer = window.setInterval(() => {
+      void syncTripState();
+    }, 4000);
+
+    return () => window.clearInterval(timer);
+  }, [
+    detailsModalOpen,
+    selectedBooking?._id,
+    selectedBooking?.id,
+    selectedBooking?.status,
+    selectedBooking?.paymentStatus,
+    selectedBooking?.paymentCompleted,
+  ]);
 
   return (
     <div className="w-full space-y-4">
@@ -529,6 +750,12 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                       </Tag>
 
                       {booking.status === "COMPLETED" && (
+                        <Tag color={isPaymentDone(booking) ? "green" : "orange"}>
+                          {isPaymentDone(booking) ? "Payment Successful" : "Payment Pending"}
+                        </Tag>
+                      )}
+
+                      {booking.status === "COMPLETED" && (
                         <div className="flex items-center gap-1">
                           <DollarOutlined />
                           <span className="font-bold text-gray-800">
@@ -609,12 +836,12 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
               <Button key="rate" type="primary" onClick={() => handleRateBooking(selectedBooking)}>Rate Driver</Button>
             ),
             selectedBooking.status === "COMPLETED" &&
-              String(selectedBooking.paymentStatus || "").toUpperCase() !== "COMPLETED" && (
+              !isPaymentDone(selectedBooking) && (
                 <Button
                   key="pay-now"
                   type="primary"
                   loading={paymentLoading}
-                  onClick={() => void handlePayNow(selectedBooking)}
+                  onClick={() => requestPayment(selectedBooking)}
                 >
                   Pay Now
                 </Button>
@@ -623,6 +850,54 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
           width={600}
         >
           <Space direction="vertical" style={{ width: "100%" }} size="large">
+            {selectedBooking.status === "COMPLETED" && !isPaymentDone(selectedBooking) && (
+              <Alert
+                type="warning"
+                showIcon
+                message="Payment Pending"
+                description="Please make payment to settle this ride."
+                action={
+                  <Button
+                    type="primary"
+                    size="small"
+                    loading={paymentLoading}
+                    onClick={() => requestPayment(selectedBooking)}
+                  >
+                    Make Payment
+                  </Button>
+                }
+              />
+            )}
+
+            {selectedBooking.status === "COMPLETED" && isPaymentDone(selectedBooking) && (
+              <Alert
+                type="success"
+                showIcon
+                message="Payment Successful"
+                description="Your ride payment is complete."
+              />
+            )}
+
+            {selectedBooking.status === "COMPLETED" &&
+              recentlyPaidBookingId &&
+              String(selectedBooking._id || selectedBooking.id) === String(recentlyPaidBookingId) && (
+                <Alert
+                  type="success"
+                  showIcon
+                  message="Payment Confirmation"
+                  description="Payment has been received and recorded successfully."
+                />
+              )}
+
+            <div>
+              <p className="text-gray-600 text-sm mb-2">Trip & Payment Progress</p>
+              <Steps
+                size="small"
+                current={getTripPaymentProgress(selectedBooking).current}
+                items={getTripPaymentProgress(selectedBooking).items}
+              />
+            </div>
+
             {/* Status */}
             <div>
               <p className="text-gray-600 text-sm">Status</p>
@@ -681,7 +956,10 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                   <p><span className="font-semibold">Estimated: </span>₹{selectedBooking.estimatedFare || 0}</p>
                   <p><span className="font-semibold">Actual: </span>₹{selectedBooking.actualFare || 0}</p>
                   <p><span className="font-semibold">Payment Method: </span>{selectedBooking.paymentMethod || "N/A"}</p>
-                  <p><span className="font-semibold">Payment Status: </span>{selectedBooking.paymentStatus || "PENDING"}</p>
+                  <p>
+                    <span className="font-semibold">Payment Status: </span>
+                    {isPaymentDone(selectedBooking) ? "COMPLETED" : (selectedBooking.paymentStatus || "PENDING")}
+                  </p>
                 </div>
               </div>
             )}
@@ -724,6 +1002,35 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
             />
           </div>
         </Space>
+      </Modal>
+
+      <Modal
+        title="Choose Payment Method"
+        open={paymentMethodModalOpen}
+        onCancel={() => setPaymentMethodModalOpen(false)}
+        onOk={() => {
+          if (!paymentActionBooking) return;
+          void handlePayNow(paymentActionBooking, paymentMethodChoice);
+        }}
+        okText="Continue"
+        okButtonProps={{ loading: paymentLoading }}
+      >
+        <div className="space-y-3">
+          <p className="text-gray-600">Select how you want to pay for this ride.</p>
+          <Radio.Group
+            value={paymentMethodChoice}
+            onChange={(e) => setPaymentMethodChoice(e.target.value as CheckoutMethod)}
+            className="w-full"
+          >
+            <Space direction="vertical" className="w-full">
+              <Radio value="UPI">UPI</Radio>
+              <Radio value="CARD">Card</Radio>
+              <Radio value="NETBANKING">Net Banking</Radio>
+              <Radio value="WALLET">Wallet</Radio>
+              <Radio value="CASH">Cash</Radio>
+            </Space>
+          </Radio.Group>
+        </div>
       </Modal>
     </div>
   );

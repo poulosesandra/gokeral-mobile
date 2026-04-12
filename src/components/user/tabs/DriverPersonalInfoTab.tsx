@@ -60,6 +60,21 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const openDocument = async (fileUrl: string) => {
+    const source = String(fileUrl || '').trim();
+    if (!source) {
+      message.warning("Document URL is missing");
+      return;
+    }
+
+    try {
+      const viewUrl = await authService.resolveDriverFileViewUrl(source);
+      window.open(viewUrl, "_blank", "noopener,noreferrer");
+    } catch {
+      message.error("Failed to open document");
+    }
+  };
+
   useEffect(() => {
     setLocalDriverData(driverData);
   }, [driverData]);
@@ -78,7 +93,14 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
 
     setUploading(true);
     try {
-      const url = await fileToDataUrl(file);
+      let url = '';
+      try {
+        url = await authService.uploadDriverFilePresigned(file, 'profileImage');
+      } catch (presignError) {
+        console.warn('Presigned profile upload failed, falling back to base64 update', presignError);
+        url = await fileToDataUrl(file);
+      }
+
       if (url) {
         await authService.updateDriverProfile({ profileImage: url } as any);
 
@@ -365,15 +387,14 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
                   {Object.entries(localDriverData.documents)
                     .filter(([, value]) => Boolean(value))
                     .map(([key, value]) => (
-                      <a
+                      <button
+                        type="button"
                         key={key}
-                        href={String(value)}
-                        target="_blank"
-                        rel="noreferrer"
+                        onClick={() => openDocument(String(value))}
                         className="text-sm text-blue-600 underline break-all"
                       >
                         {docLabelMap[key] || key}
-                      </a>
+                      </button>
                     ))}
                 </div>
               ) : (

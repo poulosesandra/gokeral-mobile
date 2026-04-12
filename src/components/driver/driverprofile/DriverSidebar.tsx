@@ -89,7 +89,14 @@ export const DriverSidebar = ({
 
     setUploading(true);
     try {
-      const url = await fileToDataUrl(file);
+      let url = '';
+      try {
+        url = await authService.uploadDriverFilePresigned(file, 'profileImage');
+      } catch (presignError) {
+        console.warn('Presigned profile upload failed, falling back to base64 update', presignError);
+        url = await fileToDataUrl(file);
+      }
+
       if (url) {
         await authService.updateDriverProfile({ profileImage: url } as any);
 
