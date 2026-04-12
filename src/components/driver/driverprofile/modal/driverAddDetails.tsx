@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Modal, Form, Input, InputNumber, DatePicker, Select, Row, Col, Upload, Button, message } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
+import { authService } from "../../../../services/authServices";
 
 const parseDobToDayjs = (value?: string) => {
   if (!value) return undefined;
@@ -142,23 +143,55 @@ const DriverPersonalInfoModal = ({
 
   const handleFinish = async (values: any) => {
     try {
-      // Convert all uploaded files to base64
+      // Presigned-first upload flow with base64 fallback
       const documents: any = {};
 
+      const uploadWithFallback = async (
+        file: File,
+        category:
+          | 'drivingLicenseCertificate'
+          | 'policeClearanceCertificate'
+          | 'medicalFitnessCertificate'
+          | 'addressProof'
+          | 'professionalTrainingCertificate',
+      ) => {
+        try {
+          return await authService.uploadDriverFilePresigned(file, category);
+        } catch (presignError) {
+          console.warn(`Presigned upload failed for ${category}, falling back to base64`, presignError);
+          return await convertFileToBase64(file);
+        }
+      };
+
       if (drivingLicenseFile) {
-        documents.drivingLicenseCertificate = await convertFileToBase64(drivingLicenseFile);
+        documents.drivingLicenseCertificate = await uploadWithFallback(
+          drivingLicenseFile,
+          'drivingLicenseCertificate',
+        );
       }
       if (policeClearanceFile) {
-        documents.policeClearanceCertificate = await convertFileToBase64(policeClearanceFile);
+        documents.policeClearanceCertificate = await uploadWithFallback(
+          policeClearanceFile,
+          'policeClearanceCertificate',
+        );
       }
       if (medicalCertFile) {
-        documents.medicalFitnessCertificate = await convertFileToBase64(medicalCertFile);
+        documents.medicalFitnessCertificate = await uploadWithFallback(
+          medicalCertFile,
+          'medicalFitnessCertificate',
+        );
       }
       if (addressProofFile) {
-        documents.addressProof = await convertFileToBase64(addressProofFile);
+        documents.addressProof = await uploadWithFallback(
+          addressProofFile,
+          'addressProof',
+        );
       }
       if (trainingCertFile) {
-        documents.professionalTrainingCertificate = await convertFileToBase64(trainingCertFile);
+        documents.professionalTrainingCertificate = await uploadWithFallback(
+          trainingCertFile,
+          'professionalTrainingCertificate',
+        );
       }
 
       const payload: DriverPersonalInfoValues = {

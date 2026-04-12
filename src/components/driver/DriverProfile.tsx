@@ -190,7 +190,8 @@ export const DriverProfile = () => {
             fullName: backendData.fullName || "",
             email: backendData.email || "",
             phoneNumber: backendData.phoneNumber || "",
-            driverLicenseNumber: backendData.driverLicenseNumber || "",
+            // Backend returns licenseNumber; keep legacy fallback for older payloads.
+            driverLicenseNumber: backendData.licenseNumber || backendData.driverLicenseNumber || "",
             profileImage: backendData.profileImage || null,
             personalInfo: {
               bloodGroup: backendData.personalInfo?.bloodGroup || backendData.bloodGroup || "",

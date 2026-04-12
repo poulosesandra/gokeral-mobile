@@ -12,6 +12,7 @@ import TermsPrivacyPage from "../pages/about";
 import ContactPage from "../pages/contact/contact";
 import DriverPersonalInfoModal from "../components/driver/driverprofile/modal/driverAddDetails";
 import Maps from "../pages/map/Maps";
+import LiveRideShowcasePage from "../pages/demo/LiveRideShowcasePage";
 
 export const router = createBrowserRouter([
   {
@@ -63,6 +64,10 @@ export const router = createBrowserRouter([
   {
     path: "/map",
     element: <Maps />,   
+  },
+  {
+    path: "/live-demo",
+    element: <LiveRideShowcasePage />,
   },
   // Legacy routes for backward compatibility
   {

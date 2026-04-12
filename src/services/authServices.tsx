@@ -569,6 +569,80 @@ export const authService = {
     }
   },
 
+  createDriverDocumentPresignedUpload: async (params: {
+    category:
+      | 'profileImage'
+      | 'drivingLicenseCertificate'
+      | 'policeClearanceCertificate'
+      | 'medicalFitnessCertificate'
+      | 'addressProof'
+      | 'professionalTrainingCertificate';
+    contentType: string;
+    fileName?: string;
+    expiresIn?: number;
+  }) => {
+    const res = await driverApi.post('/driver-profiles/me/documents/presign-upload', params);
+    return res.data as {
+      uploadUrl: string;
+      fileUrl: string;
+      key?: string;
+      expiresIn?: number;
+    };
+  },
+
+  resolveDriverFileViewUrl: async (fileUrl: string, expiresIn?: number) => {
+    const source = String(fileUrl || '').trim();
+    if (!source) return source;
+    if (source.startsWith('data:')) return source;
+
+    const canPresign = /^https?:\/\//i.test(source) || source.startsWith('driver-documents/');
+    if (!canPresign) return source;
+
+    try {
+      const res = await driverApi.post('/driver-profiles/me/documents/presign-view', {
+        fileUrl: source,
+        expiresIn,
+      });
+      const presigned = res.data as { viewUrl?: string };
+      return presigned?.viewUrl || source;
+    } catch {
+      return source;
+    }
+  },
+
+  uploadDriverFilePresigned: async (
+    file: File,
+    category:
+      | 'profileImage'
+      | 'drivingLicenseCertificate'
+      | 'policeClearanceCertificate'
+      | 'medicalFitnessCertificate'
+      | 'addressProof'
+      | 'professionalTrainingCertificate',
+  ) => {
+    const contentType = file.type || 'application/octet-stream';
+
+    const presign = await authService.createDriverDocumentPresignedUpload({
+      category,
+      contentType,
+      fileName: file.name,
+    });
+
+    const putResponse = await fetch(presign.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType,
+      },
+      body: file,
+    });
+
+    if (!putResponse.ok) {
+      throw new Error(`S3 upload failed with status ${putResponse.status}`);
+    }
+
+    return presign.fileUrl;
+  },
+
   updateDriverProfile: async (data: Partial<DriverSignupData> & {
     profileImage?: string;
     bloodGroup?: string;

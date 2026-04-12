@@ -19,11 +19,28 @@ interface DriverRideNavigatorCardProps {
 
 const mapLibraries: ('places')[] = ['places'];
 
-const getCoords = (input: any): LatLng | null => {
-  const lat = Number(input?.lat);
-  const lng = Number(input?.lng);
+const parseLatLng = (latRaw: unknown, lngRaw: unknown): LatLng | null => {
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return { lat, lng };
+};
+
+const getCoords = (input: any): LatLng | null => {
+  if (!input) return null;
+
+  if (Array.isArray(input) && input.length >= 2) {
+    return parseLatLng(input[1], input[0]);
+  }
+
+  if (Array.isArray(input?.coordinates) && input.coordinates.length >= 2) {
+    return parseLatLng(input.coordinates[1], input.coordinates[0]);
+  }
+
+  return (
+    parseLatLng(input?.lat, input?.lng) ||
+    parseLatLng(input?.latitude, input?.longitude)
+  );
 };
 
 const getStatusColor = (status?: string) => {

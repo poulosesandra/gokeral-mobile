@@ -24,11 +24,40 @@ const statusColor = (status?: string) => {
   return 'default';
 };
 
-const getCoords = (input: any): LatLng | null => {
-  const lat = Number(input?.lat);
-  const lng = Number(input?.lng);
+const parseLatLng = (latRaw: unknown, lngRaw: unknown): LatLng | null => {
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return { lat, lng };
+};
+
+const getCoords = (input: any): LatLng | null => {
+  if (!input) return null;
+
+  if (Array.isArray(input) && input.length >= 2) {
+    return parseLatLng(input[1], input[0]);
+  }
+
+  if (Array.isArray(input?.coordinates) && input.coordinates.length >= 2) {
+    return parseLatLng(input.coordinates[1], input.coordinates[0]);
+  }
+
+  return (
+    parseLatLng(input?.lat, input?.lng) ||
+    parseLatLng(input?.latitude, input?.longitude)
+  );
+};
+
+const distanceKm = (from: LatLng, to: LatLng): number => {
+  const R = 6371;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(to.lat - from.lat);
+  const dLng = toRad(to.lng - from.lng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(from.lat)) * Math.cos(toRad(to.lat)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 };
 
 const LiveRideTrackerCard: React.FC<LiveRideTrackerCardProps> = ({ booking }) => {
@@ -155,6 +184,8 @@ const LiveRideTrackerCard: React.FC<LiveRideTrackerCardProps> = ({ booking }) =>
   }
 
   const center = driverCoords || pickup || destination || { lat: 9.9312, lng: 76.2673 };
+  const remainingDistanceKm =
+    driverCoords && destination ? distanceKm(driverCoords, destination) : null;
 
   return (
     <Card size="small" className="bg-gray-50 border border-gray-200">
@@ -213,6 +244,11 @@ const LiveRideTrackerCard: React.FC<LiveRideTrackerCardProps> = ({ booking }) =>
       <div className="mt-2 text-xs text-gray-500">
         {loading ? 'Refreshing location…' : driverCoords ? 'Driver location is live.' : 'Waiting for driver location updates.'}
       </div>
+      {remainingDistanceKm !== null && (
+        <div className="mt-1 text-xs text-blue-600 font-medium">
+          Remaining distance: {remainingDistanceKm.toFixed(2)} km
+        </div>
+      )}
     </Card>
   );
 };

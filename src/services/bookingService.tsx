@@ -328,6 +328,7 @@ const bookingService = {
     prefill?: { name?: string; email?: string; contact?: string };
     onSuccess: (payload: RazorpaySuccessPayload) => Promise<void> | void;
     onFailure?: (error: unknown) => void;
+    onDismiss?: () => void;
   }) {
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded) {
@@ -348,12 +349,24 @@ const bookingService = {
       order_id: args.orderId,
       prefill: args.prefill || {},
       theme: { color: '#1677ff' },
+      modal: {
+        ondismiss: () => {
+          args.onDismiss?.();
+        },
+      },
       handler: async (response: RazorpaySuccessPayload) => {
         await args.onSuccess(response);
       },
     };
 
     const checkout = new razorpayWindow.Razorpay(options);
+    try {
+      (checkout as any).on?.('payment.failed', (error: unknown) => {
+        args.onFailure?.(error);
+      });
+    } catch {
+      // ignore if SDK version doesn't expose event hooks
+    }
     checkout.open();
   },
 

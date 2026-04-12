@@ -69,6 +69,11 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
     useEffect(() => {
         const fetchFare = async () => {
             try {
+                if (!selectedVehicle?.vehicleId) {
+                    setBackendEstimatedFare(null);
+                    return;
+                }
+
                 const distanceMeters = Number(tripDetails.distanceValueMeters || 0);
                 const durationSeconds = Number(tripDetails.durationValueSeconds || 0);
 
@@ -119,7 +124,7 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
             }
 
             // Create booking via backend API
-            const bookingData = {
+            const bookingData: Record<string, unknown> = {
                 origin: {
                     coordinates: {
                     lat: tripDetails.pickupLocation?.lat || 0,
@@ -142,8 +147,6 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                     text: tripDetails.duration,
                     value: durationInSeconds,
                 },
-                driverId: selectedVehicle.id,
-                vehicleId: selectedVehicle.vehicleId,
                 vehicleType: selectedVehicle.vehicleType,
                 paymentMethod,
                 scheduledAt: new Date().toISOString(),
@@ -152,9 +155,17 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                     `Vehicle: ${mapVehicleType(selectedVehicle.vehicleType)}, Fare: ₹${estimatedFare}, Driver: ${selectedVehicle.driverName || 'Driver'}, Driver Phone: ${selectedVehicle.phoneNumber || 'N/A'}, Passenger: ${user.fullName || user.name || 'Guest'} (${tripDetails.passengers})`,
             };
 
+            if (selectedVehicle.id) {
+                bookingData.driverId = selectedVehicle.id;
+            }
+
+            if (selectedVehicle.vehicleId) {
+                bookingData.vehicleId = selectedVehicle.vehicleId;
+            }
+
             console.log('🔵 [CONFIRM BOOKING] Creating booking:', bookingData);
 
-            const response = await bookingService.createBooking(bookingData);
+            const response = await bookingService.createBooking(bookingData as any);
 
             console.log('✅ [CONFIRM BOOKING] Booking created:', response);
 
