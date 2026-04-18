@@ -100,11 +100,12 @@ export const bookingApi = axios.create({
 // Shared interceptor configurations
 const requestInterceptor = (config: any) => {
   const token = authToken || localStorage.getItem('token');
+  const tokenSource = authToken ? 'memory' : token ? 'localStorage' : 'none';
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   
-  console.log(`📤 [API REQUEST] ${config.method?.toUpperCase()} ${config.url}`, 
+  console.log(`📤 [API REQUEST] ${config.method?.toUpperCase()} ${config.url} tokenSource=${tokenSource}`, 
     config.data ? config.data : '');
   
   return config;
@@ -132,17 +133,10 @@ const responseErrorInterceptor = (error: any) => {
   const isAuthEndpoint = error.config?.url?.includes('/login') || 
                         error.config?.url?.includes('/register');
   
-  // Don't redirect on profile/data endpoints - let components handle 401
-  const isProfileEndpoint = error.config?.url?.includes('/profiles/') ||
-                           error.config?.url?.includes('/driver-profiles/') ||
-                           error.config?.url?.includes('/bookings') ||
-                           error.config?.url?.includes('/ride-requests') ||
-                           error.config?.url?.includes('/vehicles') ||
-                           error.config?.url?.includes('/notifications');
-  
-  if (error.response?.status === 401 && !isAuthEndpoint && !isProfileEndpoint) {
-    console.warn('⚠️ [UNAUTHORIZED] Clearing localStorage and redirecting');
+  if (error.response?.status === 401 && !isAuthEndpoint) {
+    console.warn('⚠️ [UNAUTHORIZED] API returned 401; clearing storage and redirecting to login');
     localStorage.clear();
+    sessionStorage.clear();
     window.location.href = '/';
   }
   

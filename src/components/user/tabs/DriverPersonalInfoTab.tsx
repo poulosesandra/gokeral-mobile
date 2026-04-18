@@ -102,13 +102,14 @@ export const DriverPersonalInfoTab = ({ driverData, loading, onEditPersonalInfo,
       }
 
       if (url) {
-        await authService.updateDriverProfile({ profileImage: url } as any);
+        const updated = await authService.updateDriverProfile({ profileImage: url } as any);
+        const resolvedUrl = updated?.profileImage || url;
 
         // Update local state immediately for instant display
-        setLocalDriverData({ ...localDriverData, profileImage: url });
+        setLocalDriverData({ ...localDriverData, profileImage: resolvedUrl });
         
         // Notify parent to refresh
-        onProfileImageUpdate?.(url);
+        onProfileImageUpdate?.(resolvedUrl);
         
         message.success("Profile picture updated");
         setOptionsVisible(false);

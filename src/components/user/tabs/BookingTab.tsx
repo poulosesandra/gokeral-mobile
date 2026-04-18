@@ -34,6 +34,7 @@ interface Booking {
     phoneNumber?: string;
     vehicle?: {
       licensePlate?: string;
+      registrationNumber?: string;
       vehicleType?: string;
     };
     details?: any;
@@ -64,6 +65,7 @@ const parseNotesDriverInfo = (notes?: string): { name?: string; phone?: string }
 
 const normalizeBooking = (raw: any): Booking => {
   const noteDriver = parseNotesDriverInfo(raw?.notes);
+  const rawVehicle = raw?.driver?.vehicle || raw?.vehicle?.details || {};
 
   return {
     ...raw,
@@ -78,6 +80,11 @@ const normalizeBooking = (raw: any): Booking => {
       ...(raw?.driver || {}),
       fullName: raw?.driver?.fullName || noteDriver.name,
       phoneNumber: raw?.driver?.phoneNumber || noteDriver.phone,
+      vehicle: {
+        ...(raw?.driver?.vehicle || {}),
+        vehicleType: rawVehicle?.vehicleType || rawVehicle?.type || '',
+        licensePlate: rawVehicle?.licensePlate || rawVehicle?.registrationNumber || '',
+      },
     },
   };
 };
@@ -923,16 +930,27 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
                   {(() => {
                     const drv = selectedBooking.driver || {};
                     const details = drv.details || {};
-                    const name = drv.fullName || details.name || details.fullName || "N/A";
-                    const phone = drv.phoneNumber || details.phone || details.phoneNumber || "N/A";
-                    const vehicleType = drv.vehicle?.vehicleType || details.vehicles?.[0]?.vehicleType || selectedBooking.vehicle?.details?.vehicleType || "N/A";
-                    const license = drv.vehicle?.licensePlate || details.vehicles?.[0]?.licensePlate || selectedBooking.vehicle?.details?.licensePlate || "N/A";
+                    const name = drv.fullName || details.name || details.fullName || "";
+                    const phone = drv.phoneNumber || details.phone || details.phoneNumber || "";
+                    const vehicleType =
+                      drv.vehicle?.vehicleType ||
+                      details.vehicles?.[0]?.vehicleType ||
+                      selectedBooking.vehicle?.details?.vehicleType ||
+                      "";
+                    const license =
+                      drv.vehicle?.licensePlate ||
+                      drv.vehicle?.registrationNumber ||
+                      details.vehicles?.[0]?.licensePlate ||
+                      details.vehicles?.[0]?.registrationNumber ||
+                      selectedBooking.vehicle?.details?.licensePlate ||
+                      selectedBooking.vehicle?.details?.registrationNumber ||
+                      "";
                     return (
                       <>
-                        <p><span className="font-semibold">Name: </span>{name}</p>
-                        <p><span className="font-semibold">Phone: </span>{phone}</p>
-                        <p><span className="font-semibold">Vehicle: </span>{mapVehicleType(vehicleType)}</p>
-                        <p><span className="font-semibold">License Plate: </span>{license}</p>
+                        <p><span className="font-semibold">Name: </span>{name || "Not available"}</p>
+                        <p><span className="font-semibold">Phone: </span>{phone || "Not available"}</p>
+                        <p><span className="font-semibold">Vehicle: </span>{vehicleType ? mapVehicleType(vehicleType) : "Not available"}</p>
+                        <p><span className="font-semibold">License Plate: </span>{license || "Not available"}</p>
                       </>
                     );
                   })()}

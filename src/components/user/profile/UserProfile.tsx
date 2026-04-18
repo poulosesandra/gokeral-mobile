@@ -89,9 +89,8 @@ export const UserProfile = () => {
         // 404 = profile doesn't exist yet (new user)
         else if (backendError.response?.status === 404) {
           console.log('🟡 [USER PROFILE] No profile found, using account data');
-          // Use basic account data from localStorage/authService
-          const storedUser = localStorage.getItem('userData');
-          const accountData = storedUser ? JSON.parse(storedUser) : {};
+          // Use basic account data from authenticated memory state only.
+          const accountData = authService.getCurrentUser() || {};
           
           const userData: UserData = {
             fullName: accountData.fullName || "User",

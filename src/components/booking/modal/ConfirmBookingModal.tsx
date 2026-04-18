@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { message } from 'antd';
 import bookingService from '../../../services/bookingService';
+import { authService } from '../../../services/authServices';
 import type { VehicleData } from './types';
 
 interface Booking {
@@ -110,9 +111,8 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
         setError(null);
 
         try {
-            // Get current user info from localStorage
-            const userData = localStorage.getItem('userData');
-            const user = userData ? JSON.parse(userData) : {};
+            // Use authenticated in-memory user to avoid stale localStorage data.
+            const user = authService.getCurrentUser() || {};
 
             const distanceInMeters = Number(tripDetails.distanceValueMeters || 0);
             const durationInSeconds = Number(tripDetails.durationValueSeconds || 0);
