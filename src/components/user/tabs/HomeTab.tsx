@@ -185,13 +185,20 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
 
     setUploading(true);
     try {
-      const imageDataUrl = await fileToDataUrl(file);
-      if (!imageDataUrl) {
+      let imageUrl = '';
+      try {
+        imageUrl = await authService.uploadUserImagePresigned(file);
+      } catch (presignError) {
+        console.warn('Presigned user profile upload failed, falling back to base64 update', presignError);
+        imageUrl = await fileToDataUrl(file);
+      }
+
+      if (!imageUrl) {
         message.warning("Could not process selected image");
         return;
       }
 
-      await authService.updateUserProfile({ profileImage: imageDataUrl } as any);
+      await authService.updateUserProfile({ profileImage: imageUrl } as any);
       onProfileImageUpdate?.();
       message.success("Profile picture uploaded and saved");
     } catch (err: any) {
@@ -291,11 +298,12 @@ export const HomeTab = ({ userData, loading, handleTabChange, onProfileImageUpda
                   className="rounded-full bg-gradient-to-br from-green-400 to-emerald-500 shadow-xl flex items-center justify-center flex-shrink-0 border-4 border-gray-700"
                   style={{ width: "150px", height: "150px" }}
                 >
-                  {userData.profileImage ? (
-                    <img src={userData.profileImage} className="w-full h-full rounded-full object-cover" alt="Profile" />
-                  ) : (
-                    <Avatar size={130} icon={<UserOutlined />} className="bg-gradient-to-br from-green-500 to-emerald-600" />
-                  )}
+                  <Avatar
+                    size={130}
+                    src={userData.profileImage || undefined}
+                    icon={<UserOutlined />}
+                    className="bg-gradient-to-br from-green-500 to-emerald-600"
+                  />
                 </div>
 
                 {/* overlay camera button */}

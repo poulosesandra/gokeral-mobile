@@ -9,6 +9,31 @@ export const performRedirect = (path: string) => {
   window.location.assign(path);
 };
 
+const decodeJwtPayload = (token: string | null): Record<string, any> | null => {
+  const source = String(token || '').trim();
+  if (!source) return null;
+
+  try {
+    const base64Payload = source.split('.')[1];
+    if (!base64Payload) return null;
+    const normalized = base64Payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = atob(normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '='));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+};
+
+const withImageCacheBuster = (value: string | null | undefined): string | null => {
+  const source = String(value || '').trim();
+  if (!source) return null;
+  if (source.startsWith('data:')) return source;
+  if (/X-Amz-Algorithm=/i.test(source)) return source;
+
+  const separator = source.includes('?') ? '&' : '?';
+  return `${source}${separator}v=${Date.now()}`;
+};
+
 // ==================== INTERFACES ====================
 export interface LoginCredentials {
   email: string;
@@ -64,6 +89,7 @@ export interface AuthResponse {
     role: string;
     fullName?: string;
     phoneNumber?: string;
+    profileImage?: string;
   };
 }
 
@@ -99,30 +125,16 @@ export const authService = {
     this._currentUser = user;
 
     if (user) {
-      localStorage.setItem('userData', JSON.stringify(user));
       const role = user.role || (user.driverLicenseNumber ? 'DRIVER' : 'USER');
       localStorage.setItem('userRole', role);
     } else {
-      localStorage.removeItem('userData');
       localStorage.removeItem('userRole');
     }
   },
 
-  // Get Current User (Memory -> LocalStorage)
+  // Get current user from memory only.
   getCurrentUser: () => {
-    if (authService._currentUser) return authService._currentUser;
-    const userData = localStorage.getItem('userData');
-    if (!userData) return null;
-    
-    const user = JSON.parse(userData);
-    // Ensure role is available (fallback to separate userRole storage)
-    if (!user.role) {
-      const storedRole = localStorage.getItem('userRole');
-      if (storedRole) {
-        user.role = storedRole;
-      }
-    }
-    return user;
+    return authService._currentUser;
   },
 
   // Check if authenticated
@@ -133,42 +145,59 @@ export const authService = {
   // Get user role
   getUserRole: () => {
     const u = authService.getCurrentUser();
-    return u?.role || localStorage.getItem('userRole');
+    if (u?.role) return u.role;
+
+    const jwtPayload = decodeJwtPayload(authService.getToken());
+    return jwtPayload?.role || localStorage.getItem('userRole');
   },
 
   // --- Lifecycle: init / ready / clear ---
   async initAuth() {
-    // load token from storage (if any)
+    // Load token from storage and validate against backend state.
     const token = localStorage.getItem('token');
-    if (token) {
-      this.setToken(token);
-      try {
-        // Check user role first, then fetch appropriate profile
-        const userData = localStorage.getItem('userData');
-        const userRole = userData ? JSON.parse(userData).role : null;
-        
-        if (userRole === 'DRIVER') {
-          console.log('🔵 [INIT AUTH] Fetching driver profile');
-          const driver = await this.fetchDriverProfile().catch((err) => {
-            console.warn('⚠️ [INIT AUTH] Driver profile fetch failed:', err.response?.status);
-            return null;
-          });
-          if (driver) this.setCurrentUser(driver);
-        } else if (userRole === 'USER') {
-          console.log('🔵 [INIT AUTH] Fetching user profile');
-          const user = await this.fetchUserProfile().catch((err) => {
-            console.warn('⚠️ [INIT AUTH] User profile fetch failed:', err.response?.status);
-            return null;
-          });
-          if (user) this.setCurrentUser(user);
-        } else {
-          console.warn('⚠️ [INIT AUTH] Unknown role, skipping profile fetch');
-        }
-      } catch (err) {
-        console.error('❌ [INIT AUTH] Error:', err);
-        // ignore - not authenticated or token invalid
-      }
+    if (!token) {
+      this._ready = true;
+      return;
     }
+
+    this.setToken(token);
+
+    try {
+      const sessionRes = await api.get('/auth/session');
+      const sessionUser = sessionRes?.data?.user || sessionRes?.data;
+      const normalizedSessionUser = {
+        id: sessionUser?.userId || sessionUser?.id || sessionUser?.accountId,
+        email: sessionUser?.email || '',
+        role: String(sessionUser?.role || '').toUpperCase(),
+      };
+
+      if (!normalizedSessionUser.id || !normalizedSessionUser.role) {
+        throw new Error('Session payload is missing user identity fields');
+      }
+
+      this.setCurrentUser(normalizedSessionUser);
+      console.log('✅ [INIT AUTH] Token validated from DB-backed session endpoint');
+
+      if (normalizedSessionUser.role === 'DRIVER') {
+        console.log('🔵 [INIT AUTH] Source=DB session, fetching driver profile');
+        const driver = await this.fetchDriverProfile().catch((err) => {
+          console.warn('⚠️ [INIT AUTH] Driver profile fetch failed:', err.response?.status);
+          return null;
+        });
+        if (driver) this.setCurrentUser(driver);
+      } else if (normalizedSessionUser.role === 'USER') {
+        console.log('🔵 [INIT AUTH] Source=DB session, fetching user profile');
+        const user = await this.fetchUserProfile().catch((err) => {
+          console.warn('⚠️ [INIT AUTH] User profile fetch failed:', err.response?.status);
+          return null;
+        });
+        if (user) this.setCurrentUser(user);
+      }
+    } catch (err: any) {
+      console.warn('⚠️ [INIT AUTH] Session invalid; clearing cache and forcing logout state:', err?.response?.status || err?.message);
+      this.clearAuth();
+    }
+
     this._ready = true;
   },
 
@@ -179,10 +208,14 @@ export const authService = {
   clearAuth() {
     this.setToken(null);
     this.setCurrentUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('userData');
-    localStorage.removeItem('userRole');
+    localStorage.clear();
+    sessionStorage.clear();
     this._ready = true;
+  },
+
+  clearAllClientCaches() {
+    console.log('🧹 [AUTH DEBUG] Clearing all client caches (localStorage/sessionStorage/in-memory auth)');
+    this.clearAuth();
   },
 
   // --- Logout Method ---
@@ -248,6 +281,7 @@ export const authService = {
           ...response.data.user,
           fullName: response.data.user.fullName || existing.fullName || '',
           phoneNumber: response.data.user.phoneNumber || existing.phoneNumber || '',
+          profileImage: response.data.user.profileImage || existing.profileImage || null,
         };
         authService.setCurrentUser(userData);
         console.log('💾 [USER LOGIN] Saved user data:', userData);
@@ -332,6 +366,7 @@ export const authService = {
           ...response.data.user,
           fullName: response.data.user.fullName || existing.fullName || '',
           phoneNumber: response.data.user.phoneNumber || existing.phoneNumber || '',
+          profileImage: response.data.user.profileImage || existing.profileImage || null,
         };
         authService.setCurrentUser(userData);
         console.log('💾 [DRIVER LOGIN] Saved user data:', userData);
@@ -374,7 +409,7 @@ export const authService = {
         ...currentUser,           // fullName, email, phoneNumber, role from login
         ...profileData,           // address, image, preferences from profile
         id: currentUser?.id || currentUser?._id,
-        profileImage: profileData.image || null,
+        profileImage: profileData.profileImage || profileData.image || currentUser?.profileImage || null,
       };
     } catch (error: any) {
       // If profile doesn't exist (404), return just account data
@@ -393,13 +428,16 @@ export const authService = {
       // Fetch driver profile data from backend
       const profileRes = await driverApi.get('/driver-profiles/me');
       const profileData = profileRes.data;
+      const resolvedProfileImage = await authService.resolveDriverFileViewUrl(
+        profileData.profileImage || currentUser?.profileImage || '',
+      );
       
       // Merge account data with profile data
       return {
         ...currentUser,                           // fullName, email, phoneNumber, role from login
         licenseNumber: profileData.licenseNumber, // From driver profile
         driverLicenseNumber: profileData.licenseNumber, // Alias for frontend compatibility
-        profileImage: profileData.profileImage || currentUser?.profileImage || null,
+        profileImage: resolvedProfileImage || null,
         bloodGroup: profileData.bloodGroup,
         dateOfBirth: profileData.dateOfBirth || profileData.dob,
         dob: profileData.dateOfBirth || profileData.dob,
@@ -467,7 +505,7 @@ export const authService = {
       const updatedData = {
         ...currentUser,
         ...res.data,
-        profileImage: res.data.image || null,
+        profileImage: withImageCacheBuster(res.data.profileImage || res.data.image || null),
       };
       
       authService.setCurrentUser(updatedData);
@@ -510,7 +548,7 @@ export const authService = {
     const updatedData = {
       ...currentUser,
       ...res.data,
-      profileImage: res.data.image || null,
+      profileImage: withImageCacheBuster(res.data.profileImage || res.data.image || null),
     };
     
     authService.setCurrentUser(updatedData);
@@ -585,9 +623,45 @@ export const authService = {
     return res.data as {
       uploadUrl: string;
       fileUrl: string;
+      viewUrl?: string;
       key?: string;
       expiresIn?: number;
     };
+  },
+
+  createUserImagePresignedUpload: async (params: {
+    contentType: string;
+    fileName?: string;
+    expiresIn?: number;
+  }) => {
+    const res = await userApi.post('/profiles/me/image/presign-upload', params);
+    return res.data as {
+      uploadUrl: string;
+      fileUrl: string;
+      viewUrl?: string;
+      key?: string;
+      expiresIn?: number;
+    };
+  },
+
+  resolveUserImageViewUrl: async (fileUrl: string, expiresIn?: number) => {
+    const source = String(fileUrl || '').trim();
+    if (!source) return source;
+    if (source.startsWith('data:')) return source;
+
+    const canPresign = /^https?:\/\//i.test(source) || source.startsWith('user-profile-images/');
+    if (!canPresign) return source;
+
+    try {
+      const res = await userApi.post('/profiles/me/image/presign-view', {
+        fileUrl: source,
+        expiresIn,
+      });
+      const presigned = res.data as { viewUrl?: string };
+      return presigned?.viewUrl || source;
+    } catch {
+      return source;
+    }
   },
 
   resolveDriverFileViewUrl: async (fileUrl: string, expiresIn?: number) => {
@@ -640,7 +714,30 @@ export const authService = {
       throw new Error(`S3 upload failed with status ${putResponse.status}`);
     }
 
-    return presign.fileUrl;
+    return presign.viewUrl || presign.fileUrl;
+  },
+
+  uploadUserImagePresigned: async (file: File) => {
+    const contentType = file.type || 'application/octet-stream';
+
+    const presign = await authService.createUserImagePresignedUpload({
+      contentType,
+      fileName: file.name,
+    });
+
+    const putResponse = await fetch(presign.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType,
+      },
+      body: file,
+    });
+
+    if (!putResponse.ok) {
+      throw new Error(`S3 upload failed with status ${putResponse.status}`);
+    }
+
+    return presign.viewUrl || presign.fileUrl;
   },
 
   updateDriverProfile: async (data: Partial<DriverSignupData> & {
@@ -693,7 +790,7 @@ export const authService = {
       ...currentUser,
       ...res.data,
       driverLicenseNumber: res.data.licenseNumber,
-      profileImage: res.data.profileImage ?? currentUser?.profileImage ?? null,
+      profileImage: withImageCacheBuster(res.data.profileImage ?? currentUser?.profileImage ?? null),
       personalInfo: {
         bloodGroup: res.data.bloodGroup,
         dob: res.data.dateOfBirth || res.data.dob,
@@ -806,3 +903,13 @@ export const login = async (credentials: { email: string; password: string }) =>
 };
 
 export default authService;
+
+declare global {
+  interface Window {
+    __clearAllClientCaches?: () => void;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.__clearAllClientCaches = () => authService.clearAllClientCaches();
+}

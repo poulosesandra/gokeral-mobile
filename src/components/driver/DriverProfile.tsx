@@ -224,9 +224,8 @@ export const DriverProfile = () => {
           // 403/404 = profile doesn't exist yet (new driver)
           else if (backendError.response?.status === 403 || backendError.response?.status === 404) {
             console.log('🟡 [DRIVER PROFILE] No profile found, using account data');
-            // Use basic account data from currentUser
-            const storedUser = localStorage.getItem('userData');
-            const accountData = storedUser ? JSON.parse(storedUser) : currentUser;
+            // Use account data from authenticated memory state only.
+            const accountData = currentUser || {};
             
             setDriverData({
               fullName: accountData.fullName || "",

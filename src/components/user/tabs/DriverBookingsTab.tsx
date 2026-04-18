@@ -109,7 +109,7 @@ const getDriverTripPaymentProgress = (booking: Partial<Booking> | null) => {
 
 // Helper to resolve passenger name/phone across different backend shapes
 const getPassengerName = (b?: Partial<Booking> | null): string => {
-  if (!b) return "N/A";
+  if (!b) return "";
   return (
     b.passenger?.details?.name ||
     (b as any).passengerDetails?.name ||
@@ -118,19 +118,19 @@ const getPassengerName = (b?: Partial<Booking> | null): string => {
     b.user?.fullName ||
     b.userInfo?.name ||
     b.userInfo?.fullName ||
-    "N/A"
+    ""
   );
 };
 
 const getPassengerPhone = (b?: Partial<Booking> | null): string => {
-  if (!b) return "N/A";
+  if (!b) return "";
   return (
     b.passenger?.details?.phone ||
     (b as any).passengerDetails?.phone ||
     b.passenger?.phone ||
     b.user?.phone ||
     b.userInfo?.phone ||
-    "N/A"
+    ""
   );
 };
 
@@ -936,9 +936,9 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
 
             <div>
               <p className="text-gray-600 text-sm">Passenger Name</p>
-              <p className="font-semibold">{getPassengerName(selectedBooking)}</p>
+              <p className="font-semibold">{getPassengerName(selectedBooking) || "Not available"}</p>
               <p className="text-gray-600 text-sm mt-2">Phone</p>
-              <p className="font-semibold">{getPassengerPhone(selectedBooking)}</p>
+              <p className="font-semibold">{getPassengerPhone(selectedBooking) || "Not available"}</p>
             </div>
 
             <div>
@@ -994,7 +994,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
 
             <div>
               <p className="text-gray-600 text-sm">Payment Method</p>
-              <p className="font-semibold">{selectedBooking.paymentMethod || "N/A"}</p>
+              <p className="font-semibold">{selectedBooking.paymentMethod || "Not available"}</p>
               <p className="text-gray-600 text-sm mt-2">Payment Status</p>
               <Tag color={isPaymentDone(selectedBooking) ? "success" : "default"}>
                 {isPaymentDone(selectedBooking) ? "Completed" : (selectedBooking.paymentStatus || "Pending")}

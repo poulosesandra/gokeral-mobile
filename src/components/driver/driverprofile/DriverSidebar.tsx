@@ -98,10 +98,11 @@ export const DriverSidebar = ({
       }
 
       if (url) {
-        await authService.updateDriverProfile({ profileImage: url } as any);
+        const updated = await authService.updateDriverProfile({ profileImage: url } as any);
+        const resolvedUrl = updated?.profileImage || url;
 
         message.success('Profile picture updated');
-        onProfileImageUpdate?.(url);
+        onProfileImageUpdate?.(resolvedUrl);
       } else {
         message.warning('Uploaded but could not find file URL');
       }

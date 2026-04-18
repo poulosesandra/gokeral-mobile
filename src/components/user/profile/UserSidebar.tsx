@@ -15,6 +15,7 @@ import {
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import api from "../../../services/api";
+import { authService } from "../../../services/authServices";
 import type { TabKey, UserData } from "./UserProfile";
 
 interface SidebarProps {
@@ -91,8 +92,7 @@ export const UserSidebar = ({
       const url = resp?.data?.url || resp?.data?.user?.documents?.slice(-1)[0]?.url;
       if (url) {
         // Save to backend user update
-        const currentUserRaw = localStorage.getItem("userData");
-        const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
+        const parsed = authService.getCurrentUser() || {};
         await api.patch("/users/update", {
           fullName: parsed.fullName,
           email: parsed.email,
@@ -101,7 +101,7 @@ export const UserSidebar = ({
         });
 
         const updatedUser = { ...parsed, profileImage: url };
-        localStorage.setItem("userData", JSON.stringify(updatedUser));
+        authService.setCurrentUser(updatedUser);
         setLocalUser(updatedUser);
         onProfileUpdate?.(updatedUser);
         message.success("Profile picture uploaded and saved");
@@ -125,8 +125,7 @@ export const UserSidebar = ({
       okType: "danger",
       onOk: async () => {
         try {
-          const currentUserRaw = localStorage.getItem("userData");
-          const parsed = currentUserRaw ? JSON.parse(currentUserRaw) : {};
+          const parsed = authService.getCurrentUser() || {};
           await api.patch("/users/update", {
             fullName: parsed.fullName,
             email: parsed.email,
@@ -134,7 +133,7 @@ export const UserSidebar = ({
             profileImage: null,
           });
           const updatedUser = { ...parsed, profileImage: null };
-          localStorage.setItem("userData", JSON.stringify(updatedUser));
+          authService.setCurrentUser(updatedUser);
           setLocalUser(updatedUser);
           onProfileUpdate?.(updatedUser);
           message.success("Profile picture removed");
@@ -281,19 +280,12 @@ export const UserSidebar = ({
                   boxShadow: "0 4px 14px 0 rgba(0, 0, 0, 0.15)",
                 }}
               >
-                {localUser?.profileImage ? (
-                  <img
-                    src={localUser.profileImage}
-                    alt="User avatar"
-                    className="w-full h-full object-cover rounded-full"
-                  />
-                ) : (
-                  <Avatar
-                    size={75}
-                    icon={<UserOutlined />}
-                    className="bg-gradient-to-r from-cyan-500 to-blue-500"
-                  />
-                )}
+                <Avatar
+                  size={75}
+                  src={localUser?.profileImage || undefined}
+                  icon={<UserOutlined />}
+                  className="bg-gradient-to-r from-cyan-500 to-blue-500"
+                />
               </div>
 
 
