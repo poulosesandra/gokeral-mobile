@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Spin, Empty, Card, Avatar, Rate, Tag, Button, message, Modal, Input } from 'antd';
 import { PhoneOutlined, EnvironmentOutlined, CarOutlined, CloseOutlined } from '@ant-design/icons';
 import { bookingApi } from '../../../services/api';
+import bookingService from '../../../services/bookingService';
 
 const mapVehicleType = (t?: string) => {
   if (!t) return 'Auto';
@@ -134,6 +135,12 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
         try {
             setLoading(true);
 
+            if (!Number.isFinite(pickupLatitude) || !Number.isFinite(pickupLongitude) || (pickupLatitude === 0 && pickupLongitude === 0)) {
+                message.error('Pickup location is missing. Please choose a pickup point first.');
+                setDrivers([]);
+                return;
+            }
+
             // Try operating-area endpoint first
             let fetched: Driver[] = [];
             try {
@@ -146,9 +153,19 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                     },
                 });
                 fetched = normalizeNearbyDrivers(response.data).slice(0, maxDrivers);
-            } catch (err) {
-                console.error('Driver search failed', err);
-                message.error('Failed to load nearby drivers. Please try again.');
+            } catch (err: any) {
+                const status = err?.response?.status;
+                const backendMessage = err?.response?.data?.message;
+                console.error('Driver search failed', {
+                    status,
+                    backendMessage,
+                    data: err?.response?.data,
+                });
+                message.error(
+                    backendMessage
+                        ? `Failed to load nearby drivers (${status ?? 'error'}): ${backendMessage}`
+                        : 'Failed to load nearby drivers. Please try again.'
+                );
                 fetched = [];
             }
 
@@ -191,14 +208,20 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                         const vehicleId = (driver.vehicle as any)?._id || (driver.vehicle as any)?.id;
                         if (!vehicleId) return [driver._id, null] as const;
 
-                        const response = await bookingApi.post('/bookings/estimate-fare', {
-                            distanceInMeters,
-                            durationInSeconds,
+                        const response = await bookingService.estimateFare({
+                            distance: {
+                                text: leg.distance?.text || `${(distanceInMeters / 1000).toFixed(1)} km`,
+                                value: distanceInMeters,
+                            },
+                            duration: {
+                                text: leg.duration?.text || `${Math.ceil(durationInSeconds / 60)} mins`,
+                                value: durationInSeconds,
+                            },
                             vehicleId,
                             vehicleType: driver.vehicle?.vehicleType || driver.vehicle?.type,
                         });
 
-                        const estimatedFare = response?.data?.estimatedFare ?? response?.data?.fareBreakdown?.total;
+                        const estimatedFare = response?.estimatedFare ?? response?.fareBreakdown?.total;
                         return [driver._id, typeof estimatedFare === 'number' ? estimatedFare : null] as const;
                     } catch {
                         return [driver._id, null] as const;

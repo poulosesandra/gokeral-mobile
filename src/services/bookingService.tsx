@@ -1,4 +1,4 @@
-import { bookingApi } from './api';
+import { bookingApi, driverApi } from './api';
 
 /**
  * ✅ BOOKING SERVICE - SPRINT 2 MICROSERVICE
@@ -49,24 +49,55 @@ interface CreateBookingData {
   destination: Location;
   distance: Distance;
   duration: Duration;
-  vehicleId?: string;
-  driverId?: string;
+  route: {
+    summary: string;
+    polyline: string;
+    waypoints?: any[];
+    bounds?: {
+      northeast: Coordinates;
+      southwest: Coordinates;
+    };
+  };
+  price: {
+    baseFare?: number;
+    minimumFare: number;
+    bookingFee: number;
+    total: number;
+  };
   vehicleType?: string;
   paymentMethod?: 'CASH' | 'CARD' | 'UPI' | 'WALLET';
-  scheduledAt?: string; // ISO 8601 format
-  notes?: string;
+  userInfo: {
+    date: string;
+    time: string;
+    name: string;
+    scheduledDateTime: string;
+    phone: string;
+  };
+  selectedDriverId?: string;
+  selectedVehicleId?: string;
+  passengers?: number;
+  userNotes?: string;
+  vehiclePreference?: string;
 }
 
 interface EstimateFareData {
-  distanceInMeters: number;  // Distance in meters (e.g., 5200)
-  durationInSeconds: number; // Duration in seconds (e.g., 900)
+  distance: {
+    text: string;
+    value: number;
+  };
+  duration: {
+    text: string;
+    value: number;
+  };
   vehicleId?: string;
   vehicleType?: string;
+  driverId?: string;
 }
 
 interface RateBookingData {
   rating: number; // 1-5
-  review?: string;
+  feedback?: string;
+  review?: string; // alias for backward compatibility
 }
 
 interface VerifyOtpData {
@@ -128,26 +159,40 @@ const loadRazorpayScript = async (): Promise<boolean> => {
 const bookingService = {
   /**
    * Estimate fare for a trip
-   * Endpoint: POST /bookings/estimate-fare
+   * Endpoint: POST /bookings/estimate-fare (fallback: /bookings/estimate)
    * Auth: Required (USER or DRIVER role)
    */
   async estimateFare(estimateFareData: EstimateFareData) {
-    const res = await bookingApi.post('/bookings/estimate-fare', estimateFareData);
-    return res.data;
+    try {
+      const estimatePayload = {
+        distanceInMeters: estimateFareData?.distance?.value,
+        durationInSeconds: estimateFareData?.duration?.value,
+        vehicleId: estimateFareData?.vehicleId,
+        vehicleType: (estimateFareData as any)?.vehicleType,
+      };
+      const res = await bookingApi.post('/bookings/estimate-fare', estimatePayload);
+      return res.data;
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        const res = await bookingApi.post('/bookings/estimate', estimateFareData);
+        return res.data;
+      }
+      throw error;
+    }
   },
 
   /**
    * Find nearby available drivers
    * Endpoint: GET /bookings/nearby-drivers
-   * Auth: Required (USER role)
+   * Auth: Required (USER or DRIVER role)
    */
   async findNearbyDrivers(latitude: number, longitude: number, vehicleType: string, radius: number = 5) {
     const res = await bookingApi.get('/bookings/nearby-drivers', {
       params: {
         pickupLat: latitude,
         pickupLng: longitude,
-        vehicleType,
         radiusKm: radius,
+        vehicleType,
       }
     });
     return res.data;
@@ -155,12 +200,20 @@ const bookingService = {
 
   /**
    * Create a new booking (ride request)
-   * Endpoint: POST /bookings
-   * Auth: Required (USER role)
+   * Endpoint: POST /bookings (fallback: /bookings/create)
+   * Auth: Required (USER or DRIVER role)
    */
   async createBooking(createBookingData: CreateBookingData) {
-    const res = await bookingApi.post('/bookings', createBookingData);
-    return res.data;
+    try {
+      const res = await bookingApi.post('/bookings', createBookingData);
+      return res.data;
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        const res = await bookingApi.post('/bookings/create', createBookingData);
+        return res.data;
+      }
+      throw error;
+    }
   },
 
   /**
@@ -224,12 +277,12 @@ const bookingService = {
   },
 
   /**
-   * Reject a booking (driver only)
-   * Endpoint: POST /bookings/:bookingId/reject
+   * Reject a ride request (driver only)
+   * Endpoint: POST /api/rides/:rideId/reject
    * Auth: Required (DRIVER role)
    */
   async rejectBooking(bookingId: string) {
-    const res = await bookingApi.post(`/bookings/${bookingId}/reject`);
+    const res = await bookingApi.post(`/api/rides/${bookingId}/reject`);
     return res.data;
   },
 
@@ -264,13 +317,26 @@ const bookingService = {
   },
 
   /**
-   * Update booking status
-   * Endpoint: PATCH /bookings/:bookingId/status
-   * Auth: Required (USER or DRIVER role)
+   * Update booking lifecycle actions using supported backend endpoints
+   * Supported status transitions are mapped to explicit routes.
    */
   async updateBookingStatus(bookingId: string, status: string) {
-    const res = await bookingApi.patch(`/bookings/${bookingId}/status`, { status });
-    return res.data;
+    if (status === 'CANCELLED') {
+      const res = await bookingApi.patch(`/bookings/${bookingId}/cancel`);
+      return res.data;
+    }
+
+    if (status === 'DRIVER_ARRIVED') {
+      const res = await bookingApi.patch(`/bookings/${bookingId}/arrived`);
+      return res.data;
+    }
+
+    if (status === 'COMPLETED') {
+      const res = await bookingApi.post(`/bookings/${bookingId}/complete`);
+      return res.data;
+    }
+
+    throw new Error(`Unsupported booking status transition: ${status}`);
   },
 
   async createPaymentOrder(bookingId: string, payload: CreatePaymentOrderData) {
@@ -308,13 +374,17 @@ const bookingService = {
     return res.data;
   },
 
-  async updateRideLocation(bookingId: string, payload: RideLocationData) {
-    const res = await bookingApi.post(`/bookings/${bookingId}/location`, payload);
+  async updateRideLocation(_bookingId: string, payload: RideLocationData) {
+    const res = await driverApi.patch('/driver-profiles/me/location', {
+      latitude: payload.lat,
+      longitude: payload.lng,
+      isOnline: true,
+    });
     return res.data;
   },
 
   async getRideLocation(bookingId: string) {
-    const res = await bookingApi.get(`/bookings/${bookingId}/location`);
+    const res = await bookingApi.get(`/api/rides/${bookingId}/driver-location`);
     return res.data;
   },
 
@@ -372,9 +442,8 @@ const bookingService = {
 
   /**
    * Stream real-time ride requests for driver (SSE)
-   * Endpoint: GET /ride-requests/stream
-   * Auth: Required (DRIVER role)
-   * Returns: EventSource for Server-Sent Events
+   * NOTE: Legacy SSE endpoint is not implemented on current backend.
+   * This helper is kept for compatibility but may not be usable locally.
    */
   createRideRequestStream() {
     const token = localStorage.getItem('token');

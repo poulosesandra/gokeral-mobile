@@ -144,14 +144,8 @@ export const DriverProfile = () => {
       if (hookRejectRide) {
         await hookRejectRide(pendingRide.bookingId);
       } else {
-        await bookingApi.post(`/bookings/${pendingRide.bookingId}/reject`);
+        await bookingApi.post(`/api/rides/${pendingRide.bookingId}/reject`);
       }
-
-      message.info("Ride rejected");
-      setRideModalOpen(false);
-      setPendingRide(null);
-    } catch {
-      message.error("Failed to reject ride");
     } finally {
       setRejectLoading(false);
     }

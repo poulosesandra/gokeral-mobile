@@ -23,27 +23,43 @@ const LocationPermissionModal: React.FC<LocationPermissionModalProps> = ({
         setErrorMessage('');
 
         try {
-            await authService.requestAndUpdateDriverLocation();
-            setStatus('success');
+            if (!navigator.geolocation) {
+                throw new Error('Geolocation is not supported by your browser.');
+            }
 
-            // Wait a moment to show success state, then close
-            setTimeout(() => {
-                onSuccess();
-                onClose();
-            }, 1500);
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    try {
+                        await authService.updateDriverLocation(latitude, longitude);
+                        setStatus('success');
+
+                        setTimeout(() => {
+                            onSuccess();
+                            onClose();
+                        }, 1500);
+                    } catch (error: any) {
+                        setStatus('error');
+                        setErrorMessage(error.message || 'Failed to sync location with server. Please try again.');
+                    }
+                },
+                (error) => {
+                    setStatus('error');
+                    if (error.code === 1) {
+                        setErrorMessage('Location permission denied. Please enable location access in your browser settings.');
+                    } else if (error.code === 2) {
+                        setErrorMessage('Unable to determine your location. Please check your GPS settings.');
+                    } else if (error.code === 3) {
+                        setErrorMessage('Location request timed out. Please try again.');
+                    } else {
+                        setErrorMessage(error.message || 'Failed to get location. Please try again.');
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
         } catch (error: any) {
             setStatus('error');
-
-            // Handle specific geolocation errors
-            if (error.code === 1) {
-                setErrorMessage('Location permission denied. Please enable location access in your browser settings.');
-            } else if (error.code === 2) {
-                setErrorMessage('Unable to determine your location. Please check your GPS settings.');
-            } else if (error.code === 3) {
-                setErrorMessage('Location request timed out. Please try again.');
-            } else {
-                setErrorMessage(error.message || 'Failed to get location. Please try again.');
-            }
+            setErrorMessage(error.message || 'Failed to get location. Please try again.');
         }
     };
 

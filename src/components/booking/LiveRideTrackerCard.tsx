@@ -118,65 +118,11 @@ const LiveRideTrackerCard: React.FC<LiveRideTrackerCardProps> = ({ booking }) =>
   useEffect(() => {
     if (!bookingId || !isTrackable) return;
 
-    const token = localStorage.getItem('token');
-    const bookingBase = (import.meta.env.VITE_BOOKING_SERVICE_URL || (import.meta.env.DEV ? 'http://localhost:3004' : '')).replace(/\/$/, '');
-    const streamUrl = `${bookingBase}/bookings/${bookingId}/location/stream`;
-    const controller = new AbortController();
+    const interval = window.setInterval(() => {
+      void fetchLocation();
+    }, 5000);
 
-    fetch(streamUrl, {
-      method: 'GET',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok || !res.body) {
-          throw new Error(`Ride location stream failed (${res.status})`);
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const events = buffer.split('\n\n');
-          buffer = events.pop() || '';
-
-          for (const eventChunk of events) {
-            const dataLine = eventChunk
-              .split('\n')
-              .find((line) => line.startsWith('data:'));
-
-            if (!dataLine) continue;
-
-            const payloadText = dataLine.slice(5).trim();
-            if (!payloadText) continue;
-
-            try {
-              const payload = JSON.parse(payloadText);
-              const status = String(payload?.status || booking?.status || '').toUpperCase();
-              if (status) setRideStatus(status);
-
-              const coords = getCoords(payload?.location?.coordinates);
-              if (coords) {
-                setDriverCoords(coords);
-              }
-            } catch {
-              // Ignore malformed SSE events.
-            }
-          }
-        }
-      })
-      .catch(() => {
-        // Fallback remains manual refresh and initial fetch.
-      });
-
-    return () => {
-      controller.abort();
-    };
+    return () => window.clearInterval(interval);
   }, [bookingId, isTrackable, booking?.status]);
 
   if (!isTrackable) {
