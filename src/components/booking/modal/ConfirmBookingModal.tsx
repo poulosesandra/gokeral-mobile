@@ -70,11 +70,6 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
     useEffect(() => {
         const fetchFare = async () => {
             try {
-                if (!selectedVehicle?.vehicleId) {
-                    setBackendEstimatedFare(null);
-                    return;
-                }
-
                 const distanceMeters = Number(tripDetails.distanceValueMeters || 0);
                 const durationSeconds = Number(tripDetails.durationValueSeconds || 0);
 
@@ -84,8 +79,14 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                 }
 
                 const response = await bookingService.estimateFare({
-                    distanceInMeters: distanceMeters,
-                    durationInSeconds: durationSeconds,
+                    distance: {
+                        text: tripDetails.distance,
+                        value: distanceMeters,
+                    },
+                    duration: {
+                        text: tripDetails.duration,
+                        value: durationSeconds,
+                    },
                     vehicleId: selectedVehicle.vehicleId,
                     vehicleType: selectedVehicle.vehicleType,
                 });
@@ -127,8 +128,8 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
             const bookingData: Record<string, unknown> = {
                 origin: {
                     coordinates: {
-                    lat: tripDetails.pickupLocation?.lat || 0,
-                    lng: tripDetails.pickupLocation?.lng || 0,
+                        lat: tripDetails.pickupLocation?.lat || 0,
+                        lng: tripDetails.pickupLocation?.lng || 0,
                     },
                     address: tripDetails.pickup,
                 },
@@ -147,20 +148,25 @@ const ConfirmBookingModal: React.FC<ConfirmBookingModalProps> = ({
                     text: tripDetails.duration,
                     value: durationInSeconds,
                 },
-                vehicleType: selectedVehicle.vehicleType,
                 paymentMethod,
-                scheduledAt: new Date().toISOString(),
-                notes:
-                    userNotes ||
-                    `Vehicle: ${mapVehicleType(selectedVehicle.vehicleType)}, Fare: ₹${estimatedFare}, Driver: ${selectedVehicle.driverName || 'Driver'}, Driver Phone: ${selectedVehicle.phoneNumber || 'N/A'}, Passenger: ${user.fullName || user.name || 'Guest'} (${tripDetails.passengers})`,
             };
+
+            if (selectedVehicle.vehicleId) {
+                bookingData.vehicleId = selectedVehicle.vehicleId;
+            }
 
             if (selectedVehicle.id) {
                 bookingData.driverId = selectedVehicle.id;
             }
 
-            if (selectedVehicle.vehicleId) {
-                bookingData.vehicleId = selectedVehicle.vehicleId;
+            if (selectedVehicle.vehicleType) {
+                bookingData.vehicleType = selectedVehicle.vehicleType;
+            }
+
+            if (userNotes || selectedVehicle) {
+                bookingData.notes =
+                    userNotes ||
+                    `Vehicle: ${mapVehicleType(selectedVehicle.vehicleType)}, Driver: ${selectedVehicle.driverName || 'Driver'}, Passenger: ${String(user?.fullName || user?.name || 'Guest')} (${tripDetails.passengers})`;
             }
 
             console.log('🔵 [CONFIRM BOOKING] Creating booking:', bookingData);

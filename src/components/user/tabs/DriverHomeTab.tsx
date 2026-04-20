@@ -6,7 +6,7 @@ import type { FC } from "react";
 import { useJsApiLoader } from "@react-google-maps/api";
 import MapArea from "../../map/MapArea";
 import { authService } from "../../../services/authServices";
-import { bookingApi } from "../../../services/api";
+import { bookingApi, driverApi } from "../../../services/api";
 
 const GOOGLE_MAPS_LIBRARIES: ("places")[] = ["places"];
 
@@ -67,6 +67,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
   const locationRequestRef = useRef(false);
 
   const [lastOtpError, setLastOtpError] = useState<string | null>(null);
+  const [completingRide, setCompletingRide] = useState(false);
 
   const extractApiErrorMessage = (err: unknown, fallback: string): string => {
     const obj = err as Record<string, unknown>;
@@ -109,9 +110,11 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     try {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
-          setDriverLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          const latitude = pos.coords.latitude;
+          const longitude = pos.coords.longitude;
+          setDriverLocation({ lat: latitude, lng: longitude });
           try {
-            await authService.requestAndUpdateDriverLocation();
+            await authService.updateDriverLocation(latitude, longitude);
             message.success("Location updated successfully! You are now visible to customers.");
           } catch (err) {
             console.error("Failed to update location on backend:", err);
@@ -199,57 +202,8 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     }
   }, [role, extractBookingFromResponse]);
 
-  // --- helper: connect to SSE using fetch so we can send Authorization header --- 
-  const connectSseWithAuth = useCallback((url: string, onMessage: (data: unknown) => void) => {
-    const token = localStorage.getItem('token');
-    const controller = new AbortController();
+  // --- deprecated SSE helper removed; driver pending bookings are polled via the bookings API ---
 
-    fetch(url, {
-      method: 'GET',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`SSE connect failed (${res.status})`);
-        const reader = res.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        const readLoop = async () => {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split('\n\n');
-            buffer = events.pop() ?? '';
-            for (const ev of events) {
-              const line = ev.split('\n').find(l => l.startsWith('data:'));
-              if (!line) continue;
-              const json = line.slice(5).trim();
-              try {
-                const parsed = JSON.parse(json);
-                onMessage(parsed);
-              } catch (parseErr) {
-                console.warn('[SSE] could not parse data', parseErr);
-              }
-            }
-          }
-        };
-
-        readLoop().catch((err: any) => {
-          if (err?.name === 'AbortError') return;
-          console.error('[SSE] read loop error', err);
-        });
-      })
-      .catch((err: any) => {
-        if (err?.name === 'AbortError') return;
-        console.error('[SSE] connect error', err);
-      });
-
-    return () => controller.abort();
-  }, []);
-
-  // --- replace polling effect with event-driven logic ---
   useEffect(() => {
     let cleanup: undefined | (() => void);
 
@@ -257,35 +211,36 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       // initial fetch
       fetchCurrent();
 
-      const bookingBase = (import.meta.env.VITE_BOOKING_SERVICE_URL || (import.meta.env.DEV ? 'http://localhost:3004' : '')).replace(/\/$/, '');
-      const url = `${bookingBase}/ride-requests/stream`;
+      const pollPendingBookings = async () => {
+        try {
+          const res = await bookingApi.get('/ride-requests/pending');
+          const data = res.data;
+          const bookings = Array.isArray(data?.bookings)
+            ? data.bookings
+            : Array.isArray(data)
+              ? data
+              : [];
 
-      cleanup = connectSseWithAuth(url, (payload: unknown) => {
-        // payloads from server: { event: 'connected' } or { event: 'new_ride_request', booking: {...} }
-        const p = payload as Record<string, unknown>;
-        const bookingData = (p?.booking ?? p?.data ?? payload) as unknown;
-        const booking = extractBookingFromResponse(bookingData);
-        if (booking) {
-          if (booking.status) booking.status = String(booking.status).toUpperCase();
-          setActiveBooking(booking);
-          if (["ACCEPTED", "DRIVER_ARRIVED"].includes(booking.status ?? '')) {
-            setShowOtpPanel(true);
-          } else if (booking.status === 'IN_PROGRESS' && !manualToggleRef.current) {
-            setShowOtpPanel(false);
+          const booking = extractBookingFromResponse(bookings[0]);
+          if (booking) {
+            if (booking.status) booking.status = String(booking.status).toUpperCase();
+            setActiveBooking(booking);
+            if (["ACCEPTED", "DRIVER_ARRIVED"].includes(booking.status ?? '')) {
+              setShowOtpPanel(true);
+            } else if (booking.status === 'IN_PROGRESS' && !manualToggleRef.current) {
+              setShowOtpPanel(false);
+            }
+          } else {
+            setActiveBooking(null);
+            if (!manualToggleRef.current) setShowOtpPanel(false);
           }
-        } else {
-          setActiveBooking(null);
-          if (role === 'DRIVER' && !manualToggleRef.current) setShowOtpPanel(false);
+        } catch (err: unknown) {
+          console.error('[DriverHome] failed to poll pending bookings', err);
         }
-        // Emit an app-wide event so Header can increment the bell in real-time
-        if (p?.event === 'new_ride_request') {
-          try {
-            window.dispatchEvent(new CustomEvent('ride-request', { detail: { booking } }));
-          } catch {
-            // ignore if CustomEvent fails in older browsers
-          }
-        }
-      });
+      };
+
+      const interval = window.setInterval(pollPendingBookings, 5000);
+      cleanup = () => window.clearInterval(interval);
     } else if (role === 'USER') {
       // single fetch on mount
       fetchCurrent();
@@ -295,7 +250,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
     }
 
     return () => { if (cleanup) cleanup(); };
-  }, [role, fetchCurrent, connectSseWithAuth, extractBookingFromResponse]);
+  }, [role, fetchCurrent, extractBookingFromResponse]);
 
   const handleToggleOtp = () => {
     setShowOtpPanel((s) => {
@@ -438,7 +393,7 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
 
     setArriving(true);
     try {
-      const res = await bookingApi.patch(`/bookings/${bookingIdToUse}/status`, { status: 'DRIVER_ARRIVED' });
+      const res = await bookingApi.patch(`/bookings/${bookingIdToUse}/arrived`);
       const data = res.data;
 
       const booking = extractBookingFromResponse(data) || data;
@@ -458,6 +413,52 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
       message.error(err);
     } finally {
       setArriving(false);
+    }
+  };
+
+  const handleForceCompleteRide = async () => {
+    const bookingIdToUse =
+      activeBooking?._id ||
+      activeBooking?.id ||
+      activeBooking?.bookingId ||
+      activeBooking?.rideId ||
+      undefined;
+
+    if (!bookingIdToUse) {
+      message.error('Cannot complete ride: no connected booking.');
+      return;
+    }
+
+    const status = String(activeBooking?.status || '').toUpperCase();
+    if (!['ACCEPTED', 'DRIVER_ARRIVED', 'IN_PROGRESS'].includes(status)) {
+      message.error('Force complete is only available for active rides.');
+      return;
+    }
+
+    setCompletingRide(true);
+    try {
+      if (status === 'ACCEPTED') {
+        try {
+          await bookingApi.patch(`/bookings/${bookingIdToUse}/arrived`);
+        } catch (innerError) {
+          console.warn('[DriverHome] force complete could not mark arrived first', innerError);
+        }
+      }
+
+      const res = await bookingApi.post(`/bookings/${bookingIdToUse}/complete`);
+      const booking = extractBookingFromResponse(res.data) || null;
+      if (booking) {
+        if (booking.status) booking.status = String(booking.status).toUpperCase();
+        setActiveBooking(booking);
+      }
+      message.success('Ride force-completed successfully without live tracking.');
+      await fetchCurrent();
+    } catch (err: unknown) {
+      console.error('[DriverHome] complete ride failed', err);
+      const error = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string })?.message || 'Failed to complete ride';
+      message.error(error);
+    } finally {
+      setCompletingRide(false);
     }
   };
 
@@ -601,15 +602,22 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
         lastRideLocationPushAtRef.current = now;
 
         try {
-          await bookingApi.post(`/bookings/${bookingId}/location`, {
-            lat,
-            lng,
-            speedKmph: pos.coords.speed != null ? Math.max(0, Number(pos.coords.speed) * 3.6) : undefined,
-            heading: pos.coords.heading != null ? Number(pos.coords.heading) : undefined,
-            accuracyMeters: pos.coords.accuracy != null ? Number(pos.coords.accuracy) : undefined,
+          await driverApi.patch('/driver-profiles/me/location', {
+            latitude: lat,
+            longitude: lng,
+            isOnline: true,
           });
         } catch (error) {
-          console.warn('[DriverHome] Failed to push live ride location', error);
+          console.warn('[DriverHome] Failed to push live ride location via driver profile endpoint', error);
+          try {
+            await driverApi.post('/drivers/location/update', {
+              latitude: lat,
+              longitude: lng,
+              isOnline: true,
+            });
+          } catch (innerError) {
+            console.warn('[DriverHome] Fallback driver location update failed', innerError);
+          }
         }
       },
       (error) => {
@@ -700,6 +708,11 @@ export const DriverHomeTab: FC<DriverHomeTabProps> = () => {
               {activeBooking && activeBooking.status === 'ACCEPTED' && (
                 <Button onClick={handleMarkArrived} loading={arriving}>
                   Mark Arrival
+                </Button>
+              )}
+              {activeBooking && ['ACCEPTED', 'DRIVER_ARRIVED', 'IN_PROGRESS'].includes(String(activeBooking.status || '').toUpperCase()) && (
+                <Button danger loading={completingRide} onClick={handleForceCompleteRide}>
+                  Force Complete Ride (Demo)
                 </Button>
               )}
               {activeBooking && (

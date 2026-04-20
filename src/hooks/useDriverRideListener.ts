@@ -64,13 +64,15 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
             // On success mark endpoint available (in case it was unknown)
             pendingRidesAvailable = true;
 
-            const rides = Array.isArray(payload?.requests)
-                ? payload.requests
-                : Array.isArray(payload?.rides)
-                    ? payload.rides
-                    : Array.isArray(payload)
-                        ? payload
-                        : [];
+            const rides = Array.isArray(payload?.bookings)
+                ? payload.bookings
+                : Array.isArray(payload)
+                    ? payload
+                    : Array.isArray(payload?.requests)
+                        ? payload.requests
+                        : Array.isArray(payload?.rides)
+                            ? payload.rides
+                            : [];
 
             if (rides.length > 0) {
                 const ride = rides[0];
@@ -99,7 +101,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
             const status = err?.response?.status;
             if (status === 404) {
                   pendingRidesAvailable = false;
-                  console.warn('[useDriverRideListener] /ride-requests/pending not available — disabling further checks');
+                console.warn('[useDriverRideListener] /ride-requests/pending not available — disabling further checks');
                   setError('Pending rides endpoint not available');
                   return;
             }
@@ -240,7 +242,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         async (rideId: string) => {
             try {
                 setLoading(true);
-                await bookingApi.post(`/bookings/${rideId}/reject`);
+                await bookingApi.post(`/api/rides/${rideId}/reject`);
 
                 setNewRideRequest(null);
                 setError(null);
@@ -256,14 +258,21 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
 
     const updateLocation = useCallback(
         async (_rideId: string, latitude: number, longitude: number) => {
+            const payload = {
+                latitude,
+                longitude,
+                isOnline: true,
+            };
+
             try {
-                await driverApi.patch('/driver-profiles/me/location', {
-                    latitude,
-                    longitude,
-                    isOnline: true,
-                });
+                await driverApi.patch('/driver-profiles/me/location', payload);
             } catch (err) {
-                console.error('Error updating driver location:', err);
+                console.warn('Warning: /driver-profiles/me/location failed, trying /drivers/location/update', err);
+                try {
+                    await driverApi.post('/drivers/location/update', payload);
+                } catch (finalError) {
+                    console.error('Error updating driver location on all endpoints:', finalError);
+                }
             }
         },
         [driverId]
@@ -273,7 +282,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         async (rideId: string) => {
             try {
                 setLoading(true);
-                await bookingApi.patch(`/bookings/${rideId}/status`, { status: 'DRIVER_ARRIVED' });
+                await bookingApi.patch(`/bookings/${rideId}/arrived`);
 
                 setArrivedSuccess(true);
                 setError(null);
@@ -288,10 +297,10 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
     );
 
     const startRide = useCallback(
-        async (rideId: string, _otp: string) => {
+        async (rideId: string, otp: string) => {
             try {
                 setLoading(true);
-                await bookingApi.patch(`/bookings/${rideId}/status`, { status: 'IN_PROGRESS' });
+                await bookingApi.post(`/bookings/${rideId}/verify-otp`, { otp });
 
                 setRideStarted(true);
                 setArrivedSuccess(false);
@@ -310,7 +319,7 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
         async (rideId: string) => {
             try {
                 setLoading(true);
-                await bookingApi.patch(`/bookings/${rideId}/status`, { status: 'COMPLETED' });
+                await bookingApi.post(`/bookings/${rideId}/complete`);
 
                 setRideCompleted(true);
                 setAcceptSuccess(false);
@@ -328,13 +337,10 @@ export const useDriverRideListener = (driverId: string, enabled: boolean = true)
     );
 
     const cancelRide = useCallback(
-        async (rideId: string, reason?: string) => {
+        async (rideId: string, _reason?: string) => {
             try {
                 setLoading(true);
-                await bookingApi.patch(`/bookings/${rideId}/status`, {
-                    status: 'CANCELLED',
-                    reason: reason || 'Driver cancelled',
-                });
+                await bookingApi.patch(`/bookings/${rideId}/cancel`);
 
                 setAcceptSuccess(false);
                 setRideStarted(false);

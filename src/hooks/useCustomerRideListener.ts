@@ -153,10 +153,20 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
                     },
                 };
 
-                const response = await bookingApi.post('/bookings', payload);
-                const data = response.data;
-                setError(null);
-                return data;
+                try {
+                    const response = await bookingApi.post('/bookings', payload);
+                    const data = response.data;
+                    setError(null);
+                    return data;
+                } catch (error: any) {
+                    if (error?.response?.status === 404) {
+                        const fallbackResponse = await bookingApi.post('/bookings/create', payload);
+                        const data = fallbackResponse.data;
+                        setError(null);
+                        return data;
+                    }
+                    throw error;
+                }
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Error requesting ride';
                 setError(errorMessage);
@@ -183,13 +193,10 @@ export const useCustomerRideListener = (userId: string, rideId?: string, enabled
     );
 
     const cancelRide = useCallback(
-        async (rideId: string, reason?: string) => {
+        async (rideId: string, _reason?: string) => {
             try {
                 setLoading(true);
-                await bookingApi.patch(`/bookings/${rideId}/status`, {
-                    status: 'CANCELLED',
-                    cancelReason: reason || 'Customer cancelled',
-                });
+                await bookingApi.patch(`/bookings/${rideId}/cancel`);
 
                 setRideCancelled(true);
                 setRideAccepted(null);

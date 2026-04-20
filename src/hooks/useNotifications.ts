@@ -16,8 +16,8 @@ export const useNotifications = (_intervalMs = 10000) => {
         setCount(
           Array.isArray(data)
             ? data.length
-            : Array.isArray(data?.requests)
-              ? data.requests.length
+            : Array.isArray(data?.bookings)
+              ? data.bookings.length
               : Number(data?.count ?? data?.length ?? 0),
         );
       } else {

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, type FC } from "react";
 import { Card, Empty, Tag, Spin, Button, Modal, message, Space, Pagination, Alert, Steps } from "antd";
 import { EnvironmentOutlined, ClockCircleOutlined, DollarOutlined, ReloadOutlined } from "@ant-design/icons";
-import { bookingApi } from "../../../services/api";
+import { bookingApi, driverApi } from "../../../services/api";
 import DriverRideNavigatorCard from "../../booking/DriverRideNavigatorCard";
 
 interface Booking {
@@ -384,7 +384,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
     setRejectLoadingMap((m) => ({ ...m, [id]: true }));
 
     try {
-      const res = await bookingApi.post(`/bookings/${id}/reject`);
+      const res = await bookingApi.post(`/api/rides/${id}/reject`);
 
       message.success(res.data?.message || "Ride rejected");
 
@@ -455,7 +455,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
 
     setActionLoading(bookingId, true);
     try {
-      await bookingApi.patch(`/bookings/${bookingId}/status`, { status: "DRIVER_ARRIVED" });
+      await bookingApi.patch(`/bookings/${bookingId}/arrived`);
       message.success("Driver arrival marked successfully");
       window.dispatchEvent(new Event("booking:updated"));
       await fetchBookings(currentPage, pageSize);
@@ -477,6 +477,35 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
     try {
       await bookingApi.post(`/bookings/${bookingId}/complete`);
       message.success("Ride completed successfully");
+      window.dispatchEvent(new Event("booking:updated"));
+      await fetchBookings(currentPage, pageSize);
+      await syncDriverPaymentState(bookingId);
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || error?.message || "Failed to complete ride");
+    } finally {
+      setActionLoading(bookingId, false);
+    }
+  };
+
+  const handleForceCompleteRide = async (booking: Booking) => {
+    const bookingId = getBookingId(booking);
+    if (!bookingId) {
+      message.error("Missing booking id");
+      return;
+    }
+
+    setActionLoading(bookingId, true);
+    try {
+      const status = String(booking.status || '').toUpperCase();
+      if (status === 'ACCEPTED') {
+        try {
+          await bookingApi.patch(`/bookings/${bookingId}/arrived`);
+        } catch (innerError) {
+          console.warn('[DriverBookingsTab] force complete could not mark arrived first', innerError);
+        }
+      }
+      await bookingApi.post(`/bookings/${bookingId}/complete`);
+      message.success("Ride force-completed successfully (demo)");
       window.dispatchEvent(new Event("booking:updated"));
       await fetchBookings(currentPage, pageSize);
       await syncDriverPaymentState(bookingId);
@@ -521,7 +550,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
     setDetailsModalOpen(true);
   };
 
-  const pushLocationOnce = async (bookingId: string) => {
+  const pushLocationOnce = async () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       message.error("Geolocation is not supported by your browser.");
       return;
@@ -547,13 +576,19 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
 
       setDriverCoords({ lat: coords.lat, lng: coords.lng });
 
-      await bookingApi.post(`/bookings/${bookingId}/location`, {
-        lat: coords.lat,
-        lng: coords.lng,
-        speedKmph: coords.speedKmph,
-        heading: coords.heading,
-        accuracyMeters: coords.accuracyMeters,
-      });
+      try {
+        await driverApi.patch('/driver-profiles/me/location', {
+          latitude: coords.lat,
+          longitude: coords.lng,
+          isOnline: true,
+        });
+      } catch {
+        await driverApi.post('/drivers/location/update', {
+          latitude: coords.lat,
+          longitude: coords.lng,
+          isOnline: true,
+        });
+      }
     } catch (error: any) {
       message.warning(error?.message || "Unable to refresh live location");
     } finally {
@@ -683,15 +718,21 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
         lastRideLocationPushAtRef.current = now;
 
         try {
-          await bookingApi.post(`/bookings/${bookingId}/location`, {
-            lat,
-            lng,
-            speedKmph: pos.coords.speed != null ? Math.max(0, Number(pos.coords.speed) * 3.6) : undefined,
-            heading: pos.coords.heading != null ? Number(pos.coords.heading) : undefined,
-            accuracyMeters: pos.coords.accuracy != null ? Number(pos.coords.accuracy) : undefined,
+          await driverApi.patch('/driver-profiles/me/location', {
+            latitude: lat,
+            longitude: lng,
+            isOnline: true,
           });
         } catch {
-          // Keep navigator alive even if one location write fails.
+          try {
+            await driverApi.post('/drivers/location/update', {
+              latitude: lat,
+              longitude: lng,
+              isOnline: true,
+            });
+          } catch {
+            // Keep navigator alive even if one location write fails.
+          }
         }
       },
       () => {
@@ -876,6 +917,16 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
                 Complete Ride
               </Button>
             ),
+            ['ACCEPTED', 'DRIVER_ARRIVED'].includes(String(selectedBooking.status || "").toUpperCase()) && (
+              <Button
+                key="force-complete"
+                danger
+                loading={!!actionLoadingMap[String(getBookingId(selectedBooking) || "")]}
+                onClick={() => void handleForceCompleteRide(selectedBooking)}
+              >
+                Force Complete Ride (Demo)
+              </Button>
+            ),
             String(selectedBooking.status || "").toUpperCase() === "DRIVER_ARRIVED" && (
               <Button
                 key="start-via-otp"
@@ -954,12 +1005,7 @@ export const DriverBookingsTab: FC<DriverBookingsTabProps> = ({ openBookingId, o
                 driverCoords={driverCoords}
                 refreshing={refreshingLocation}
                 onRefreshLocation={async () => {
-                  const bookingId = getBookingId(selectedBooking);
-                  if (!bookingId) {
-                    message.error("Missing booking id for live navigation");
-                    return;
-                  }
-                  await pushLocationOnce(bookingId);
+                  await pushLocationOnce();
                 }}
               />
             )}

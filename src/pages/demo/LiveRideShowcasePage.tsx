@@ -181,7 +181,7 @@ const LiveRideShowcasePage = () => {
       }
 
       if (action === "arrived") {
-        await bookingApi.patch(`/bookings/${bookingId}/status`, { status: "DRIVER_ARRIVED" });
+        await bookingApi.patch(`/bookings/${bookingId}/arrived`);
         message.success("Driver arrival marked");
       }
 

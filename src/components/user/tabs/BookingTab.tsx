@@ -351,7 +351,7 @@ export const BookingsTabUser = (_props: BookingsTabProps) => {
       setRatingLoading(true);
       await bookingService.rateBooking(selectedBooking._id, {
         rating,
-        review,
+        feedback: review,
       });
       message.success("Rating submitted successfully");
       setRatingModalOpen(false);

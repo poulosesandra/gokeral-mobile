@@ -113,28 +113,6 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
     setIsSelectDriverModalOpen(true);
   }, [pickupLocation]);
 
-  const handleProceedDemoBypass = useCallback(() => {
-    if (!pickupLocation) {
-      message.error('Please select a pickup location first');
-      return;
-    }
-
-    const fallbackVehicle: VehicleData = {
-      id: '',
-      vehicleId: '',
-      driverName: 'Auto Assignment (Demo Mode)',
-      make: 'Kerides',
-      vehicleModel: vehicleTypeLabels[vehicleType],
-      year: new Date().getFullYear(),
-      seatsNo: vehicleType === 'SUV' ? 7 : vehicleType === 'AUTO' ? 3 : 4,
-      licensePlate: 'PENDING-ASSIGNMENT',
-      rating: 4.8,
-      vehicleType,
-    };
-
-    setSelectedVehicle(fallbackVehicle);
-    setIsConfirmBookingModalOpen(true);
-  }, [pickupLocation, vehicleType]);
 
   const handleDriverSelected = useCallback(async (driver: DriverData) => {
     try {
@@ -217,13 +195,6 @@ const BookingPanel: React.FC<BookingPanelProps> = ({ visible, route, onClose, on
             aria-label="Proceed to find drivers"
           >
             Proceed
-          </button>
-          <button
-            onClick={handleProceedDemoBypass}
-            className="w-56 bg-blue-50 text-blue-700 py-3 rounded-lg hover:bg-blue-100 transition font-medium"
-            aria-label="Skip nearby driver selection"
-          >
-            Skip Nearby (Demo)
           </button>
           <button
             onClick={handleClosePanel}

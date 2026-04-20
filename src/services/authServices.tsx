@@ -127,14 +127,36 @@ export const authService = {
     if (user) {
       const role = user.role || (user.driverLicenseNumber ? 'DRIVER' : 'USER');
       localStorage.setItem('userRole', role);
+      try {
+        localStorage.setItem('currentUser', JSON.stringify(user));
+      } catch {
+        // ignore localStorage serialization issues
+      }
     } else {
       localStorage.removeItem('userRole');
+      localStorage.removeItem('currentUser');
     }
   },
 
-  // Get current user from memory only.
+  // Get current user from memory first, fallback to persisted storage.
   getCurrentUser: () => {
-    return authService._currentUser;
+    if (authService._currentUser) {
+      return authService._currentUser;
+    }
+
+    const raw = localStorage.getItem('currentUser');
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      const stored = JSON.parse(raw);
+      authService._currentUser = stored;
+      return stored;
+    } catch {
+      localStorage.removeItem('currentUser');
+      return null;
+    }
   },
 
   // Check if authenticated
@@ -161,6 +183,8 @@ export const authService = {
     }
 
     this.setToken(token);
+    // Rehydrate any cached user profile while session validation completes.
+    authService.getCurrentUser();
 
     try {
       const sessionRes = await api.get('/auth/session');
@@ -175,7 +199,13 @@ export const authService = {
         throw new Error('Session payload is missing user identity fields');
       }
 
-      this.setCurrentUser(normalizedSessionUser);
+      const existingUser = authService.getCurrentUser() || {};
+      const mergedSessionUser = {
+        ...existingUser,
+        ...normalizedSessionUser,
+      };
+
+      this.setCurrentUser(mergedSessionUser);
       console.log('✅ [INIT AUTH] Token validated from DB-backed session endpoint');
 
       if (normalizedSessionUser.role === 'DRIVER') {
@@ -208,8 +238,12 @@ export const authService = {
   clearAuth() {
     this.setToken(null);
     this.setCurrentUser(null);
-    localStorage.clear();
-    sessionStorage.clear();
+    localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('currentUser');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('userRole');
+    sessionStorage.removeItem('currentUser');
     this._ready = true;
   },
 
@@ -421,22 +455,17 @@ export const authService = {
   },
 
   fetchDriverProfile: async () => {
-    // Get account data from localStorage (from login)
     const currentUser = authService.getCurrentUser();
-    
-    try {
-      // Fetch driver profile data from backend
-      const profileRes = await driverApi.get('/driver-profiles/me');
-      const profileData = profileRes.data;
+
+    const mapDriverProfile = async (profileData: any) => {
       const resolvedProfileImage = await authService.resolveDriverFileViewUrl(
         profileData.profileImage || currentUser?.profileImage || '',
       );
-      
-      // Merge account data with profile data
+
       return {
-        ...currentUser,                           // fullName, email, phoneNumber, role from login
-        licenseNumber: profileData.licenseNumber, // From driver profile
-        driverLicenseNumber: profileData.licenseNumber, // Alias for frontend compatibility
+        ...currentUser,
+        licenseNumber: profileData.licenseNumber,
+        driverLicenseNumber: profileData.licenseNumber,
         profileImage: resolvedProfileImage || null,
         bloodGroup: profileData.bloodGroup,
         dateOfBirth: profileData.dateOfBirth || profileData.dob,
@@ -445,7 +474,6 @@ export const authService = {
         licensedSince: profileData.licensedSince,
         experienceYears: profileData.experienceYears,
         isOnline: profileData.isOnline || false,
-        // Map nested structure for frontend compatibility
         personalInfo: {
           bloodGroup: profileData.bloodGroup,
           dob: profileData.dateOfBirth || profileData.dob,
@@ -467,12 +495,22 @@ export const authService = {
           professionalTrainingCertificate: profileData.professionalTrainingCertificate || '',
         },
       };
+    };
+
+    try {
+      const profileRes = await driverApi.get('/driver-profiles/me');
+      return await mapDriverProfile(profileRes.data);
     } catch (error: any) {
-      // If profile doesn't exist (404), return just account data
-      if (error.response?.status === 404) {
+      if (error.response?.status === 401) {
+        throw error;
+      }
+
+      try {
+        const fallback = await driverApi.get('/drivers/profile');
+        return await mapDriverProfile(fallback.data);
+      } catch {
         return currentUser;
       }
-      throw error;
     }
   },
 
@@ -668,6 +706,7 @@ export const authService = {
     const source = String(fileUrl || '').trim();
     if (!source) return source;
     if (source.startsWith('data:')) return source;
+    if (/X-Amz-Algorithm=/i.test(source)) return source; // already signed
 
     const canPresign = /^https?:\/\//i.test(source) || source.startsWith('driver-documents/');
     if (!canPresign) return source;
@@ -756,18 +795,14 @@ export const authService = {
   }) => {
     const payload: any = {};
     
-    // Map profile fields (accept both root-level and nested legacy structure)
     payload.bloodGroup = data.bloodGroup ?? data.personalInfo?.bloodGroup;
     payload.dateOfBirth = data.dateOfBirth ?? data.personalInfo?.dob;
     payload.languages = data.languages ?? data.personalInfo?.languages;
     payload.licenseNumber = (data as any).licenseNumber ?? data.driverLicenseNumber;
-    
-    // Map drivingExperience fields
     payload.licensedSince = data.licensedSince ?? (data as any).drivingExperience?.licensedSince;
     payload.experienceYears = data.experienceYears ?? (data as any).drivingExperience?.yearsOfExperience;
+
     if ((data as any).profileImage !== undefined) payload.profileImage = (data as any).profileImage;
-    
-    // Sprint 2: Individual document uploads
     if ((data as any).drivingLicenseCertificate) payload.drivingLicenseCertificate = (data as any).drivingLicenseCertificate;
     if ((data as any).policeClearanceCertificate) payload.policeClearanceCertificate = (data as any).policeClearanceCertificate;
     if ((data as any).medicalFitnessCertificate) payload.medicalFitnessCertificate = (data as any).medicalFitnessCertificate;
@@ -775,7 +810,6 @@ export const authService = {
     if ((data as any).professionalTrainingCertificate) payload.professionalTrainingCertificate = (data as any).professionalTrainingCertificate;
     if ((data as any).emergencyContact) payload.emergencyContact = (data as any).emergencyContact;
 
-    // Remove undefined keys so DTO validation remains clean
     Object.keys(payload).forEach((key) => {
       if (payload[key] === undefined) delete payload[key];
     });
@@ -783,8 +817,6 @@ export const authService = {
     console.log('🔵 [UPDATE DRIVER PROFILE] Sending:', payload);
     
     const res = await driverApi.put('/driver-profiles/me', payload);
-    
-    // Merge updated profile with current user data
     const currentUser = authService.getCurrentUser();
     const updatedData = {
       ...currentUser,
@@ -795,14 +827,21 @@ export const authService = {
         bloodGroup: res.data.bloodGroup,
         dob: res.data.dateOfBirth || res.data.dob,
         languages: res.data.languages || [],
-        emergencyContact: res.data.emergencyContact || { name: "", phone: "", relationship: "" },
+        certificates: [
+          res.data.drivingLicenseCertificate,
+          res.data.policeClearanceCertificate,
+          res.data.medicalFitnessCertificate,
+          res.data.addressProof,
+          res.data.professionalTrainingCertificate,
+        ].filter(Boolean),
+        emergencyContact: res.data.emergencyContact || { name: '', phone: '', relationship: '' },
       },
       documents: {
-        drivingLicenseCertificate: res.data.drivingLicenseCertificate,
-        policeClearanceCertificate: res.data.policeClearanceCertificate,
-        medicalFitnessCertificate: res.data.medicalFitnessCertificate,
-        addressProof: res.data.addressProof,
-        professionalTrainingCertificate: res.data.professionalTrainingCertificate,
+        drivingLicenseCertificate: res.data.drivingLicenseCertificate || '',
+        policeClearanceCertificate: res.data.policeClearanceCertificate || '',
+        medicalFitnessCertificate: res.data.medicalFitnessCertificate || '',
+        addressProof: res.data.addressProof || '',
+        professionalTrainingCertificate: res.data.professionalTrainingCertificate || '',
       },
     };
     
@@ -813,6 +852,31 @@ export const authService = {
   // ==================== LOCATION METHODS ====================
 
   // Update Driver Location (Real-time tracking)
+  updateDriverLocation: async (latitude: number, longitude: number) => {
+    const payload = {
+      latitude,
+      longitude,
+      isOnline: true,
+    };
+
+    try {
+      console.log('📍 [DRIVER LOCATION] Sending to /driver-profiles/me/location with payload:', payload);
+      const response = await driverApi.patch('/driver-profiles/me/location', payload);
+      console.log('✅ [DRIVER LOCATION] Updated via /driver-profiles/me/location:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.warn('⚠️ [DRIVER LOCATION] /driver-profiles/me/location failed, trying /drivers/location/update', error.response?.data || error.message);
+      try {
+        const response = await driverApi.post('/drivers/location/update', payload);
+        console.log('✅ [DRIVER LOCATION] Updated via /drivers/location/update:', response.data);
+        return response.data;
+      } catch (finalError: any) {
+        console.error('❌ [DRIVER LOCATION] All location endpoints failed:', finalError.response?.data || finalError.message);
+        throw finalError;
+      }
+    }
+  },
+
   requestAndUpdateDriverLocation: async () => {
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
@@ -821,16 +885,9 @@ export const authService = {
             const { latitude, longitude } = position.coords;
 
             console.log('📍 [DRIVER LOCATION] Getting location:', { latitude, longitude });
+            const responseData = await authService.updateDriverLocation(latitude, longitude);
 
-            // Send location to driver-service - PATCH /driver-profiles/me/location
-            const response = await driverApi.patch('/driver-profiles/me/location', {
-              latitude,
-              longitude,
-              isOnline: true,
-            });
-
-            console.log('✅ [DRIVER LOCATION] Updated:', response.data);
-            resolve(response.data);
+            resolve(responseData);
           } catch (error: any) {
             console.error('❌ [DRIVER LOCATION] Update failed:', error.response?.data || error.message);
             reject(error);
