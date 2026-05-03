@@ -27,6 +27,8 @@ interface Driver {
     longitude: number;
     distance: number;
     isOnline: boolean;
+    priorityGroup?: 'STAND' | 'NEAREST';
+    matchSource?: string;
     vehicle?: {
         make: string;
         vehicleModel: string;
@@ -59,6 +61,8 @@ interface RawNearbyDriver {
     isOnline?: boolean;
     estimatedArrival?: number;
     rating?: number;
+    priorityGroup?: 'STAND' | 'NEAREST' | string;
+    matchSource?: string;
     vehicle?: Driver['vehicle'];
     latitude?: number;
     longitude?: number;
@@ -94,6 +98,8 @@ const normalizeNearbyDrivers = (payload: any): Driver[] => {
             longitude: item.longitude || 0,
             distance: typeof item.distance === 'number' ? item.distance : 0,
             isOnline: item.isOnline ?? true,
+            priorityGroup: item.priorityGroup as 'STAND' | 'NEAREST' | undefined,
+            matchSource: item.matchSource,
             vehicle: item.vehicle,
         };
     });
@@ -255,6 +261,15 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
         return name.includes(q) || make.includes(q) || model.includes(q);
     });
 
+    const standDrivers = filteredDrivers.filter((driver) => driver.priorityGroup === 'STAND');
+    const nearbyDrivers = filteredDrivers.filter((driver) => driver.priorityGroup !== 'STAND');
+    const orderedDrivers = [...standDrivers, ...nearbyDrivers];
+
+    const getPriorityLabel = (driver: Driver) => {
+        if (driver.priorityGroup === 'STAND') return 'Stand Driver';
+        return 'Nearby Driver';
+    };
+
     return (
         <Modal title="Select Driver" open={isOpen} onCancel={onClose} footer={null} width={600} centered closeIcon={<CloseOutlined />}>
             <div className="space-y-4">
@@ -272,7 +287,7 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
                     ) : (
                         <div className="space-y-3">
                             <p className="text-sm text-gray-600 font-medium">✅ {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} available within 2 km</p>
-                            {filteredDrivers.map((driver, index) => (
+                            {orderedDrivers.map((driver, index) => (
                                 <Card key={driver._id || driver.driverId} className="cursor-pointer hover:shadow-md transition-shadow border border-gray-200" onClick={() => { onSelectDriver(driver); onClose(); }}>
                                     <div className="flex justify-between items-start gap-3">
                                         {/* Driver Info */}
@@ -301,12 +316,16 @@ const SelectDriverModal: React.FC<SelectDriverModalProps> = ({
 
                                             <div className="flex-1">
                                                 {/* Driver Name & Number */}
-                                                <div className="flex items-center justify-between">
-                                                    <h4 className="font-semibold text-gray-800">
-                                                        {index + 1}. {driver.fullName}
-                                                    </h4>
+                                                <div className="flex items-center justify-between gap-2">
                                                     <div className="flex items-center gap-2">
-                                                        {/* Price (from old VehicleListModal) */}
+                                                        <h4 className="font-semibold text-gray-800">
+                                                            {index + 1}. {driver.fullName}
+                                                        </h4>
+                                                        <Tag color={driver.priorityGroup === 'STAND' ? 'blue' : 'gold'} className="text-xs font-semibold">
+                                                            {getPriorityLabel(driver)}
+                                                        </Tag>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
                                                         {typeof estimatedFareByDriver[driver._id] === 'number' && (
                                                             <Tag color="green" className="text-xs font-bold">
                                                                 ₹{Math.round(estimatedFareByDriver[driver._id])}
