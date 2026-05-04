@@ -27,6 +27,8 @@ interface Driver {
     longitude: number;
     distance: number;
     isOnline: boolean;
+    priorityGroup?: 'STAND' | 'NEAREST';
+    matchSource?: string;
     operatingArea?: string;
     vehicle?: {
         make: string;
@@ -90,19 +92,30 @@ const NearbyDrivers: React.FC<NearbyDriversProps> = ({ latitude, longitude, radi
         );
     }
 
+    const standDrivers = drivers.filter((driver) => driver.priorityGroup === 'STAND');
+    const otherDrivers = drivers.filter((driver) => driver.priorityGroup !== 'STAND');
+    const orderedDrivers = [...standDrivers, ...otherDrivers];
+
     return (
         <div className="flex flex-col gap-3 mt-4 pt-4">
             <h3 className="font-semibold text-gray-700">Available Drivers Nearby</h3>
             <div className="text-xs text-gray-500 mb-2">
                 {drivers.length} driver{drivers.length !== 1 ? 's' : ''} within {radius} km
             </div>
-            {drivers.map((driver) => (
+            {orderedDrivers.map((driver) => (
                 <Card
                     key={driver._id}
                     className="cursor-pointer hover:shadow-lg transition-shadow"
                     onClick={() => onSelectDriver?.(driver)}
                 >
                     <div className="flex justify-between items-start gap-3">
+                        <div className="flex items-center gap-2">
+                            {driver.priorityGroup && (
+                                <Tag color={driver.priorityGroup === 'STAND' ? 'blue' : 'gold'}>
+                                    {driver.priorityGroup === 'STAND' ? 'Stand Driver' : 'Nearby Driver'}
+                                </Tag>
+                            )}
+                        </div>
                         <div className="flex gap-3 flex-1">
                             <Avatar
                                 size={48}

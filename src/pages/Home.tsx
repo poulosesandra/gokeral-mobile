@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Car, Truck, MapPin, Star, Users, Ambulance, CheckCircle } from "lucide-react";
-import { Hero, Vehicles, Features, Destinations, Testimonials, CTA, BackendProgress } from "../components/homepage";
+import { Hero, Vehicles, Features, Destinations, Testimonials, CTA } from "../components/homepage";
 import Header from "../components/homepage/Header";
 import Footer from "../components/homepage/Footer";
 // Using raw Cloudinary URLs for images; no helper is required
@@ -105,9 +105,6 @@ const HomePage = () => {
 
       {/* Features with Layered Parallax */}
       <Features features={features} />
-
-      {/* Backend Progress */}
-      <BackendProgress />
 
       {/* Popular Destinations */}
       <Destinations destinations={destinations} isLargeScreen={isLargeScreen} />
