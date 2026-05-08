@@ -13,6 +13,15 @@ import ContactPage from "../pages/contact/contact";
 import DriverPersonalInfoModal from "../components/driver/driverprofile/modal/driverAddDetails";
 import Maps from "../pages/map/Maps";
 import LiveRideShowcasePage from "../pages/demo/LiveRideShowcasePage";
+import AdminGuard from "../components/admin/AdminGuard";
+import AdminLayout from "../pages/admin/AdminLayout";
+import AdminDashboard from "../pages/admin/AdminDashboard";
+import AdminLogin from "../pages/admin/AdminLogin";
+import StandsPage from "../pages/admin/StandsPage";
+import DriversPage from "../pages/admin/DriversPage";
+import VehiclesPage from "../pages/admin/VehiclesPage";
+import BookingsPage from "../pages/admin/BookingsPage";
+import UsersPage from "../pages/admin/UsersPage";
 
 export const router = createBrowserRouter([
   {
@@ -35,6 +44,10 @@ export const router = createBrowserRouter([
   {
     path: "/driver/register",
     element: <DriverRegistration />,
+  },
+  {
+    path: "/admin/login",
+    element: <AdminLogin />,
   },
   {
     path: "/driver/add-vehicle",
@@ -68,6 +81,22 @@ export const router = createBrowserRouter([
   {
     path: "/live-demo",
     element: <LiveRideShowcasePage />,
+  },
+  {
+    path: "/admin",
+    element: (
+      <AdminGuard>
+        <AdminLayout />
+      </AdminGuard>
+    ),
+    children: [
+      { path: "", element: <AdminDashboard /> },
+      { path: "stands", element: <StandsPage /> },
+      { path: "drivers", element: <DriversPage /> },
+      { path: "vehicles", element: <VehiclesPage /> },
+      { path: "bookings", element: <BookingsPage /> },
+      { path: "users", element: <UsersPage /> },
+    ],
   },
   // Legacy routes for backward compatibility
   {
