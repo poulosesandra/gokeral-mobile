@@ -4,7 +4,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { authService, type LoginCredentials } from "../../services/authServices";
 
 interface LoginFormProps {
-  userType: "user" | "driver";
+  userType: "user" | "driver" | "admin";
   navigateTo: string;
   registerLink: string;
   switchLoginLink?: string;
@@ -61,6 +61,8 @@ const LoginForm = ({
     try {
       const res = await (userType === "driver"
         ? authService.driverLogin(formData)
+        : userType === "admin"
+        ? authService.adminLogin(formData)
         : authService.userLogin(formData));
 
       // Check for accessToken (new backend structure)
@@ -68,14 +70,16 @@ const LoginForm = ({
         console.log('✅ Login successful, user role:', res.user.role);
         
         // CRITICAL: Validate that user's role matches the login form type
-        const expectedRole = userType === "driver" ? "DRIVER" : "USER";
+        const expectedRole = userType === "driver" ? "DRIVER" : userType === "admin" ? "ADMIN" : "USER";
         const actualRole = res.user.role?.toUpperCase();
         
         if (actualRole !== expectedRole) {
           console.error('❌ Role mismatch: expected', expectedRole, 'but got', actualRole);
           authService.clearAuth(); // Clear the valid but wrong-role login
           
-          if (actualRole === "DRIVER" && expectedRole === "USER") {
+          if (expectedRole === "ADMIN") {
+            setError("This account does not have admin access. Please use the correct login page.");
+          } else if (actualRole === "DRIVER" && expectedRole === "USER") {
             setError("This is a driver account. Please use the Driver Login page.");
           } else if (actualRole === "USER" && expectedRole === "DRIVER") {
             setError("This is a user account. Please use the User Login page.");
@@ -86,7 +90,7 @@ const LoginForm = ({
         }
         
         console.log('✅ Role validated, navigating to:', navigateTo);
-        navigate(navigateTo || (userType === "driver" ? "/driver/profile" : "/map"));
+        navigate(navigateTo || (userType === "driver" ? "/driver/profile" : userType === "admin" ? "/admin" : "/map"));
       } else {
         console.error('❌ Login response missing accessToken:', res);
         setError("Login failed - invalid response from server");

@@ -1,7 +1,10 @@
 import api, { setAuthToken, userApi, driverApi, bookingApi } from './api';
 
 export const getLoginPathForRole = (role?: string | null): string => {
-  return String(role || '').toUpperCase() === 'DRIVER' ? '/driver/login' : '/user/login';
+  const normalized = String(role || '').toUpperCase();
+  if (normalized === 'DRIVER') return '/driver/login';
+  if (normalized === 'ADMIN') return '/admin/login';
+  return '/user/login';
 };
 
 // Extracted for test mocking
@@ -420,6 +423,39 @@ export const authService = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [DRIVER LOGIN] Error:', {
+        message: error.response?.data?.message || error.message,
+        status: error.response?.status,
+      });
+      throw error;
+    }
+  },
+
+  // Admin Login
+  adminLogin: async (data: LoginCredentials): Promise<AuthResponse> => {
+    try {
+      console.log('🔵 [ADMIN LOGIN] Sending request:', data.email);
+
+      const response = await api.post<AuthResponse>('/auth/login', data);
+
+      console.log('✅ [ADMIN LOGIN] Response:', response.data);
+
+      if (response.data.accessToken) {
+        authService.setToken(response.data.accessToken);
+        const existing = authService.getCurrentUser() || {};
+        const userData = {
+          ...existing,
+          ...response.data.user,
+          fullName: response.data.user.fullName || existing.fullName || '',
+          phoneNumber: response.data.user.phoneNumber || existing.phoneNumber || '',
+          profileImage: response.data.user.profileImage || existing.profileImage || null,
+        };
+        authService.setCurrentUser(userData);
+        console.log('💾 [ADMIN LOGIN] Saved user data:', userData);
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [ADMIN LOGIN] Error:', {
         message: error.response?.data?.message || error.message,
         status: error.response?.status,
       });
