@@ -22,6 +22,8 @@ import DriversPage from "../pages/admin/DriversPage";
 import VehiclesPage from "../pages/admin/VehiclesPage";
 import BookingsPage from "../pages/admin/BookingsPage";
 import UsersPage from "../pages/admin/UsersPage";
+import PaymentsPage from "../pages/admin/PaymentsPage";
+import ReportsPage from "../pages/admin/ReportsPage";
 
 export const router = createBrowserRouter([
   {
@@ -96,6 +98,8 @@ export const router = createBrowserRouter([
       { path: "vehicles", element: <VehiclesPage /> },
       { path: "bookings", element: <BookingsPage /> },
       { path: "users", element: <UsersPage /> },
+      { path: "payments", element: <PaymentsPage /> },
+      { path: "reports", element: <ReportsPage /> },
     ],
   },
   // Legacy routes for backward compatibility

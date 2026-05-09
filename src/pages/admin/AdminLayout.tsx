@@ -7,6 +7,8 @@ const navItems = [
   { label: "Vehicles", to: "/admin/vehicles" },
   { label: "Bookings", to: "/admin/bookings" },
   { label: "Users", to: "/admin/users" },
+  { label: "Payments", to: "/admin/payments" },
+  { label: "Reports", to: "/admin/reports" },
 ];
 
 const AdminLayout = () => {
